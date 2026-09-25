@@ -55,7 +55,8 @@
     Plus,
     X,
     FileSpreadsheet,
-    FileCheck
+    FileCheck,
+    Settings
   } from 'lucide-svelte';
   import AiAssistantModal from './AiAssistantModal.svelte';
 
@@ -71,6 +72,7 @@
     exportFormat: { format: string };
     printPdf: void;
     openShortcuts: void;
+    openSettings: void;
     undo: void;
     redo: void;
     ribbonAction: { action: string; payload?: any };
@@ -291,6 +293,15 @@
 
     <!-- Right: Export & Shortcuts -->
     <div class="flex items-center space-x-1.5">
+      <!-- Settings button -->
+      <button
+        class="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+        on:click={() => dispatch('openSettings')}
+        title="Settings ({modKey}+,)"
+      >
+        <Settings size={14} />
+      </button>
+
       <!-- Shortcuts button -->
       <button
         class="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
@@ -420,6 +431,11 @@
             <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('printPdf'); }}>
               <span>Print / Save to PDF</span>
               <span class="text-[10px] text-slate-400 font-mono">{modKey}+P</span>
+            </button>
+            <div class="border-t border-slate-800 my-1"></div>
+            <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('openSettings'); }}>
+              <span>Settings...</span>
+              <span class="text-[10px] text-slate-400 font-mono">{modKey}+,</span>
             </button>
           </div>
         {/if}

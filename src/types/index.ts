@@ -131,3 +131,27 @@ export interface FileFilter {
   name: string;
   extensions: string[];
 }
+
+export interface AppSettings {
+  theme: 'dark' | 'light' | 'system';
+  defaultMode: WorkspaceMode;
+  autoSaveIntervalMin: number;
+  language: string;
+  showRuler: boolean;
+  showStatusBar: boolean;
+  wordDefaultFont: string;
+  wordDefaultFontSize: number;
+  wordDefaultPageSize: 'a4' | 'letter';
+  wordSpellCheck: boolean;
+  sheetShowGridlines: boolean;
+  sheetCalculationMode: 'auto' | 'manual';
+  sheetShowFormulaBar: boolean;
+  slideDefaultRatio: '16:9' | '4:3';
+  slideDefaultTheme: string;
+  pdfDefaultZoom: string;
+  pdfHighlightFields: boolean;
+  aiProvider: 'local' | 'openai' | 'anthropic' | 'ollama';
+  aiApiKey: string;
+  aiModel: string;
+  aiTemperature: number;
+}

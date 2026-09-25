@@ -4,6 +4,9 @@
   import Header from './components/layout/Header.svelte';
   import StatusBar from './components/layout/StatusBar.svelte';
   import ShortcutsModal from './components/layout/ShortcutsModal.svelte';
+  import SettingsModal from './components/layout/SettingsModal.svelte';
+  import type { AppSettings } from './types';
+  import { loadSettings, saveSettings, DEFAULT_SETTINGS } from './lib/settings';
   import Writer from './components/writer/Writer.svelte';
   import Sheets from './components/sheets/Sheets.svelte';
   import Slides from './components/slides/Slides.svelte';
@@ -28,6 +31,15 @@
 
   let activeMode: WorkspaceMode = 'writer';
   let showShortcutsModal = false;
+  let showSettingsModal = false;
+  let appSettings: AppSettings = loadSettings();
+
+  onMount(() => {
+    appSettings = loadSettings();
+    if (appSettings.defaultMode) {
+      activeMode = appSettings.defaultMode;
+    }
+  });
 
   let writerRef: Writer;
   let sheetsRef: Sheets;
@@ -681,6 +693,12 @@
       }
     }
 
+    // Settings shortcut: Cmd+, or Ctrl+,
+    if (mod && e.key === ',') {
+      e.preventDefault();
+      showSettingsModal = !showSettingsModal;
+    }
+
     // Keyboard Shortcuts cheat sheet: Cmd+/ or Ctrl+/
     if (mod && (e.key === '/' || e.key === '?')) {
       e.preventDefault();
@@ -704,6 +722,7 @@
     on:exportFormat={handleExportFormat}
     on:printPdf={handlePrintPdf}
     on:openShortcuts={() => (showShortcutsModal = true)}
+    on:openSettings={() => (showSettingsModal = true)}
     on:undo={handleUndo}
     on:redo={handleRedo}
     on:ribbonAction={handleRibbonAction}
@@ -772,5 +791,19 @@
   <!-- Keyboard Shortcuts Cheat Sheet Modal -->
   {#if showShortcutsModal}
     <ShortcutsModal on:close={() => (showShortcutsModal = false)} />
+  {/if}
+
+  <!-- Application Settings Modal -->
+  {#if showSettingsModal}
+    <SettingsModal
+      bind:settings={appSettings}
+      on:close={() => (showSettingsModal = false)}
+      on:save={(e) => {
+        appSettings = e.detail;
+      }}
+      on:reset={() => {
+        appSettings = { ...DEFAULT_SETTINGS };
+      }}
+    />
   {/if}
 </div>
