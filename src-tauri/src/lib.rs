@@ -348,6 +348,22 @@ fn read_text_file(path: String) -> Result<String, String> {
         return Err(format!("File does not exist: {}", path));
     }
 
+    let bytes = fs::read(p).map_err(|e| format!("Failed to read file: {}", e))?;
+
+    // Check for ZIP magic bytes (PK\x03\x04 or PK\x05\x06 or PK\x07\x08)
+    if bytes.starts_with(b"PK") {
+        if let Ok(json) = parse_xlsx_archive(p) {
+            return Ok(json);
+        }
+        if let Ok(html) = parse_docx_archive(p) {
+            return Ok(html);
+        }
+        if let Ok(json) = parse_pptx_archive(p) {
+            return Ok(json);
+        }
+        return Err("This file is a compressed binary ZIP archive that could not be parsed as an office document.".to_string());
+    }
+
     let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
 
     // 1. Specialized OpenXML Office Binary Archive Parsers
@@ -366,7 +382,6 @@ fn read_text_file(path: String) -> Result<String, String> {
     }
 
     // 2. Universal Raw Byte Read with Lossy UTF-8 fallback (NEVER FAILS ON ENCODING)
-    let bytes = fs::read(p).map_err(|e| format!("Failed to read file: {}", e))?;
     Ok(String::from_utf8_lossy(&bytes).to_string())
 }
 

@@ -11,7 +11,6 @@ import { colToLetter, recalculateGrid } from '../components/sheets/formulaEngine
 
 export function exportToDocx(doc: WriterDocument): string {
   // Generates an HTML-based Word Document with Microsoft Office namespace markup
-  // Standard format recognized natively by Microsoft Word, LibreOffice, and Google Docs
   const title = doc.meta.title || 'Document';
   return `<!DOCTYPE html>
 <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -79,13 +78,11 @@ export function parseDocumentContent(raw: string, filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase();
   
   if (ext === 'docx' || ext === 'doc' || ext === 'html' || ext === 'htm') {
-    // If it's an HTML-based document or extracted HTML
     if (raw.includes('<body') || raw.includes('<div') || raw.includes('<p>')) {
       const bodyMatch = raw.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
       return bodyMatch ? bodyMatch[1] : raw;
     }
   } else if (ext === 'md') {
-    // Basic Markdown to HTML converter
     let html = raw
       .replace(/^### (.*$)/gim, '<h3>$1</h3>')
       .replace(/^## (.*$)/gim, '<h2>$1</h2>')
@@ -105,12 +102,10 @@ export function parseDocumentContent(raw: string, filename: string): string {
     }).join('\n');
     return paragraphs || `<p>${raw}</p>`;
   } else if (ext === 'rtf') {
-    // Strip RTF control words
     const clean = raw.replace(/\\[a-z]+(-?\d+)? ?|[{}]/gi, '').trim();
     return `<p>${clean.replace(/\n/g, '<br>')}</p>`;
   }
 
-  // Plain text fallback
   const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   return lines.map(l => `<p>${l}</p>`).join('\n') || `<p>${raw}</p>`;
 }
@@ -118,7 +113,6 @@ export function parseDocumentContent(raw: string, filename: string): string {
 // ---------------------- SPREADSHEET FORMATS (SHEETS) ----------------------
 
 export function exportToXlsx(workbook: SpreadsheetWorkbook): string {
-  // Generates an XML Spreadsheet 2003 (SpreadsheetML) file recognized natively by Microsoft Excel
   const activeSheet = workbook.sheets.find(s => s.id === workbook.activeSheetId) || workbook.sheets[0];
   
   let xmlRows = '';
@@ -166,17 +160,75 @@ ${xmlRows}
 export function parseSpreadsheetContent(raw: string, filename: string): Record<string, any> {
   const ext = filename.split('.').pop()?.toLowerCase();
 
-  // If CSV or TSV
-  const delimiter = ext === 'tsv' ? '\t' : ',';
-  const lines = raw.split(/\r?\n/).filter(Boolean);
-  const cells: Record<string, any> = {};
+  // If raw content starts with PK or [Content_Types].xml, it is a binary zip archive, not a CSV!
+  if (raw.startsWith('PK') || raw.includes('[Content_Types].xml')) {
+    console.error('Binary ZIP archive detected in CSV parser, aborting plain text parse');
+    return {};
+  }
 
-  lines.forEach((line, r) => {
-    const cols = line.split(delimiter);
-    cols.forEach((val, c) => {
-      const letter = colToLetter(c);
-      const clean = val.replace(/^"|"$/g, '').trim();
-      cells[`${letter}${r + 1}`] = { raw: clean, computed: clean };
+  // Robust RFC 4180 CSV / TSV parser handling commas inside quotes, CRLF, escaped quotes
+  const delimiter = ext === 'tsv' ? '\t' : ',';
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  let i = 0;
+  const len = raw.length;
+
+  while (i < len) {
+    const ch = raw[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (i + 1 < len && raw[i + 1] === '"') {
+          field += '"';
+          i += 2;
+        } else {
+          inQuotes = false;
+          i++;
+        }
+      } else {
+        field += ch;
+        i++;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+        i++;
+      } else if (ch === delimiter) {
+        row.push(field.trim());
+        field = '';
+        i++;
+      } else if (ch === '\r') {
+        if (i + 1 < len && raw[i + 1] === '\n') i++;
+        row.push(field.trim());
+        field = '';
+        rows.push(row);
+        row = [];
+        i++;
+      } else if (ch === '\n') {
+        row.push(field.trim());
+        field = '';
+        rows.push(row);
+        row = [];
+        i++;
+      } else {
+        field += ch;
+        i++;
+      }
+    }
+  }
+  if (field !== '' || row.length > 0) {
+    row.push(field.trim());
+    rows.push(row);
+  }
+
+  const cells: Record<string, any> = {};
+  rows.forEach((rFields, r) => {
+    rFields.forEach((val, c) => {
+      if (val !== '') {
+        const letter = colToLetter(c);
+        cells[`${letter}${r + 1}`] = { raw: val, computed: val };
+      }
     });
   });
 
@@ -186,7 +238,6 @@ export function parseSpreadsheetContent(raw: string, filename: string): Record<s
 // ---------------------- PRESENTATION FORMATS (SLIDES) ----------------------
 
 export function exportToPptxXml(deck: SlideDeck): string {
-  // Generates standalone portable presentation deck XML representation
   const slidesXml = deck.slides.map((s, idx) => {
     const elementsXml = s.elements.map(e => `
       <element id="${e.id}" type="${e.type}" x="${e.x}" y="${e.y}" width="${e.width}" height="${e.height}">

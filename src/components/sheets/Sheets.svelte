@@ -32,6 +32,7 @@
     change: void;
   }>();
 
+  let gridRef: Grid;
   let activeCell: string = 'B5';
   let rawValue: string = '';
 
@@ -122,6 +123,7 @@
 
   function handleFormulaCommit(e: CustomEvent<string>) {
     commitValue(activeCell, e.detail);
+    gridRef?.focusGrid();
   }
 
   function computeStats() {
@@ -226,6 +228,7 @@
       formula = row > 1 ? `=${fnName}(${col}1:${col}${row - 1})` : `=${fnName}()`;
     }
     commitValue(activeCell, formula);
+    gridRef?.focusGrid();
   }
 
   // Clipboard operations (Copy, Cut, Paste)
@@ -254,20 +257,59 @@
     }
   }
 
-  // Keyboard Shortcuts for Sheets
+  // Global Keyboard Navigation & Shortcuts for Sheets
   function handleWindowKeydown(e: KeyboardEvent) {
     const mod = e.ctrlKey || e.metaKey;
-    const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+    const target = e.target as HTMLElement;
+    const targetTag = target?.tagName?.toLowerCase();
 
-    // If typing inside an input element (formula bar or in-cell editor), don't hijack simple keys
-    if (targetTag === 'input' || targetTag === 'textarea') {
-      if (mod && e.key.toLowerCase() === 'z') {
-        // Let standard input undo work
-        return;
-      }
+    // If user is currently focused on the Formula Bar input, do not intercept simple arrow keys or characters
+    const isFormulaBarInput = targetTag === 'input' && target.getAttribute('placeholder')?.includes('formula');
+    if (isFormulaBarInput) {
       return;
     }
 
+    // If modal/dialog is open
+    if (target?.closest('.fixed') && !target?.closest('td')) {
+      return;
+    }
+
+    // 1. Navigation & In-place Editing Keys (when not actively editing inside a cell)
+    if (!gridRef?.isEditing()) {
+      if (!mod && !e.altKey) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          gridRef?.navigate(0, 1);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          gridRef?.navigate(0, -1);
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          gridRef?.navigate(1, 0);
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          gridRef?.navigate(-1, 0);
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          gridRef?.startEditing();
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          gridRef?.navigate(e.shiftKey ? -1 : 1, 0);
+        } else if (e.key === 'F2') {
+          e.preventDefault();
+          gridRef?.startEditing();
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault();
+          commitValue(activeCell, '');
+        } else if (e.key.length === 1 && !mod && !e.altKey && targetTag !== 'input') {
+          // Printable characters (e.g. =, numbers, letters) start editing directly
+          e.preventDefault();
+          gridRef?.startEditing(e.key);
+        }
+      }
+    }
+
+    // 2. Mod-Key Shortcuts
     if (mod && !e.shiftKey && !e.altKey) {
       if (e.key.toLowerCase() === 'b') {
         e.preventDefault();
@@ -278,23 +320,23 @@
       } else if (e.key.toLowerCase() === 'u') {
         e.preventDefault();
         toggleUnderline();
-      } else if (e.key.toLowerCase() === 'c') {
+      } else if (e.key.toLowerCase() === 'c' && !gridRef?.isEditing()) {
         e.preventDefault();
         copyActiveCell();
-      } else if (e.key.toLowerCase() === 'x') {
+      } else if (e.key.toLowerCase() === 'x' && !gridRef?.isEditing()) {
         e.preventDefault();
         cutActiveCell();
-      } else if (e.key.toLowerCase() === 'v') {
+      } else if (e.key.toLowerCase() === 'v' && !gridRef?.isEditing()) {
         e.preventDefault();
         pasteIntoActiveCell();
-      } else if (e.key.toLowerCase() === 'z') {
+      } else if (e.key.toLowerCase() === 'z' && !gridRef?.isEditing()) {
         e.preventDefault();
         triggerUndo();
-      } else if (e.key.toLowerCase() === 'y') {
+      } else if (e.key.toLowerCase() === 'y' && !gridRef?.isEditing()) {
         e.preventDefault();
         triggerRedo();
       }
-    } else if (mod && e.shiftKey && e.key.toLowerCase() === 'z') {
+    } else if (mod && e.shiftKey && e.key.toLowerCase() === 'z' && !gridRef?.isEditing()) {
       e.preventDefault();
       triggerRedo();
     }
@@ -338,7 +380,7 @@
       alert('A workbook must have at least one sheet.');
       return;
     }
-    if (confirm(`Delete sheet \"${sheet.name}\"?`)) {
+    if (confirm(`Delete sheet "${sheet.name}"?`)) {
       workbook.sheets = workbook.sheets.filter((s) => s.id !== sheet.id);
       workbook.activeSheetId = workbook.sheets[0].id;
       workbook.meta.isDirty = true;
@@ -388,15 +430,21 @@
   }
 
   export function importFromCsv(csvText: string) {
+    // Safety check: if binary zip archive, abort
+    if (csvText.startsWith('PK') || csvText.includes('[Content_Types].xml')) {
+      alert('This file is a binary Microsoft Excel workbook (.xlsx), not a plain text CSV. Please open it using the File menu or Open button.');
+      return;
+    }
+
     const lines = csvText.split(/\r?\n/).filter(Boolean);
     const newCells: SheetGrid = {};
 
     lines.forEach((line, r) => {
       const cols = line.split(',');
       cols.forEach((val, c) => {
-        const key = `${colToLetter(c)}${r + 1}`;
+        const letter = colToLetter(c);
         const clean = val.replace(/^"|"$/g, '').trim();
-        newCells[key] = { raw: clean, computed: clean };
+        newCells[`${letter}${r + 1}`] = { raw: clean, computed: clean };
       });
     });
 
@@ -618,6 +666,7 @@
 
   <!-- Grid View -->
   <Grid
+    bind:this={gridRef}
     grid={activeSheet.cells}
     rowCount={activeSheet.rowCount}
     colCount={activeSheet.colCount}

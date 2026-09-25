@@ -16,6 +16,7 @@
   let editingCell: string | null = null;
   let editInputVal: string = '';
   let editInputRef: HTMLInputElement | null = null;
+  let containerRef: HTMLDivElement | null = null;
 
   function getCellKey(col: number, row: number): string {
     return `${colToLetter(col)}${row + 1}`;
@@ -26,9 +27,10 @@
       commitEdit();
     }
     setActiveCell(key);
+    focusGrid();
   }
 
-  function setActiveCell(key: string) {
+  export function setActiveCell(key: string) {
     activeCell = key;
     const cell = grid[key];
     dispatch('selectCell', {
@@ -38,80 +40,76 @@
     });
   }
 
-  async function handleCellDblClick(key: string) {
-    activeCell = key;
-    editingCell = key;
-    editInputVal = grid[key]?.raw ?? '';
-    await tick();
-    if (editInputRef) {
-      editInputRef.focus();
-      editInputRef.select();
+  export function scrollToCell(key: string) {
+    const el = document.querySelector(`td[data-cell="${key}"]`);
+    if (el) {
+      (el as HTMLElement).scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
   }
 
-  function commitEdit() {
+  export function focusGrid() {
+    containerRef?.focus();
+  }
+
+  export function isEditing(): boolean {
+    return editingCell !== null;
+  }
+
+  export function getEditInputRef(): HTMLInputElement | null {
+    return editInputRef;
+  }
+
+  export async function startEditing(initialChar?: string) {
+    editingCell = activeCell;
+    editInputVal = initialChar !== undefined ? initialChar : (grid[activeCell]?.raw ?? '');
+    await tick();
+    if (editInputRef) {
+      editInputRef.focus();
+      if (initialChar !== undefined) {
+        editInputRef.setSelectionRange(initialChar.length, initialChar.length);
+      } else {
+        editInputRef.select();
+      }
+    }
+  }
+
+  export function cancelEditing() {
+    editingCell = null;
+    focusGrid();
+  }
+
+  export function commitEdit() {
     if (editingCell) {
       dispatch('cellChange', { key: editingCell, raw: editInputVal });
       editingCell = null;
+      focusGrid();
     }
+  }
+
+  export function navigate(dCol: number, dRow: number) {
+    if (editingCell) {
+      commitEdit();
+    }
+    const coord = parseCoord(activeCell);
+    if (!coord) return;
+    const newCol = Math.max(0, Math.min(colCount - 1, coord.col + dCol));
+    const newRow = Math.max(0, Math.min(rowCount - 1, coord.row + dRow));
+    const newKey = getCellKey(newCol, newRow);
+    setActiveCell(newKey);
+    scrollToCell(newKey);
   }
 
   function handleEditKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') {
       e.preventDefault();
       commitEdit();
-      // Move down on Enter
-      const coord = parseCoord(activeCell);
-      if (coord && coord.row + 1 < rowCount) {
-        setActiveCell(getCellKey(coord.col, coord.row + 1));
-      }
+      navigate(0, e.shiftKey ? -1 : 1);
     } else if (e.key === 'Tab') {
       e.preventDefault();
       commitEdit();
-      // Move right on Tab
-      const coord = parseCoord(activeCell);
-      if (coord && coord.col + 1 < colCount) {
-        setActiveCell(getCellKey(coord.col + 1, coord.row));
-      }
+      navigate(e.shiftKey ? -1 : 1, 0);
     } else if (e.key === 'Escape') {
-      editingCell = null;
-    }
-  }
-
-  async function handleTableKeydown(e: KeyboardEvent) {
-    if (editingCell) return;
-
-    const coord = parseCoord(activeCell);
-    if (!coord) return;
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (coord.row + 1 < rowCount) setActiveCell(getCellKey(coord.col, coord.row + 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (coord.row > 0) setActiveCell(getCellKey(coord.col, coord.row - 1));
-    } else if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      if (coord.col + 1 < colCount) setActiveCell(getCellKey(coord.col + 1, coord.row));
-    } else if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      if (coord.col > 0) setActiveCell(getCellKey(coord.col - 1, coord.row));
-    } else if (e.key === 'Enter' || e.key === 'F2') {
-      e.preventDefault();
-      await handleCellDblClick(activeCell);
-    } else if (e.key === 'Delete' || e.key === 'Backspace') {
-      e.preventDefault();
-      dispatch('cellChange', { key: activeCell, raw: '' });
-    } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      // Start typing directly into active cell (e.g. "=", numbers, letters)
-      editingCell = activeCell;
-      editInputVal = e.key;
-      e.preventDefault();
-      await tick();
-      if (editInputRef) {
-        editInputRef.focus();
-        editInputRef.setSelectionRange(1, 1);
-      }
+      cancelEditing();
     }
   }
 
@@ -143,9 +141,9 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
+  bind:this={containerRef}
   class="flex-1 overflow-auto bg-slate-200 select-none relative outline-none"
   tabindex="0"
-  on:keydown={handleTableKeydown}
 >
   <table class="border-collapse table-fixed bg-white text-xs">
     <!-- Header Row (Column Letters) -->
@@ -178,6 +176,7 @@
             {@const fmt = cell?.format}
 
             <td
+              data-cell={key}
               class="w-28 h-7 border-b border-r border-slate-200 px-2 py-1 text-slate-800 text-[11px] truncate relative cursor-cell transition-colors
                 {isSelected ? 'ring-2 ring-emerald-500 ring-inset z-10' : ''}"
               style="
@@ -191,7 +190,7 @@
                 text-align: {fmt?.align || 'left'};
               "
               on:click={() => handleCellClick(key)}
-              on:dblclick={() => handleCellDblClick(key)}
+              on:dblclick={() => startEditing()}
             >
               {#if isEditing}
                 <!-- In-place Cell Editor -->
@@ -201,7 +200,7 @@
                   bind:value={editInputVal}
                   on:blur={commitEdit}
                   on:keydown={handleEditKeydown}
-                  class="absolute inset-0 w-full h-full px-2 bg-white text-slate-900 border-2 border-emerald-600 outline-none z-20 font-mono text-xs"
+                  class="absolute inset-0 w-full h-full px-2 bg-white text-slate-900 border-2 border-emerald-600 outline-none z-20 font-mono text-xs shadow-md"
                 />
               {:else}
                 <div class="truncate">
