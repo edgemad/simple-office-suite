@@ -11,8 +11,16 @@
     FilePlus,
     Printer,
     ChevronDown,
-    FileCode,
-    FileType
+    Cloud,
+    HelpCircle,
+    Star,
+    Keyboard,
+    Undo2,
+    Redo2,
+    Search,
+    Link,
+    Table,
+    FileSpreadsheet
   } from 'lucide-svelte';
 
   export let activeMode: WorkspaceMode;
@@ -26,11 +34,19 @@
     saveAsDoc: void;
     exportFormat: { format: string };
     printPdf: void;
+    openShortcuts: void;
+    undo: void;
+    redo: void;
   }>();
 
   let isRenaming = false;
   let tempTitle = meta.title;
   let showExportMenu = false;
+  let activeMenu: string | null = null;
+  let isStarred = false;
+
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+  const modKey = isMac ? '⌘' : 'Ctrl';
 
   function commitRename() {
     if (tempTitle.trim()) {
@@ -50,221 +66,297 @@
 
   function handleExport(format: string) {
     showExportMenu = false;
+    activeMenu = null;
     dispatch('exportFormat', { format });
+  }
+
+  function closeMenus() {
+    activeMenu = null;
+    showExportMenu = false;
   }
 </script>
 
-<header class="no-print h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between select-none z-30 relative shadow-sm">
-  <!-- Left: Branding & Module Switcher -->
-  <div class="flex items-center space-x-6">
-    <div class="flex items-center space-x-2">
-      <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white font-bold shadow-md shadow-sky-500/20">
-        <span class="text-xs tracking-wider">SOS</span>
+<svelte:window on:click={closeMenus} />
+
+<header class="no-print bg-white border-b border-slate-200 select-none z-30 relative shadow-sm">
+  <!-- Top Row: Icon, Title, Offline Status, Mode Tabs, and Quick Actions -->
+  <div class="h-13 px-4 flex items-center justify-between">
+    <!-- Left: App Icon & Title & Offline Indicator -->
+    <div class="flex items-center space-x-3">
+      <!-- Google-Style App Icon -->
+      <div class="flex items-center space-x-2">
+        {#if activeMode === 'writer'}
+          <div class="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-500/20" title="Google Docs Compatible Word Processor">
+            <FileText size={18} />
+          </div>
+        {:else if activeMode === 'sheets'}
+          <div class="w-8 h-8 rounded bg-emerald-600 flex items-center justify-center text-white shadow-sm shadow-emerald-500/20" title="Google Sheets Compatible Spreadsheet">
+            <Sheet size={18} />
+          </div>
+        {:else}
+          <div class="w-8 h-8 rounded bg-amber-500 flex items-center justify-center text-white shadow-sm shadow-amber-500/20" title="Google Slides Compatible Presentations">
+            <Presentation size={18} />
+          </div>
+        {/if}
       </div>
-      <span class="font-bold text-slate-800 text-sm tracking-tight hidden sm:inline">Simple Office</span>
+
+      <!-- Title & Star & Offline Indicator -->
+      <div class="flex flex-col">
+        <div class="flex items-center space-x-2">
+          {#if isRenaming}
+            <input
+              type="text"
+              bind:value={tempTitle}
+              on:blur={commitRename}
+              on:keydown={handleKeydown}
+              class="border border-blue-500 px-1.5 py-0.5 rounded text-sm font-semibold text-slate-800 outline-none shadow-inner"
+            />
+          {:else}
+            <button
+              class="font-semibold text-slate-800 hover:text-slate-950 text-sm hover:bg-slate-100 px-2 py-0.5 rounded transition-colors text-left truncate max-w-[240px]"
+              on:click|stopPropagation={() => { tempTitle = meta.title; isRenaming = true; }}
+              title="Click to rename document"
+            >
+              {meta.title}
+            </button>
+          {/if}
+
+          <!-- Star Icon -->
+          <button
+            class="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-amber-500 transition-colors {isStarred ? 'text-amber-400' : ''}"
+            on:click|stopPropagation={() => (isStarred = !isStarred)}
+            title="Star Document"
+          >
+            <Star size={14} fill={isStarred ? 'currentColor' : 'none'} />
+          </button>
+
+          <!-- Google Workspace Style Offline Cloud Badge -->
+          <div
+            class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[11px] text-slate-500 hover:bg-slate-100 cursor-help transition-colors"
+            title="All changes saved to this Mac. 100% private & offline."
+          >
+            <Cloud size={14} class="text-slate-500" />
+            <span class="hidden md:inline font-medium">Saved to device</span>
+          </div>
+
+          {#if meta.isDirty}
+            <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Unsaved changes"></span>
+          {/if}
+        </div>
+
+        <!-- Google-Style Dropdown Menu Bar (File, Edit, View, Insert, Format, Help) -->
+        <div class="flex items-center space-x-1 -ml-1 text-[11px] text-slate-600 font-medium">
+          <!-- File Menu -->
+          <div class="relative">
+            <button
+              class="px-1.5 py-0.5 rounded hover:bg-slate-100 hover:text-slate-900 {activeMenu === 'file' ? 'bg-slate-100 text-slate-900' : ''}"
+              on:click|stopPropagation={() => (activeMenu = activeMenu === 'file' ? null : 'file')}
+            >
+              File
+            </button>
+            {#if activeMenu === 'file'}
+              <div class="absolute left-0 top-6 z-50 w-56 bg-white border border-slate-200 rounded-lg shadow-xl py-1 text-xs text-slate-700">
+                <button class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between" on:click|stopPropagation={() => { closeMenus(); dispatch('newDoc'); }}>
+                  <span>New Document</span>
+                  <span class="text-[10px] text-slate-400 font-mono">{modKey}+N</span>
+                </button>
+                <button class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between" on:click|stopPropagation={() => { closeMenus(); dispatch('openDoc'); }}>
+                  <span>Open...</span>
+                  <span class="text-[10px] text-slate-400 font-mono">{modKey}+O</span>
+                </button>
+                <div class="border-t border-slate-100 my-1"></div>
+                <button class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between" on:click|stopPropagation={() => { closeMenus(); dispatch('saveDoc'); }}>
+                  <span>Save</span>
+                  <span class="text-[10px] text-slate-400 font-mono">{modKey}+S</span>
+                </button>
+                <button class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between" on:click|stopPropagation={() => { closeMenus(); dispatch('saveAsDoc'); }}>
+                  <span>Save As...</span>
+                  <span class="text-[10px] text-slate-400 font-mono">{modKey}+⇧+S</span>
+                </button>
+                <div class="border-t border-slate-100 my-1"></div>
+                <button class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between" on:click|stopPropagation={() => { closeMenus(); dispatch('printPdf'); }}>
+                  <span>Print / Save to PDF</span>
+                  <span class="text-[10px] text-slate-400 font-mono">{modKey}+P</span>
+                </button>
+              </div>
+            {/if}
+          </div>
+
+          <!-- Edit Menu -->
+          <div class="relative">
+            <button
+              class="px-1.5 py-0.5 rounded hover:bg-slate-100 hover:text-slate-900 {activeMenu === 'edit' ? 'bg-slate-100 text-slate-900' : ''}"
+              on:click|stopPropagation={() => (activeMenu = activeMenu === 'edit' ? null : 'edit')}
+            >
+              Edit
+            </button>
+            {#if activeMenu === 'edit'}
+              <div class="absolute left-0 top-6 z-50 w-52 bg-white border border-slate-200 rounded-lg shadow-xl py-1 text-xs text-slate-700">
+                <button class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between" on:click|stopPropagation={() => { closeMenus(); dispatch('undo'); }}>
+                  <span>Undo</span>
+                  <span class="text-[10px] text-slate-400 font-mono">{modKey}+Z</span>
+                </button>
+                <button class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between" on:click|stopPropagation={() => { closeMenus(); dispatch('redo'); }}>
+                  <span>Redo</span>
+                  <span class="text-[10px] text-slate-400 font-mono">{modKey}+Y</span>
+                </button>
+              </div>
+            {/if}
+          </div>
+
+          <!-- Help Menu -->
+          <div class="relative">
+            <button
+              class="px-1.5 py-0.5 rounded hover:bg-slate-100 hover:text-slate-900 {activeMenu === 'help' ? 'bg-slate-100 text-slate-900' : ''}"
+              on:click|stopPropagation={() => (activeMenu = activeMenu === 'help' ? null : 'help')}
+            >
+              Help
+            </button>
+            {#if activeMenu === 'help'}
+              <div class="absolute left-0 top-6 z-50 w-60 bg-white border border-slate-200 rounded-lg shadow-xl py-1 text-xs text-slate-700">
+                <button class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between font-medium text-slate-800" on:click|stopPropagation={() => { closeMenus(); dispatch('openShortcuts'); }}>
+                  <div class="flex items-center space-x-2">
+                    <Keyboard size={14} class="text-blue-600" />
+                    <span>Keyboard Shortcuts</span>
+                  </div>
+                  <span class="text-[10px] text-slate-400 font-mono">{modKey}+/</span>
+                </button>
+              </div>
+            {/if}
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Workspace Tabs -->
-    <nav class="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+    <!-- Center: Google Workspace App Switcher (Docs, Sheets, Slides) -->
+    <nav class="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
       <button
-        class="flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all {activeMode === 'writer' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}"
+        class="flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all {activeMode === 'writer' ? 'bg-white text-blue-600 shadow-sm border border-slate-200/60' : 'text-slate-600 hover:text-slate-900'}"
         on:click={() => dispatch('changeMode', 'writer')}
+        title="Google Docs Mode ({modKey}+1)"
       >
-        <FileText size={15} />
-        <span>Writer</span>
+        <FileText size={15} class={activeMode === 'writer' ? 'text-blue-600' : ''} />
+        <span>Docs</span>
       </button>
 
       <button
-        class="flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all {activeMode === 'sheets' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}"
+        class="flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all {activeMode === 'sheets' ? 'bg-white text-emerald-600 shadow-sm border border-slate-200/60' : 'text-slate-600 hover:text-slate-900'}"
         on:click={() => dispatch('changeMode', 'sheets')}
+        title="Google Sheets Mode ({modKey}+2)"
       >
-        <Sheet size={15} />
+        <Sheet size={15} class={activeMode === 'sheets' ? 'text-emerald-600' : ''} />
         <span>Sheets</span>
       </button>
 
       <button
-        class="flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all {activeMode === 'slides' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}"
+        class="flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all {activeMode === 'slides' ? 'bg-white text-amber-600 shadow-sm border border-slate-200/60' : 'text-slate-600 hover:text-slate-900'}"
         on:click={() => dispatch('changeMode', 'slides')}
+        title="Google Slides Mode ({modKey}+3)"
       >
-        <Presentation size={15} />
+        <Presentation size={15} class={activeMode === 'slides' ? 'text-amber-600' : ''} />
         <span>Slides</span>
       </button>
     </nav>
-  </div>
 
-  <!-- Center: Document Title & File Actions -->
-  <div class="flex items-center space-x-4">
+    <!-- Right: Quick Actions & Export Menu -->
     <div class="flex items-center space-x-2">
-      {#if isRenaming}
-        <input
-          type="text"
-          bind:value={tempTitle}
-          on:blur={commitRename}
-          on:keydown={handleKeydown}
-          class="border border-blue-400 px-2 py-1 rounded text-sm font-medium outline-none shadow-inner"
-        />
-      {:else}
-        <button
-          class="font-semibold text-slate-700 hover:text-slate-950 text-sm hover:bg-slate-100 px-2.5 py-1 rounded-md transition-colors flex items-center space-x-1.5"
-          on:click={() => { tempTitle = meta.title; isRenaming = true; }}
-          title="Click to rename document"
-        >
-          <span>{meta.title}</span>
-          {#if meta.isDirty}
-            <span class="w-2 h-2 rounded-full bg-amber-500 inline-block animate-pulse" title="Unsaved changes"></span>
-          {/if}
-        </button>
-      {/if}
-    </div>
-
-    <!-- Quick File Action Buttons -->
-    <div class="flex items-center space-x-1 border-l border-slate-200 pl-3">
+      <!-- Shortcuts button -->
       <button
-        class="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
-        on:click={() => dispatch('newDoc')}
-        title="New Document (Ctrl+N)"
+        class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
+        on:click={() => dispatch('openShortcuts')}
+        title="Keyboard Shortcuts ({modKey}+/)"
       >
-        <FilePlus size={16} />
+        <Keyboard size={16} />
       </button>
 
+      <!-- Save Button -->
       <button
-        class="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
-        on:click={() => dispatch('openDoc')}
-        title="Open File (Ctrl+O) - Supports all formats"
-      >
-        <FolderOpen size={16} />
-      </button>
-
-      <button
-        class="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors flex items-center space-x-1"
+        class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors {meta.isDirty ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}"
         on:click={() => dispatch('saveDoc')}
-        title="Save File (Ctrl+S)"
+        title="Save File ({modKey}+S)"
       >
-        <Save size={16} class={meta.isDirty ? 'text-blue-600' : ''} />
+        <Save size={14} />
+        <span>Save</span>
       </button>
 
-      <button
-        class="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
-        on:click={() => dispatch('printPdf')}
-        title="Print / Save to PDF (Ctrl+P)"
-      >
-        <Printer size={16} />
-      </button>
-    </div>
-  </div>
+      <!-- Export Dropdown -->
+      <div class="relative">
+        <button
+          class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors border border-slate-200"
+          on:click|stopPropagation={() => (showExportMenu = !showExportMenu)}
+        >
+          <Download size={14} class="text-slate-500" />
+          <span>Export</span>
+          <ChevronDown size={13} class="text-slate-400" />
+        </button>
 
-  <!-- Right: Clean Export Dropdown Menu (No offline/RAM badges) -->
-  <div class="relative">
-    <button
-      class="flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors border border-slate-200"
-      on:click={() => (showExportMenu = !showExportMenu)}
-    >
-      <Download size={14} class="text-slate-500" />
-      <span>Export As</span>
-      <ChevronDown size={13} class="text-slate-400" />
-    </button>
-
-    {#if showExportMenu}
-      <div
-        class="absolute right-0 mt-1.5 w-52 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-50 text-xs text-slate-700 divide-y divide-slate-100"
-      >
-        {#if activeMode === 'writer'}
-          <div class="py-1">
-            <button
-              class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between"
-              on:click={() => handleExport('docx')}
-            >
-              <span class="font-medium">Microsoft Word (.docx)</span>
-              <span class="text-[10px] text-slate-400">DOCX</span>
-            </button>
-            <button
-              class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between"
-              on:click={() => handleExport('rtf')}
-            >
-              <span>Rich Text (.rtf)</span>
-              <span class="text-[10px] text-slate-400">RTF</span>
-            </button>
-            <button
-              class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between"
-              on:click={() => handleExport('md')}
-            >
-              <span>Markdown (.md)</span>
-              <span class="text-[10px] text-slate-400">MD</span>
-            </button>
-            <button
-              class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between"
-              on:click={() => handleExport('txt')}
-            >
-              <span>Plain Text (.txt)</span>
-              <span class="text-[10px] text-slate-400">TXT</span>
-            </button>
-            <button
-              class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between"
-              on:click={() => handleExport('html')}
-            >
-              <span>HTML Document (.html)</span>
-              <span class="text-[10px] text-slate-400">HTML</span>
-            </button>
-          </div>
-        {:else if activeMode === 'sheets'}
-          <div class="py-1">
-            <button
-              class="w-full px-3 py-1.5 text-left hover:bg-emerald-50 flex items-center justify-between"
-              on:click={() => handleExport('xlsx')}
-            >
-              <span class="font-medium">Microsoft Excel (.xlsx)</span>
-              <span class="text-[10px] text-slate-400">XLSX</span>
-            </button>
-            <button
-              class="w-full px-3 py-1.5 text-left hover:bg-emerald-50 flex items-center justify-between"
-              on:click={() => handleExport('csv')}
-            >
-              <span>Comma Separated (.csv)</span>
-              <span class="text-[10px] text-slate-400">CSV</span>
-            </button>
-            <button
-              class="w-full px-3 py-1.5 text-left hover:bg-emerald-50 flex items-center justify-between"
-              on:click={() => handleExport('tsv')}
-            >
-              <span>Tab Separated (.tsv)</span>
-              <span class="text-[10px] text-slate-400">TSV</span>
-            </button>
-          </div>
-        {:else if activeMode === 'slides'}
-          <div class="py-1">
-            <button
-              class="w-full px-3 py-1.5 text-left hover:bg-orange-50 flex items-center justify-between"
-              on:click={() => handleExport('pptx')}
-            >
-              <span class="font-medium">PowerPoint Deck (.pptx)</span>
-              <span class="text-[10px] text-slate-400">PPTX</span>
-            </button>
-            <button
-              class="w-full px-3 py-1.5 text-left hover:bg-orange-50 flex items-center justify-between"
-              on:click={() => handleExport('html')}
-            >
-              <span>Web Presentation (.html)</span>
-              <span class="text-[10px] text-slate-400">HTML</span>
-            </button>
+        {#if showExportMenu}
+          <div
+            class="absolute right-0 mt-1.5 w-56 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 z-50 text-xs text-slate-700 divide-y divide-slate-100"
+          >
+            {#if activeMode === 'writer'}
+              <div class="py-1">
+                <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between" on:click={() => handleExport('docx')}>
+                  <span class="font-medium text-slate-800">Microsoft Word (.docx)</span>
+                  <span class="text-[10px] text-slate-400 font-mono">DOCX</span>
+                </button>
+                <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between" on:click={() => handleExport('rtf')}>
+                  <span>Rich Text (.rtf)</span>
+                  <span class="text-[10px] text-slate-400 font-mono">RTF</span>
+                </button>
+                <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between" on:click={() => handleExport('md')}>
+                  <span>Markdown (.md)</span>
+                  <span class="text-[10px] text-slate-400 font-mono">MD</span>
+                </button>
+                <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between" on:click={() => handleExport('txt')}>
+                  <span>Plain Text (.txt)</span>
+                  <span class="text-[10px] text-slate-400 font-mono">TXT</span>
+                </button>
+                <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between" on:click={() => handleExport('html')}>
+                  <span>Web Page (.html)</span>
+                  <span class="text-[10px] text-slate-400 font-mono">HTML</span>
+                </button>
+              </div>
+            {:else if activeMode === 'sheets'}
+              <div class="py-1">
+                <button class="w-full px-3.5 py-1.5 text-left hover:bg-emerald-50 flex items-center justify-between" on:click={() => handleExport('xlsx')}>
+                  <span class="font-medium text-slate-800">Microsoft Excel (.xlsx)</span>
+                  <span class="text-[10px] text-slate-400 font-mono">XLSX</span>
+                </button>
+                <button class="w-full px-3.5 py-1.5 text-left hover:bg-emerald-50 flex items-center justify-between" on:click={() => handleExport('csv')}>
+                  <span>Comma Separated (.csv)</span>
+                  <span class="text-[10px] text-slate-400 font-mono">CSV</span>
+                </button>
+                <button class="w-full px-3.5 py-1.5 text-left hover:bg-emerald-50 flex items-center justify-between" on:click={() => handleExport('tsv')}>
+                  <span>Tab Separated (.tsv)</span>
+                  <span class="text-[10px] text-slate-400 font-mono">TSV</span>
+                </button>
+              </div>
+            {:else if activeMode === 'slides'}
+              <div class="py-1">
+                <button class="w-full px-3.5 py-1.5 text-left hover:bg-amber-50 flex items-center justify-between" on:click={() => handleExport('pptx')}>
+                  <span class="font-medium text-slate-800">PowerPoint Deck (.pptx)</span>
+                  <span class="text-[10px] text-slate-400 font-mono">PPTX</span>
+                </button>
+                <button class="w-full px-3.5 py-1.5 text-left hover:bg-amber-50 flex items-center justify-between" on:click={() => handleExport('html')}>
+                  <span>Web Presentation (.html)</span>
+                  <span class="text-[10px] text-slate-400 font-mono">HTML</span>
+                </button>
+              </div>
+            {/if}
+            <div class="py-1">
+              <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-50 flex items-center justify-between font-medium text-slate-700" on:click={() => dispatch('printPdf')}>
+                <span>PDF Document</span>
+                <span class="text-[10px] text-slate-400 font-mono">PDF</span>
+              </button>
+              <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-50 flex items-center justify-between text-slate-500" on:click={() => handleExport('json')}>
+                <span>Suite Backup (.json)</span>
+                <span class="text-[10px] text-slate-400 font-mono">JSON</span>
+              </button>
+            </div>
           </div>
         {/if}
-        <div class="py-1">
-          <button
-            class="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center justify-between font-medium text-slate-600"
-            on:click={() => dispatch('printPdf')}
-          >
-            <span>Print / PDF Document</span>
-            <span class="text-[10px] text-slate-400">PDF</span>
-          </button>
-          <button
-            class="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center justify-between text-slate-500"
-            on:click={() => handleExport('json')}
-          >
-            <span>Native Suite Backup (.json)</span>
-            <span class="text-[10px] text-slate-400">JSON</span>
-          </button>
-        </div>
       </div>
-    {/if}
+    </div>
   </div>
 </header>

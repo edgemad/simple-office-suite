@@ -18,10 +18,9 @@
     Trash2,
     Baseline,
     PaintBucket,
-    ArrowDownAZ,
-    ArrowUpZA,
     X,
-    FolderPlus
+    Undo2,
+    Redo2
   } from 'lucide-svelte';
   import { downloadFile } from '../../lib/utils';
   import { exportToXlsx } from '../../lib/fileFormats';
@@ -42,6 +41,10 @@
   let cellBgColor = '#ffffff';
   let cellNumberFormat: 'general' | 'number' | 'currency' | 'percent' | 'date' = 'general';
 
+  // Undo / Redo History Stack
+  let undoStack: string[] = [];
+  let redoStack: string[] = [];
+
   const fontFamilies = [
     { label: 'Sans (Default)', value: 'Inter, sans-serif' },
     { label: 'Arial', value: 'Arial, sans-serif' },
@@ -54,6 +57,34 @@
   const fontSizes = [9, 10, 11, 12, 14, 16, 18, 20];
 
   $: activeSheet = workbook.sheets.find((s) => s.id === workbook.activeSheetId) || workbook.sheets[0];
+
+  function pushUndo() {
+    undoStack.push(JSON.stringify(activeSheet.cells));
+    if (undoStack.length > 50) undoStack.shift();
+    redoStack = [];
+  }
+
+  export function triggerUndo() {
+    if (undoStack.length === 0) return;
+    const prev = undoStack.pop()!;
+    redoStack.push(JSON.stringify(activeSheet.cells));
+    activeSheet.cells = JSON.parse(prev);
+    workbook.meta.isDirty = true;
+    rawValue = activeSheet.cells[activeCell]?.raw ?? '';
+    computeStats();
+    dispatch('change');
+  }
+
+  export function triggerRedo() {
+    if (redoStack.length === 0) return;
+    const next = redoStack.pop()!;
+    undoStack.push(JSON.stringify(activeSheet.cells));
+    activeSheet.cells = JSON.parse(next);
+    workbook.meta.isDirty = true;
+    rawValue = activeSheet.cells[activeCell]?.raw ?? '';
+    computeStats();
+    dispatch('change');
+  }
 
   function handleSelectCell(e: CustomEvent<{ key: string; raw: string; computed: string | number }>) {
     activeCell = e.detail.key;
@@ -74,6 +105,8 @@
   }
 
   function commitValue(cellKey: string, val: string) {
+    pushUndo();
+
     if (!activeSheet.cells[cellKey]) {
       activeSheet.cells[cellKey] = { raw: val, computed: val };
     } else {
@@ -103,6 +136,8 @@
   }
 
   function updateActiveCellFormat(patch: Partial<CellFormatting>) {
+    pushUndo();
+
     if (!activeSheet.cells[activeCell]) {
       activeSheet.cells[activeCell] = { raw: '', computed: '', format: { ...patch } };
     } else {
@@ -193,6 +228,78 @@
     commitValue(activeCell, formula);
   }
 
+  // Clipboard operations (Copy, Cut, Paste)
+  async function copyActiveCell() {
+    const val = activeSheet.cells[activeCell]?.raw ?? '';
+    try {
+      await navigator.clipboard.writeText(val);
+    } catch {
+      // Fallback
+    }
+  }
+
+  async function cutActiveCell() {
+    await copyActiveCell();
+    commitValue(activeCell, '');
+  }
+
+  async function pasteIntoActiveCell() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text !== undefined) {
+        commitValue(activeCell, text);
+      }
+    } catch {
+      // Fallback
+    }
+  }
+
+  // Keyboard Shortcuts for Sheets
+  function handleWindowKeydown(e: KeyboardEvent) {
+    const mod = e.ctrlKey || e.metaKey;
+    const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+
+    // If typing inside an input element (formula bar or in-cell editor), don't hijack simple keys
+    if (targetTag === 'input' || targetTag === 'textarea') {
+      if (mod && e.key.toLowerCase() === 'z') {
+        // Let standard input undo work
+        return;
+      }
+      return;
+    }
+
+    if (mod && !e.shiftKey && !e.altKey) {
+      if (e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleBold();
+      } else if (e.key.toLowerCase() === 'i') {
+        e.preventDefault();
+        toggleItalic();
+      } else if (e.key.toLowerCase() === 'u') {
+        e.preventDefault();
+        toggleUnderline();
+      } else if (e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        copyActiveCell();
+      } else if (e.key.toLowerCase() === 'x') {
+        e.preventDefault();
+        cutActiveCell();
+      } else if (e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        pasteIntoActiveCell();
+      } else if (e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        triggerUndo();
+      } else if (e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        triggerRedo();
+      }
+    } else if (mod && e.shiftKey && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      triggerRedo();
+    }
+  }
+
   // Multi-Sheet Tabs Operations
   function addNewSheet() {
     const newIdx = workbook.sheets.length + 1;
@@ -231,7 +338,7 @@
       alert('A workbook must have at least one sheet.');
       return;
     }
-    if (confirm(`Delete sheet "${sheet.name}"?`)) {
+    if (confirm(`Delete sheet \"${sheet.name}\"?`)) {
       workbook.sheets = workbook.sheets.filter((s) => s.id !== sheet.id);
       workbook.activeSheetId = workbook.sheets[0].id;
       workbook.meta.isDirty = true;
@@ -302,6 +409,7 @@
 
   function clearSheet() {
     if (confirm('Clear all cells in the current sheet?')) {
+      pushUndo();
       activeSheet.cells = {};
       workbook.meta.isDirty = true;
       dispatch('change');
@@ -309,10 +417,32 @@
   }
 </script>
 
+<svelte:window on:keydown={handleWindowKeydown} />
+
 <div class="flex-1 flex flex-col h-full overflow-hidden bg-slate-100">
   <!-- Powerhouse Sheets Formatting Toolbar -->
   <div class="no-print bg-white border-b border-slate-200 px-3 py-1 flex items-center justify-between select-none text-xs text-slate-700 shadow-sm overflow-x-auto">
     <div class="flex items-center space-x-1.5">
+      <!-- Undo / Redo buttons -->
+      <div class="flex items-center space-x-0.5 pr-1 border-r border-slate-200">
+        <button
+          class="p-1.5 rounded hover:bg-slate-100 text-slate-700 transition-colors disabled:opacity-30"
+          on:click={triggerUndo}
+          disabled={undoStack.length === 0}
+          title="Undo (Ctrl+Z)"
+        >
+          <Undo2 size={14} />
+        </button>
+        <button
+          class="p-1.5 rounded hover:bg-slate-100 text-slate-700 transition-colors disabled:opacity-30"
+          on:click={triggerRedo}
+          disabled={redoStack.length === 0}
+          title="Redo (Ctrl+Y)"
+        >
+          <Redo2 size={14} />
+        </button>
+      </div>
+
       <!-- Font Family Selector (User Requested) -->
       <div class="pr-1 border-r border-slate-200">
         <select

@@ -21,6 +21,10 @@
   let currentFontSize = 24;
   let currentColor = '#0f172a';
 
+  // Undo / Redo History Stack for Slides
+  let undoStack: string[] = [];
+  let redoStack: string[] = [];
+
   $: currentSlide = deck.slides[activeSlideIndex] || deck.slides[0];
 
   $: selectedElement = currentSlide.elements.find((el) => el.id === selectedElementId);
@@ -38,12 +42,44 @@
     });
   }
 
+  function pushUndo() {
+    undoStack.push(JSON.stringify(deck.slides));
+    if (undoStack.length > 30) undoStack.shift();
+    redoStack = [];
+  }
+
+  export function triggerUndo() {
+    if (undoStack.length === 0) return;
+    const prev = undoStack.pop()!;
+    redoStack.push(JSON.stringify(deck.slides));
+    deck.slides = JSON.parse(prev);
+    if (activeSlideIndex >= deck.slides.length) {
+      activeSlideIndex = deck.slides.length - 1;
+    }
+    deck.meta.isDirty = true;
+    dispatch('change');
+  }
+
+  export function triggerRedo() {
+    if (redoStack.length === 0) return;
+    const next = redoStack.pop()!;
+    undoStack.push(JSON.stringify(deck.slides));
+    deck.slides = JSON.parse(next);
+    if (activeSlideIndex >= deck.slides.length) {
+      activeSlideIndex = deck.slides.length - 1;
+    }
+    deck.meta.isDirty = true;
+    dispatch('change');
+  }
+
   function handleSelectSlide(e: CustomEvent<number>) {
     activeSlideIndex = e.detail;
     selectedElementId = null;
   }
 
   function handleAddSlide() {
+    pushUndo();
+
     const newSlide: Slide = {
       id: `slide_${Date.now()}`,
       title: `Slide ${deck.slides.length + 1}`,
@@ -85,6 +121,8 @@
     const layout = e.detail;
     if (!layout) return;
 
+    pushUndo();
+
     const t = Date.now();
     if (layout === 'title') {
       currentSlide.elements = [
@@ -117,6 +155,8 @@
   }
 
   function handleDuplicateSlide(e: CustomEvent<number>) {
+    pushUndo();
+
     const src = deck.slides[e.detail];
     const copy: Slide = JSON.parse(JSON.stringify(src));
     copy.id = `slide_${Date.now()}`;
@@ -130,6 +170,8 @@
 
   function handleDeleteSlide(e: CustomEvent<number>) {
     if (deck.slides.length <= 1) return;
+    pushUndo();
+
     deck.slides.splice(e.detail, 1);
     deck.slides = [...deck.slides];
     if (activeSlideIndex >= deck.slides.length) {
@@ -140,6 +182,8 @@
   }
 
   function handleMoveSlide(e: CustomEvent<{ from: number; to: number }>) {
+    pushUndo();
+
     const item = deck.slides.splice(e.detail.from, 1)[0];
     deck.slides.splice(e.detail.to, 0, item);
     deck.slides = [...deck.slides];
@@ -149,6 +193,8 @@
   }
 
   function handleAddElement(e: CustomEvent<{ type: SlideElementType }>) {
+    pushUndo();
+
     const type = e.detail.type;
     const id = `elem_${Date.now()}`;
 
@@ -176,6 +222,8 @@
 
   function handleDeleteElement() {
     if (!selectedElementId) return;
+    pushUndo();
+
     currentSlide.elements = currentSlide.elements.filter((el) => el.id !== selectedElementId);
     deck.slides = [...deck.slides];
     selectedElementId = null;
@@ -184,6 +232,7 @@
   }
 
   function handleChangeBg(e: CustomEvent<string>) {
+    pushUndo();
     currentSlide.bgColor = e.detail;
     deck.slides = [...deck.slides];
     deck.meta.isDirty = true;
@@ -193,6 +242,7 @@
   function handleChangeFont(e: CustomEvent<string>) {
     currentFont = e.detail;
     if (selectedElement) {
+      pushUndo();
       selectedElement.fontFamily = e.detail;
       deck.slides = [...deck.slides];
       deck.meta.isDirty = true;
@@ -203,6 +253,7 @@
   function handleChangeFontSize(e: CustomEvent<number>) {
     currentFontSize = e.detail;
     if (selectedElement) {
+      pushUndo();
       selectedElement.fontSize = e.detail;
       deck.slides = [...deck.slides];
       deck.meta.isDirty = true;
@@ -213,6 +264,7 @@
   function handleChangeColor(e: CustomEvent<string>) {
     currentColor = e.detail;
     if (selectedElement) {
+      pushUndo();
       selectedElement.fontColor = e.detail;
       deck.slides = [...deck.slides];
       deck.meta.isDirty = true;
@@ -220,10 +272,68 @@
     }
   }
 
+  // Google Slides Shortcuts (Cmd+M, Cmd+D, Delete, F5, Cmd+Enter, Arrows)
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'F5') {
+    const mod = e.ctrlKey || e.metaKey;
+    const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+
+    // If currently typing in an input or contenteditable element, don't intercept standard keys
+    if (targetTag === 'input' || targetTag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) {
+      if (e.key === 'Escape') {
+        (e.target as HTMLElement).blur();
+      }
+      return;
+    }
+
+    if (mod && !e.shiftKey && !e.altKey) {
+      if (e.key.toLowerCase() === 'm') {
+        // Google Slides: New slide (Cmd+M)
+        e.preventDefault();
+        handleAddSlide();
+      } else if (e.key.toLowerCase() === 'd') {
+        // Google Slides: Duplicate slide (Cmd+D)
+        e.preventDefault();
+        handleDuplicateSlide({ detail: activeSlideIndex } as any);
+      } else if (e.key === 'Enter') {
+        // Google Slides: Present (Cmd+Enter)
+        e.preventDefault();
+        isPresenting = true;
+      } else if (e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        triggerUndo();
+      } else if (e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        triggerRedo();
+      }
+    } else if (mod && e.shiftKey && e.key.toLowerCase() === 'z') {
       e.preventDefault();
-      isPresenting = true;
+      triggerRedo();
+    } else if (!mod && !e.shiftKey && !e.altKey) {
+      if (e.key === 'F5') {
+        e.preventDefault();
+        isPresenting = true;
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        if (selectedElementId) {
+          handleDeleteElement();
+        } else if (deck.slides.length > 1) {
+          handleDeleteSlide({ detail: activeSlideIndex } as any);
+        }
+      } else if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (activeSlideIndex < deck.slides.length - 1) {
+          activeSlideIndex++;
+          selectedElementId = null;
+        }
+      } else if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (activeSlideIndex > 0) {
+          activeSlideIndex--;
+          selectedElementId = null;
+        }
+      } else if (e.key === 'Escape') {
+        selectedElementId = null;
+      }
     }
   }
 </script>

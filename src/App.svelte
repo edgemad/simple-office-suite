@@ -3,6 +3,7 @@
   import type { WorkspaceMode, WriterDocument, SpreadsheetWorkbook, SlideDeck } from './types';
   import Header from './components/layout/Header.svelte';
   import StatusBar from './components/layout/StatusBar.svelte';
+  import ShortcutsModal from './components/layout/ShortcutsModal.svelte';
   import Writer from './components/writer/Writer.svelte';
   import Sheets from './components/sheets/Sheets.svelte';
   import Slides from './components/slides/Slides.svelte';
@@ -25,6 +26,11 @@
   import { recalculateGrid } from './components/sheets/formulaEngine';
 
   let activeMode: WorkspaceMode = 'writer';
+  let showShortcutsModal = false;
+
+  let writerRef: Writer;
+  let sheetsRef: Sheets;
+  let slidesRef: Slides;
 
   // Active status bar statistics
   let writerWordCount = 48;
@@ -44,7 +50,7 @@
     },
     contentHtml: `
       <h1>Simple Office Suite (SOS) Project Brief</h1>
-      <p>Welcome to <strong>SOS Writer</strong> — your lightweight, high-performance, full-featured office word processor.</p>
+      <p>Welcome to <strong>SOS Docs</strong> — your lightweight, high-performance, full-featured office word processor.</p>
       <h2>Comprehensive Features Included</h2>
       <ul>
         <li><strong>Full Font Selections</strong>: Inter, Arial, Times New Roman, Georgia, Merriweather, JetBrains Mono, Courier New, Trebuchet MS.</li>
@@ -52,7 +58,7 @@
         <li><strong>Universal File Formats</strong>: Open & Export <strong>.docx, .rtf, .md, .txt, .html, and PDF</strong>.</li>
         <li><strong>Document Elements</strong>: Insert tables, embed local images, create hyperlinks, dividers, and real-time Find & Replace.</li>
       </ul>
-      <blockquote>"Simplicity is the soul of efficiency." — Austin Freeman</blockquote>
+      <blockquote>\"Simplicity is the soul of efficiency.\" — Austin Freeman</blockquote>
       <p>Draft your thoughts with zero bloat and complete privacy.</p>
     `,
     contentMarkdown: '',
@@ -342,7 +348,6 @@
         try {
           slidesDeck = JSON.parse(content);
         } catch {
-          // If non-JSON presentation, load default deck with title
           slidesDeck.meta.title = selectedPath.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Presentation';
         }
         slidesDeck.meta.filePath = selectedPath;
@@ -477,8 +482,8 @@
       const data = exportToXlsx(sheetsWorkbook);
       downloadFile(`${baseName}.xlsx`, data, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     } else if (fmt === 'csv') {
-      const sheetsRef = document.querySelector('button[title="Download as CSV"]') as HTMLButtonElement;
-      if (sheetsRef) sheetsRef.click();
+      const sheetsRefEl = document.querySelector('button[title="Download as CSV"]') as HTMLButtonElement;
+      if (sheetsRefEl) sheetsRefEl.click();
     } else if (fmt === 'pptx') {
       const data = exportToPptxXml(slidesDeck);
       downloadFile(`${baseName}.pptx`, data, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
@@ -491,7 +496,70 @@
   function handlePrintPdf() {
     triggerPrintToPdf(currentMeta.title);
   }
+
+  function handleUndo() {
+    if (activeMode === 'writer' && writerRef) {
+      writerRef.triggerUndo();
+    } else if (activeMode === 'sheets' && sheetsRef) {
+      sheetsRef.triggerUndo();
+    } else if (activeMode === 'slides' && slidesRef) {
+      slidesRef.triggerUndo();
+    }
+  }
+
+  function handleRedo() {
+    if (activeMode === 'writer' && writerRef) {
+      writerRef.triggerRedo();
+    } else if (activeMode === 'sheets' && sheetsRef) {
+      sheetsRef.triggerRedo();
+    } else if (activeMode === 'slides' && slidesRef) {
+      slidesRef.triggerRedo();
+    }
+  }
+
+  // --- Suite Global Keyboard Shortcuts ---
+  function handleGlobalKeydown(e: KeyboardEvent) {
+    const mod = e.ctrlKey || e.metaKey;
+
+    if (mod && !e.shiftKey && !e.altKey) {
+      if (e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleSaveDoc();
+      } else if (e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        handleOpenDoc();
+      } else if (e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        handleNewDoc();
+      } else if (e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        handlePrintPdf();
+      } else if (e.key === '1') {
+        e.preventDefault();
+        activeMode = 'writer';
+      } else if (e.key === '2') {
+        e.preventDefault();
+        activeMode = 'sheets';
+      } else if (e.key === '3') {
+        e.preventDefault();
+        activeMode = 'slides';
+      }
+    } else if (mod && e.shiftKey && !e.altKey) {
+      if (e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleSaveAsDoc();
+      }
+    }
+
+    // Keyboard Shortcuts cheat sheet: Cmd+/ or Ctrl+/
+    if (mod && (e.key === '/' || e.key === '?')) {
+      e.preventDefault();
+      showShortcutsModal = !showShortcutsModal;
+    }
+  }
 </script>
+
+<svelte:window on:keydown={handleGlobalKeydown} />
 
 <div class="h-screen w-screen flex flex-col bg-slate-100 overflow-hidden font-sans">
   <!-- Top Navigation & File Actions -->
@@ -505,12 +573,16 @@
     on:saveAsDoc={handleSaveAsDoc}
     on:exportFormat={handleExportFormat}
     on:printPdf={handlePrintPdf}
+    on:openShortcuts={() => (showShortcutsModal = true)}
+    on:undo={handleUndo}
+    on:redo={handleRedo}
   />
 
   <!-- Active Workspace Module -->
   <main class="flex-1 flex overflow-hidden relative">
     {#if activeMode === 'writer'}
       <Writer
+        bind:this={writerRef}
         meta={writerDoc.meta}
         bind:contentHtml={writerDoc.contentHtml}
         on:contentChange={triggerAutoSave}
@@ -521,6 +593,7 @@
       />
     {:else if activeMode === 'sheets'}
       <Sheets
+        bind:this={sheetsRef}
         bind:workbook={sheetsWorkbook}
         on:change={triggerAutoSave}
         on:updateStats={(e) => {
@@ -530,6 +603,7 @@
       />
     {:else if activeMode === 'slides'}
       <Slides
+        bind:this={slidesRef}
         bind:deck={slidesDeck}
         on:change={triggerAutoSave}
         on:updateStats={(e) => {
@@ -551,4 +625,9 @@
     slideIndex={slidesIndex}
     totalSlides={slidesTotal}
   />
+
+  <!-- Keyboard Shortcuts Cheat Sheet Modal -->
+  {#if showShortcutsModal}
+    <ShortcutsModal on:close={() => (showShortcutsModal = false)} />
+  {/if}
 </div>

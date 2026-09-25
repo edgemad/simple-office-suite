@@ -3,7 +3,7 @@
   import WriterToolbar from './WriterToolbar.svelte';
   import WriterCanvas from './WriterCanvas.svelte';
   import type { DocumentMeta } from '../../types';
-  import { Search, X, Replace, ArrowRight } from 'lucide-svelte';
+  import { Search, X, Replace, FileText } from 'lucide-svelte';
 
   export let meta: DocumentMeta;
   export let contentHtml: string = `
@@ -16,21 +16,32 @@
       <li>Tables, embedded local images, hyperlinks, dividers, and real-time word counting</li>
       <li>Universal format compatibility: Open and Export <strong>.docx, .rtf, .md, .txt, .html, and PDF</strong></li>
     </ul>
-    <blockquote>"Simplicity is the soul of efficiency." — Austin Freeman</blockquote>
+    <blockquote>\"Simplicity is the soul of efficiency.\" — Austin Freeman</blockquote>
     <p>Start drafting your executive brief, novel, or documentation below...</p>
   `;
 
   let canvasRef: WriterCanvas;
   let showSearch = false;
+  let showWordCountModal = false;
   let findQuery = '';
   let replaceQuery = '';
+  let currentWords = 0;
+  let currentChars = 0;
 
   const dispatch = createEventDispatcher<{
     updateStats: { words: number; chars: number };
     contentChange: { html: string; text: string; words: number; chars: number };
   }>();
 
-  function handleFormat(e: CustomEvent<{ command: string; value?: string }>) {
+  export function triggerUndo() {
+    if (canvasRef) canvasRef.execCommand('undo');
+  }
+
+  export function triggerRedo() {
+    if (canvasRef) canvasRef.execCommand('redo');
+  }
+
+  function handleFormat(e: CustomEvent<{ command: string; value?: string }> | { detail: { command: string; value?: string } }) {
     if (canvasRef) {
       canvasRef.execCommand(e.detail.command, e.detail.value);
     }
@@ -60,7 +71,7 @@
   }
 
   function handleInsertLink() {
-    const url = prompt('Enter Hyperlink URL (e.g. https://github.com):');
+    const url = prompt('Enter Hyperlink URL (e.g. https://google.com):');
     if (url && canvasRef) {
       canvasRef.insertLink(url);
     }
@@ -81,17 +92,57 @@
   function handleCanvasChange(e: CustomEvent<{ html: string; text: string; words: number; chars: number }>) {
     contentHtml = e.detail.html;
     meta.isDirty = true;
+    currentWords = e.detail.words;
+    currentChars = e.detail.chars;
     dispatch('contentChange', e.detail);
     dispatch('updateStats', { words: e.detail.words, chars: e.detail.chars });
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+    const mod = e.ctrlKey || e.metaKey;
+
+    if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
       e.preventDefault();
       showSearch = !showSearch;
-    } else if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    } else if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       handleInsertLink();
+    } else if (mod && e.shiftKey && e.key.toLowerCase() === 'c') {
+      // Google Docs Word Count shortcut (Cmd+Shift+C)
+      e.preventDefault();
+      showWordCountModal = true;
+    } else if (mod && e.shiftKey && e.key.toLowerCase() === 'l') {
+      e.preventDefault();
+      handleFormat({ detail: { command: 'justifyLeft' } });
+    } else if (mod && e.shiftKey && e.key.toLowerCase() === 'e') {
+      e.preventDefault();
+      handleFormat({ detail: { command: 'justifyCenter' } });
+    } else if (mod && e.shiftKey && e.key.toLowerCase() === 'r') {
+      e.preventDefault();
+      handleFormat({ detail: { command: 'justifyRight' } });
+    } else if (mod && e.shiftKey && e.key.toLowerCase() === 'j') {
+      e.preventDefault();
+      handleFormat({ detail: { command: 'justifyFull' } });
+    } else if (mod && e.shiftKey && (e.key === '7' || e.key === '&')) {
+      e.preventDefault();
+      handleFormat({ detail: { command: 'insertOrderedList' } });
+    } else if (mod && e.shiftKey && (e.key === '8' || e.key === '*')) {
+      e.preventDefault();
+      handleFormat({ detail: { command: 'insertUnorderedList' } });
+    } else if (mod && e.altKey) {
+      if (e.key === '1') {
+        e.preventDefault();
+        handleFormat({ detail: { command: 'formatBlock', value: 'h1' } });
+      } else if (e.key === '2') {
+        e.preventDefault();
+        handleFormat({ detail: { command: 'formatBlock', value: 'h2' } });
+      } else if (e.key === '3') {
+        e.preventDefault();
+        handleFormat({ detail: { command: 'formatBlock', value: 'h3' } });
+      } else if (e.key === '0') {
+        e.preventDefault();
+        handleFormat({ detail: { command: 'formatBlock', value: 'p' } });
+      }
     }
   }
 </script>
@@ -169,4 +220,47 @@
     bind:contentHtml
     on:change={handleCanvasChange}
   />
+
+  <!-- Google Docs Style Word Count Modal (Cmd+Shift+C) -->
+  {#if showWordCountModal}
+    <div class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-white rounded-xl shadow-2xl border border-slate-200 p-6 w-80 text-xs text-slate-700 animate-in fade-in zoom-in-95 duration-100">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+          <div class="flex items-center space-x-2 font-bold text-slate-800 text-sm">
+            <FileText size={16} class="text-blue-600" />
+            <span>Word count</span>
+          </div>
+          <button class="p-1 rounded-full hover:bg-slate-100 text-slate-400" on:click={() => (showWordCountModal = false)}>
+            <X size={15} />
+          </button>
+        </div>
+        <div class="space-y-3">
+          <div class="flex items-center justify-between py-1 border-b border-slate-50">
+            <span class="text-slate-500">Pages</span>
+            <span class="font-bold text-slate-800 font-mono">1</span>
+          </div>
+          <div class="flex items-center justify-between py-1 border-b border-slate-50">
+            <span class="text-slate-500">Words</span>
+            <span class="font-bold text-slate-800 font-mono">{currentWords}</span>
+          </div>
+          <div class="flex items-center justify-between py-1 border-b border-slate-50">
+            <span class="text-slate-500">Characters</span>
+            <span class="font-bold text-slate-800 font-mono">{currentChars}</span>
+          </div>
+          <div class="flex items-center justify-between py-1">
+            <span class="text-slate-500">Characters (no spaces)</span>
+            <span class="font-bold text-slate-800 font-mono">{Math.max(0, currentChars - Math.floor(currentWords * 0.8))}</span>
+          </div>
+        </div>
+        <div class="pt-5 flex justify-end">
+          <button
+            class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm transition-colors"
+            on:click={() => (showWordCountModal = false)}
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
