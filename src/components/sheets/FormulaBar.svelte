@@ -62,7 +62,21 @@
 
     if (e.key === 'Enter') {
       e.preventDefault();
-      dispatch('commit', inputVal);
+      let finalVal = inputVal;
+      if (finalVal.trim().startsWith('=')) {
+        let openCount = 0;
+        let inQuotes = false;
+        for (let i = 0; i < finalVal.length; i++) {
+          const ch = finalVal[i];
+          if (ch === '"') inQuotes = !inQuotes;
+          else if (!inQuotes) {
+            if (ch === '(') openCount++;
+            else if (ch === ')') openCount = Math.max(0, openCount - 1);
+          }
+        }
+        if (openCount > 0) finalVal += ')'.repeat(openCount);
+      }
+      dispatch('commit', finalVal);
       isFocused = false;
     } else if (e.key === 'Escape') {
       inputVal = rawValue;

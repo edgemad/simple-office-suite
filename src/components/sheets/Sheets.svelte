@@ -732,6 +732,7 @@
     bind:activeCell
     on:selectCell={handleSelectCell}
     on:cellChange={handleCellChange}
+    on:cellInput={(e) => (rawValue = e.detail.raw)}
   />
 
   <!-- Google Sheets & Excel Style Multi-Sheet Bottom Tab Bar -->
