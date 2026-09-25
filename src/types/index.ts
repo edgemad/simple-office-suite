@@ -54,8 +54,10 @@ export interface ChatChannel {
   type: ChannelType;
   unreadCount: number;
   recipientUser?: CommunicatorUser;
+  memberIds?: string[];
   isPrivate?: boolean;
   isEncrypted: boolean;
+  createdAt?: string;
 }
 
 export interface CommunicatorState {

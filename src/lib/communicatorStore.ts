@@ -269,8 +269,10 @@ export const INITIAL_MESSAGES: Record<string, ChatMessage[]> = {
   ],
 };
 
-const COMMUNICATOR_STORAGE_KEY = 'simple_office_communicator_v1';
-const COMMUNICATOR_USER_KEY = 'simple_office_communicator_user_v1';
+const COMMUNICATOR_STORAGE_KEY = 'simple_office_communicator_v2';
+const COMMUNICATOR_USER_KEY = 'simple_office_communicator_user_v2';
+const COMMUNICATOR_USERS_KEY = 'simple_office_communicator_users_v2';
+const COMMUNICATOR_CHANNELS_KEY = 'simple_office_communicator_channels_v2';
 
 export function loadCurrentCommunicatorUser(): CommunicatorUser {
   if (typeof window === 'undefined' || !window.localStorage) {
@@ -326,6 +328,75 @@ export function saveCurrentCommunicatorUser(user: CommunicatorUser): void {
   }
 }
 
+// Participant Directory Persistence
+export function loadCommunicatorUsers(): CommunicatorUser[] {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return [...TEAM_USERS];
+  }
+  try {
+    const raw = localStorage.getItem(COMMUNICATOR_USERS_KEY);
+    if (!raw) {
+      saveCommunicatorUsers(TEAM_USERS);
+      return [...TEAM_USERS];
+    }
+    return JSON.parse(raw);
+  } catch (err) {
+    console.warn('Failed to load communicator users:', err);
+    return [...TEAM_USERS];
+  }
+}
+
+export function saveCommunicatorUsers(users: CommunicatorUser[]): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    localStorage.setItem(COMMUNICATOR_USERS_KEY, JSON.stringify(users));
+  } catch (err) {
+    console.error('Failed to save communicator users:', err);
+  }
+}
+
+export function addCommunicatorUser(user: CommunicatorUser): CommunicatorUser[] {
+  const users = loadCommunicatorUsers();
+  const existingIdx = users.findIndex((u) => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
+  let updated: CommunicatorUser[];
+  if (existingIdx >= 0) {
+    users[existingIdx] = { ...users[existingIdx], ...user };
+    updated = [...users];
+  } else {
+    updated = [...users, user];
+  }
+  saveCommunicatorUsers(updated);
+  return updated;
+}
+
+// Channels & Conversations Persistence
+export function loadCommunicatorChannels(): ChatChannel[] {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return [...INITIAL_CHANNELS];
+  }
+  try {
+    const raw = localStorage.getItem(COMMUNICATOR_CHANNELS_KEY);
+    if (!raw) {
+      saveCommunicatorChannels(INITIAL_CHANNELS);
+      return [...INITIAL_CHANNELS];
+    }
+    return JSON.parse(raw);
+  } catch (err) {
+    console.warn('Failed to load communicator channels:', err);
+    return [...INITIAL_CHANNELS];
+  }
+}
+
+export function saveCommunicatorChannels(channels: ChatChannel[]): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    localStorage.setItem(COMMUNICATOR_CHANNELS_KEY, JSON.stringify(channels));
+  } catch (err) {
+    console.error('Failed to save communicator channels:', err);
+  }
+}
+
+// Messages Persistence & Operations
 export function loadCommunicatorMessages(): Record<string, ChatMessage[]> {
   if (typeof window === 'undefined' || !window.localStorage) {
     return { ...INITIAL_MESSAGES };
@@ -351,4 +422,34 @@ export function saveCommunicatorMessages(messages: Record<string, ChatMessage[]>
   } catch (err) {
     console.error('Failed to save communicator messages:', err);
   }
+}
+
+// Delete entire chat conversation (like MS Teams / Zoom / Google Meet)
+export function deleteConversation(channelId: string): { channels: ChatChannel[]; messages: Record<string, ChatMessage[]> } {
+  const currentChannels = loadCommunicatorChannels().filter((c) => c.id !== channelId);
+  saveCommunicatorChannels(currentChannels);
+
+  const currentMessages = loadCommunicatorMessages();
+  delete currentMessages[channelId];
+  saveCommunicatorMessages(currentMessages);
+
+  return { channels: currentChannels, messages: currentMessages };
+}
+
+// Delete individual message from a conversation
+export function deleteChatMessage(channelId: string, messageId: string): Record<string, ChatMessage[]> {
+  const messages = loadCommunicatorMessages();
+  if (messages[channelId]) {
+    messages[channelId] = messages[channelId].filter((m) => m.id !== messageId);
+    saveCommunicatorMessages(messages);
+  }
+  return messages;
+}
+
+// Clear all messages in a conversation
+export function clearConversationHistory(channelId: string): Record<string, ChatMessage[]> {
+  const messages = loadCommunicatorMessages();
+  messages[channelId] = [];
+  saveCommunicatorMessages(messages);
+  return messages;
 }

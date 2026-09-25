@@ -66,7 +66,9 @@
     Video,
     Phone,
     ExternalLink,
-    ShieldCheck
+    ShieldCheck,
+    UserPlus,
+    Hash
   } from 'lucide-svelte';
   import type { AppSettings } from '../../types';
   import AiAssistantModal from './AiAssistantModal.svelte';
@@ -574,6 +576,18 @@
           <button class="flex items-center space-x-1 px-2.5 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-medium shadow-xs" on:click={() => triggerAction('meetNow')}>
             <Video size={13} />
             <span>Meet Now</span>
+          </button>
+          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('addParticipant')}>
+            <UserPlus size={13} class="text-cyan-400" />
+            <span>Add Participant</span>
+          </button>
+          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('createChannel')}>
+            <Hash size={13} class="text-cyan-400" />
+            <span>New Channel</span>
+          </button>
+          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-rose-500/20 text-rose-300" on:click={() => triggerAction('deleteChat')} title="Delete current conversation">
+            <Trash2 size={13} />
+            <span>Delete Chat</span>
           </button>
           <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('detach')}>
             <ExternalLink size={13} />
