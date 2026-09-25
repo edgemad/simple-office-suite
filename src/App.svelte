@@ -309,8 +309,30 @@
       // Auto-detect mode based on file format
       if (['xlsx', 'xls', 'csv', 'tsv', 'soss'].includes(ext || '')) {
         activeMode = 'sheets';
-        const parsedGrid = parseSpreadsheetContent(content, selectedPath);
+        let parsedGrid: Record<string, any> = {};
+        if (content.startsWith('{') && content.includes('"cells":')) {
+          try {
+            const parsed = JSON.parse(content);
+            parsedGrid = recalculateGrid(parsed.cells || {});
+          } catch {
+            parsedGrid = parseSpreadsheetContent(content, selectedPath);
+          }
+        } else {
+          parsedGrid = parseSpreadsheetContent(content, selectedPath);
+        }
         sheetsWorkbook.sheets[0].cells = parsedGrid;
+        const cellKeys = Object.keys(parsedGrid);
+        let maxRow = 50;
+        let maxCol = 26;
+        for (const k of cellKeys) {
+          const m = k.match(/^([A-Z]+)([0-9]+)$/);
+          if (m) {
+            const r = parseInt(m[2], 10);
+            if (r > maxRow) maxRow = r + 10;
+          }
+        }
+        sheetsWorkbook.sheets[0].rowCount = maxRow;
+        sheetsWorkbook.sheets[0].colCount = Math.max(maxCol, 35);
         sheetsWorkbook.meta.filePath = selectedPath;
         sheetsWorkbook.meta.title = selectedPath.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Spreadsheet';
         sheetsWorkbook.meta.isDirty = false;
