@@ -17,16 +17,20 @@ export interface WriterDocument {
   wordCount: number;
   charCount: number;
   pageCount: number;
+  pageSize?: 'a4' | 'letter';
 }
 
 // SOS Sheets Types
 export interface CellFormatting {
+  fontFamily?: string;
+  fontSize?: number;
   bold?: boolean;
   italic?: boolean;
+  underline?: boolean;
   align?: 'left' | 'center' | 'right';
   textColor?: string;
   bgColor?: string;
-  format?: 'general' | 'number' | 'currency' | 'percent';
+  format?: 'general' | 'number' | 'currency' | 'percent' | 'date';
 }
 
 export interface CellValue {
@@ -52,7 +56,7 @@ export interface SpreadsheetWorkbook {
 }
 
 // SOS Slides Types
-export type SlideElementType = 'title' | 'text' | 'shape' | 'code' | 'image';
+export type SlideElementType = 'title' | 'text' | 'shape' | 'code' | 'image' | 'stat';
 export type ShapeVariant = 'rectangle' | 'circle' | 'pill' | 'quote-box';
 
 export interface SlideElement {
@@ -63,6 +67,7 @@ export interface SlideElement {
   width: number; // Percentage
   height: number; // Percentage
   content: string;
+  fontFamily?: string;
   fontSize?: number;
   fontWeight?: string;
   fontColor?: string;
@@ -78,12 +83,14 @@ export interface Slide {
   elements: SlideElement[];
   bgColor: string;
   notes?: string;
+  layout?: 'title' | 'content' | 'two-column' | 'blank';
 }
 
 export interface SlideDeck {
   meta: DocumentMeta;
   slides: Slide[];
   aspectRatio: '16:9' | '4:3';
+  theme?: string;
 }
 
 export interface SystemMetrics {

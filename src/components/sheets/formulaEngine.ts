@@ -55,7 +55,7 @@ export function expandRange(rangeStr: string): string[] {
   return keys;
 }
 
-// Helper to extract numeric values from cell keys
+// Extract numeric values from arguments (handles cell references, ranges, literals)
 function getNumericValues(grid: SheetGrid, argsStr: string): number[] {
   const tokens = argsStr.split(',').map((t) => t.trim());
   const values: number[] = [];
@@ -68,18 +68,17 @@ function getNumericValues(grid: SheetGrid, argsStr: string): number[] {
         if (typeof val === 'number' && !isNaN(val)) {
           values.push(val);
         } else if (typeof val === 'string' && val.trim() !== '') {
-          const parsed = parseFloat(val);
+          const parsed = parseFloat(val.replace(/[$,]/g, ''));
           if (!isNaN(parsed)) values.push(parsed);
         }
       }
     } else {
-      // Direct cell or number literal
       const cell = grid[token.toUpperCase()];
       if (cell !== undefined) {
-        const parsed = typeof cell.computed === 'number' ? cell.computed : parseFloat(String(cell.computed));
+        const parsed = typeof cell.computed === 'number' ? cell.computed : parseFloat(String(cell.computed).replace(/[$,]/g, ''));
         if (!isNaN(parsed)) values.push(parsed);
       } else {
-        const num = parseFloat(token);
+        const num = parseFloat(token.replace(/[$,]/g, ''));
         if (!isNaN(num)) values.push(num);
       }
     }
@@ -88,18 +87,43 @@ function getNumericValues(grid: SheetGrid, argsStr: string): number[] {
   return values;
 }
 
-// Evaluate a single formula expression
+// Extract raw string/numeric values from cell keys
+function getRawValues(grid: SheetGrid, argsStr: string): (string | number)[] {
+  const tokens = argsStr.split(',').map((t) => t.trim());
+  const values: (string | number)[] = [];
+
+  for (const token of tokens) {
+    if (token.includes(':')) {
+      const cellKeys = expandRange(token);
+      for (const k of cellKeys) {
+        const cell = grid[k];
+        if (cell && cell.computed !== undefined && cell.computed !== '') {
+          values.push(cell.computed);
+        }
+      }
+    } else {
+      const cell = grid[token.toUpperCase()];
+      if (cell !== undefined) {
+        values.push(cell.computed);
+      } else {
+        values.push(token.replace(/^["']|["']$/g, ''));
+      }
+    }
+  }
+  return values;
+}
+
+// Evaluate spreadsheet formula supporting MS Excel & Google Sheets syntax
 export function evaluateFormula(formula: string, grid: SheetGrid, visiting: Set<string> = new Set()): string | number {
   const clean = formula.trim();
   if (!clean.startsWith('=')) {
-    // Check if it's purely a number
     const num = Number(clean);
     return isNaN(num) || clean === '' ? clean : num;
   }
 
   const expr = clean.slice(1).trim();
 
-  // Function calls: SUM, AVERAGE, COUNT, MIN, MAX, IF
+  // Function calls: SUM, AVERAGE, COUNT, COUNTA, MIN, MAX, MEDIAN, ROUND, SQRT, POWER, ABS, IF, CONCAT, UPPER, LOWER, LEN, TRIM, VLOOKUP
   const fnMatch = expr.match(/^([A-Z]+)\((.*)\)$/i);
   if (fnMatch) {
     const fnName = fnMatch[1].toUpperCase();
@@ -113,12 +137,15 @@ export function evaluateFormula(formula: string, grid: SheetGrid, visiting: Set<
       case 'AVERAGE': {
         const nums = getNumericValues(grid, argsStr);
         if (nums.length === 0) return 0;
-        const sum = nums.reduce((acc, curr) => acc + curr, 0);
-        return Math.round((sum / nums.length) * 100) / 100;
+        return Math.round((nums.reduce((acc, curr) => acc + curr, 0) / nums.length) * 100) / 100;
       }
       case 'COUNT': {
         const nums = getNumericValues(grid, argsStr);
         return nums.length;
+      }
+      case 'COUNTA': {
+        const vals = getRawValues(grid, argsStr);
+        return vals.length;
       }
       case 'MIN': {
         const nums = getNumericValues(grid, argsStr);
@@ -128,8 +155,38 @@ export function evaluateFormula(formula: string, grid: SheetGrid, visiting: Set<
         const nums = getNumericValues(grid, argsStr);
         return nums.length ? Math.max(...nums) : 0;
       }
+      case 'MEDIAN': {
+        const nums = getNumericValues(grid, argsStr).sort((a, b) => a - b);
+        if (!nums.length) return 0;
+        const mid = Math.floor(nums.length / 2);
+        return nums.length % 2 !== 0 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+      }
+      case 'PRODUCT': {
+        const nums = getNumericValues(grid, argsStr);
+        return nums.length ? nums.reduce((a, b) => a * b, 1) : 0;
+      }
+      case 'ROUND': {
+        const parts = argsStr.split(',').map(s => s.trim());
+        const val = Number(evaluateFormula(`=${parts[0]}`, grid, visiting));
+        const decimals = parts[1] ? parseInt(parts[1], 10) : 0;
+        const factor = Math.pow(10, decimals);
+        return Math.round(val * factor) / factor;
+      }
+      case 'ABS': {
+        const val = Number(evaluateFormula(`=${argsStr}`, grid, visiting));
+        return Math.abs(val);
+      }
+      case 'SQRT': {
+        const val = Number(evaluateFormula(`=${argsStr}`, grid, visiting));
+        return val >= 0 ? Math.sqrt(val) : '#NUM!';
+      }
+      case 'POWER': {
+        const parts = argsStr.split(',').map(s => s.trim());
+        const base = Number(evaluateFormula(`=${parts[0]}`, grid, visiting));
+        const exp = Number(evaluateFormula(`=${parts[1]}`, grid, visiting));
+        return Math.pow(base, exp);
+      }
       case 'IF': {
-        // e.g. IF(A1 > 10, "Yes", "No") or IF(A1=10, 100, 0)
         const parts = argsStr.split(',').map((p) => p.trim());
         if (parts.length >= 2) {
           const condition = parts[0];
@@ -137,13 +194,10 @@ export function evaluateFormula(formula: string, grid: SheetGrid, visiting: Set<
           const falseVal = parts[2] ? parts[2].replace(/^["']|["']$/g, '') : '';
 
           try {
-            // Replace cell references in condition
             const resolvedCond = condition.replace(/[A-Z]+[0-9]+/gi, (match) => {
               const val = grid[match.toUpperCase()]?.computed ?? 0;
               return typeof val === 'string' ? `"${val}"` : String(val);
             });
-            // Safe simple evaluation
-            // eslint-disable-next-line no-eval
             const result = Function(`"use strict"; return (${resolvedCond});`)();
             return result ? (isNaN(Number(trueVal)) ? trueVal : Number(trueVal)) : (isNaN(Number(falseVal)) ? falseVal : Number(falseVal));
           } catch {
@@ -151,6 +205,49 @@ export function evaluateFormula(formula: string, grid: SheetGrid, visiting: Set<
           }
         }
         return '#ARG!';
+      }
+      case 'CONCAT':
+      case 'CONCATENATE': {
+        const vals = getRawValues(grid, argsStr);
+        return vals.join('');
+      }
+      case 'UPPER': {
+        const vals = getRawValues(grid, argsStr);
+        return String(vals[0] || '').toUpperCase();
+      }
+      case 'LOWER': {
+        const vals = getRawValues(grid, argsStr);
+        return String(vals[0] || '').toLowerCase();
+      }
+      case 'LEN': {
+        const vals = getRawValues(grid, argsStr);
+        return String(vals[0] || '').length;
+      }
+      case 'TRIM': {
+        const vals = getRawValues(grid, argsStr);
+        return String(vals[0] || '').trim();
+      }
+      case 'VLOOKUP': {
+        // VLOOKUP(lookup_value, table_range, col_index)
+        const parts = argsStr.split(',').map(s => s.trim());
+        if (parts.length < 3) return '#N/A';
+        const lookup = parts[0].replace(/^["']|["']$/g, '');
+        const range = parts[1];
+        const colOffset = parseInt(parts[2], 10) - 1;
+
+        const cells = expandRange(range);
+        const start = parseCoord(range.split(':')[0]);
+        const end = parseCoord(range.split(':')[1]);
+        if (!start || !end) return '#REF!';
+
+        for (let r = start.row; r <= end.row; r++) {
+          const keyFirst = `${colToLetter(start.col)}${r + 1}`;
+          const targetKey = `${colToLetter(start.col + colOffset)}${r + 1}`;
+          if (String(grid[keyFirst]?.computed) === lookup) {
+            return grid[targetKey]?.computed ?? '';
+          }
+        }
+        return '#N/A';
       }
       default:
         return `#NAME? (${fnName})`;
@@ -161,15 +258,13 @@ export function evaluateFormula(formula: string, grid: SheetGrid, visiting: Set<
   try {
     const resolvedExpr = expr.replace(/[A-Z]+[0-9]+/gi, (match) => {
       const key = match.toUpperCase();
-      if (visiting.has(key)) return '0'; // Prevent circular reference
+      if (visiting.has(key)) return '0';
       const cell = grid[key];
       if (!cell) return '0';
-      const num = typeof cell.computed === 'number' ? cell.computed : parseFloat(String(cell.computed));
+      const num = typeof cell.computed === 'number' ? cell.computed : parseFloat(String(cell.computed).replace(/[$,]/g, ''));
       return isNaN(num) ? '0' : String(num);
     });
 
-    // Safe arithmetic computation using Function constructor
-    // eslint-disable-next-line no-eval
     const computed = Function(`"use strict"; return (${resolvedExpr});`)();
     return typeof computed === 'number' ? Math.round(computed * 1000) / 1000 : computed;
   } catch {

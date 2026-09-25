@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import type { Slide, SlideElement } from '../../types';
-  import { Code, Image as ImageIcon } from 'lucide-svelte';
+  import { Code, Image as ImageIcon, TrendingUp } from 'lucide-svelte';
 
   export let slide: Slide;
   export let selectedElementId: string | null = null;
@@ -75,6 +75,23 @@
     }
     dispatch('elementChange', { id, content: val });
   }
+
+  function handleImageUpload(elemId: string) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          handleContentInput(elemId, reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    input.click();
+  }
 </script>
 
 <svelte:window on:mousemove={handleMouseMove} on:mouseup={handleMouseUp} />
@@ -92,7 +109,7 @@
     {#each slide.elements as elem (elem.id)}
       {@const isSelected = selectedElementId === elem.id}
       <div
-        class="absolute cursor-move transition-shadow rounded-lg p-3 group
+        class="absolute cursor-move transition-shadow rounded-lg p-2 group
           {isSelected ? 'ring-2 ring-orange-500 shadow-lg' : 'hover:ring-1 hover:ring-slate-300'}"
         style="
           left: {elem.x}%;
@@ -101,6 +118,7 @@
           min-height: {elem.height}%;
           background-color: {elem.bgColor || 'transparent'};
           color: {elem.fontColor || 'inherit'};
+          font-family: {elem.fontFamily || 'inherit'};
         "
         on:mousedown={(e) => handleMouseDown(elem, e)}
         on:click={(e) => handleSelect(elem.id, e)}
@@ -110,7 +128,8 @@
             type="text"
             value={elem.content}
             on:input={(e) => handleContentInput(elem.id, e.currentTarget.value)}
-            class="w-full bg-transparent font-extrabold text-3xl outline-none tracking-tight border-b border-transparent focus:border-orange-400"
+            style="font-size: {elem.fontSize || 32}px; font-family: {elem.fontFamily || 'inherit'}; color: {elem.fontColor || 'inherit'};"
+            class="w-full bg-transparent font-extrabold outline-none tracking-tight border-b border-transparent focus:border-orange-400"
             placeholder="Slide Title..."
           />
         {:else if elem.type === 'text'}
@@ -118,16 +137,30 @@
             value={elem.content}
             on:input={(e) => handleContentInput(elem.id, e.currentTarget.value)}
             rows={4}
-            class="w-full bg-transparent resize-none outline-none text-base leading-relaxed border border-transparent focus:border-orange-400 rounded p-1"
+            style="font-size: {elem.fontSize || 16}px; font-family: {elem.fontFamily || 'inherit'}; color: {elem.fontColor || 'inherit'};"
+            class="w-full bg-transparent resize-none outline-none leading-relaxed border border-transparent focus:border-orange-400 rounded p-1"
             placeholder="Slide content and bullet points..."
           ></textarea>
+        {:else if elem.type === 'stat'}
+          <div class="w-full h-full bg-slate-500/10 border-2 border-slate-400/30 rounded-xl p-4 flex flex-col items-center justify-center text-center">
+            <input
+              type="text"
+              value={elem.content}
+              on:input={(e) => handleContentInput(elem.id, e.currentTarget.value)}
+              style="font-size: {elem.fontSize || 42}px; color: {elem.fontColor || '#ea580c'};"
+              class="w-full bg-transparent font-black text-center outline-none"
+              placeholder="+98.5%"
+            />
+            <span class="text-xs opacity-75 font-semibold uppercase tracking-wider">Metric Callout</span>
+          </div>
         {:else if elem.type === 'shape'}
           <div class="w-full h-full bg-slate-500/10 border-2 border-slate-400/30 rounded-xl p-4 flex flex-col justify-center">
             <input
               type="text"
               value={elem.content}
               on:input={(e) => handleContentInput(elem.id, e.currentTarget.value)}
-              class="w-full bg-transparent font-semibold text-lg text-center outline-none"
+              style="font-size: {elem.fontSize || 20}px;"
+              class="w-full bg-transparent font-semibold text-center outline-none"
               placeholder="Card Title / Callout"
             />
           </div>
@@ -135,7 +168,7 @@
           <div class="w-full bg-slate-900 text-emerald-400 rounded-lg p-3 font-mono text-xs shadow-inner">
             <div class="flex items-center space-x-1.5 pb-2 mb-2 border-b border-slate-800 text-slate-500 text-[10px]">
               <Code size={12} />
-              <span>Rust / TypeScript snippet</span>
+              <span>Code Snippet</span>
             </div>
             <textarea
               value={elem.content}
@@ -145,10 +178,25 @@
             ></textarea>
           </div>
         {:else if elem.type === 'image'}
-          <div class="w-full h-36 bg-slate-100/10 border-2 border-dashed border-slate-400/50 rounded-lg flex flex-col items-center justify-center p-4">
-            <ImageIcon size={32} class="opacity-40 mb-1" />
-            <span class="text-xs opacity-75 font-medium">{elem.content || 'Image Container'}</span>
-          </div>
+          {#if elem.content && elem.content.startsWith('data:image')}
+            <div class="w-full h-full rounded-lg overflow-hidden relative group">
+              <img src={elem.content} alt="Slide media" class="w-full h-auto object-cover rounded-lg" />
+              <button
+                class="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                on:click={() => handleImageUpload(elem.id)}
+              >
+                Change Image
+              </button>
+            </div>
+          {:else}
+            <div
+              class="w-full h-36 bg-slate-100/10 border-2 border-dashed border-slate-400/50 rounded-lg flex flex-col items-center justify-center p-4 cursor-pointer hover:bg-slate-100/20 transition-colors"
+              on:click={() => handleImageUpload(elem.id)}
+            >
+              <ImageIcon size={32} class="opacity-40 mb-1" />
+              <span class="text-xs opacity-75 font-medium">Click to Upload Local Image</span>
+            </div>
+          {/if}
         {/if}
       </div>
     {/each}

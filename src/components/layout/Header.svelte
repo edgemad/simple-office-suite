@@ -10,13 +10,13 @@
     Download,
     FilePlus,
     Printer,
-    ShieldCheck,
-    Cpu
+    ChevronDown,
+    FileCode,
+    FileType
   } from 'lucide-svelte';
 
   export let activeMode: WorkspaceMode;
   export let meta: DocumentMeta;
-  export let memoryUsageMb: number = 42.5;
 
   const dispatch = createEventDispatcher<{
     changeMode: WorkspaceMode;
@@ -24,13 +24,13 @@
     openDoc: void;
     saveDoc: void;
     saveAsDoc: void;
-    exportMarkdown: void;
-    exportPdf: void;
-    exportCsv: void;
+    exportFormat: { format: string };
+    printPdf: void;
   }>();
 
   let isRenaming = false;
   let tempTitle = meta.title;
+  let showExportMenu = false;
 
   function commitRename() {
     if (tempTitle.trim()) {
@@ -46,6 +46,11 @@
       tempTitle = meta.title;
       isRenaming = false;
     }
+  }
+
+  function handleExport(format: string) {
+    showExportMenu = false;
+    dispatch('exportFormat', { format });
   }
 </script>
 
@@ -97,7 +102,6 @@
           on:blur={commitRename}
           on:keydown={handleKeydown}
           class="border border-blue-400 px-2 py-1 rounded text-sm font-medium outline-none shadow-inner"
-          autofocus
         />
       {:else}
         <button
@@ -118,7 +122,7 @@
       <button
         class="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
         on:click={() => dispatch('newDoc')}
-        title="New File (Ctrl+N)"
+        title="New Document (Ctrl+N)"
       >
         <FilePlus size={16} />
       </button>
@@ -126,7 +130,7 @@
       <button
         class="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
         on:click={() => dispatch('openDoc')}
-        title="Open File (Ctrl+O)"
+        title="Open File (Ctrl+O) - Supports all formats"
       >
         <FolderOpen size={16} />
       </button>
@@ -139,43 +143,128 @@
         <Save size={16} class={meta.isDirty ? 'text-blue-600' : ''} />
       </button>
 
-      {#if activeMode === 'writer'}
-        <button
-          class="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
-          on:click={() => dispatch('exportMarkdown')}
-          title="Export as Markdown"
-        >
-          <Download size={16} />
-        </button>
-        <button
-          class="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
-          on:click={() => dispatch('exportPdf')}
-          title="Print / Save to PDF (Ctrl+P)"
-        >
-          <Printer size={16} />
-        </button>
-      {:else if activeMode === 'sheets'}
-        <button
-          class="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
-          on:click={() => dispatch('exportCsv')}
-          title="Export CSV"
-        >
-          <Download size={16} />
-        </button>
-      {/if}
+      <button
+        class="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
+        on:click={() => dispatch('printPdf')}
+        title="Print / Save to PDF (Ctrl+P)"
+      >
+        <Printer size={16} />
+      </button>
     </div>
   </div>
 
-  <!-- Right: Offline Status & Memory Metrics -->
-  <div class="flex items-center space-x-3 text-xs">
-    <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 font-medium">
-      <ShieldCheck size={14} class="text-emerald-600" />
-      <span class="hidden md:inline">100% Offline Safe</span>
-    </div>
+  <!-- Right: Clean Export Dropdown Menu (No offline/RAM badges) -->
+  <div class="relative">
+    <button
+      class="flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors border border-slate-200"
+      on:click={() => (showExportMenu = !showExportMenu)}
+    >
+      <Download size={14} class="text-slate-500" />
+      <span>Export As</span>
+      <ChevronDown size={13} class="text-slate-400" />
+    </button>
 
-    <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-      <Cpu size={14} class="text-slate-500" />
-      <span>{memoryUsageMb.toFixed(1)} MB RAM</span>
-    </div>
+    {#if showExportMenu}
+      <div
+        class="absolute right-0 mt-1.5 w-52 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-50 text-xs text-slate-700 divide-y divide-slate-100"
+      >
+        {#if activeMode === 'writer'}
+          <div class="py-1">
+            <button
+              class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between"
+              on:click={() => handleExport('docx')}
+            >
+              <span class="font-medium">Microsoft Word (.docx)</span>
+              <span class="text-[10px] text-slate-400">DOCX</span>
+            </button>
+            <button
+              class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between"
+              on:click={() => handleExport('rtf')}
+            >
+              <span>Rich Text (.rtf)</span>
+              <span class="text-[10px] text-slate-400">RTF</span>
+            </button>
+            <button
+              class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between"
+              on:click={() => handleExport('md')}
+            >
+              <span>Markdown (.md)</span>
+              <span class="text-[10px] text-slate-400">MD</span>
+            </button>
+            <button
+              class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between"
+              on:click={() => handleExport('txt')}
+            >
+              <span>Plain Text (.txt)</span>
+              <span class="text-[10px] text-slate-400">TXT</span>
+            </button>
+            <button
+              class="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center justify-between"
+              on:click={() => handleExport('html')}
+            >
+              <span>HTML Document (.html)</span>
+              <span class="text-[10px] text-slate-400">HTML</span>
+            </button>
+          </div>
+        {:else if activeMode === 'sheets'}
+          <div class="py-1">
+            <button
+              class="w-full px-3 py-1.5 text-left hover:bg-emerald-50 flex items-center justify-between"
+              on:click={() => handleExport('xlsx')}
+            >
+              <span class="font-medium">Microsoft Excel (.xlsx)</span>
+              <span class="text-[10px] text-slate-400">XLSX</span>
+            </button>
+            <button
+              class="w-full px-3 py-1.5 text-left hover:bg-emerald-50 flex items-center justify-between"
+              on:click={() => handleExport('csv')}
+            >
+              <span>Comma Separated (.csv)</span>
+              <span class="text-[10px] text-slate-400">CSV</span>
+            </button>
+            <button
+              class="w-full px-3 py-1.5 text-left hover:bg-emerald-50 flex items-center justify-between"
+              on:click={() => handleExport('tsv')}
+            >
+              <span>Tab Separated (.tsv)</span>
+              <span class="text-[10px] text-slate-400">TSV</span>
+            </button>
+          </div>
+        {:else if activeMode === 'slides'}
+          <div class="py-1">
+            <button
+              class="w-full px-3 py-1.5 text-left hover:bg-orange-50 flex items-center justify-between"
+              on:click={() => handleExport('pptx')}
+            >
+              <span class="font-medium">PowerPoint Deck (.pptx)</span>
+              <span class="text-[10px] text-slate-400">PPTX</span>
+            </button>
+            <button
+              class="w-full px-3 py-1.5 text-left hover:bg-orange-50 flex items-center justify-between"
+              on:click={() => handleExport('html')}
+            >
+              <span>Web Presentation (.html)</span>
+              <span class="text-[10px] text-slate-400">HTML</span>
+            </button>
+          </div>
+        {/if}
+        <div class="py-1">
+          <button
+            class="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center justify-between font-medium text-slate-600"
+            on:click={() => dispatch('printPdf')}
+          >
+            <span>Print / PDF Document</span>
+            <span class="text-[10px] text-slate-400">PDF</span>
+          </button>
+          <button
+            class="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center justify-between text-slate-500"
+            on:click={() => handleExport('json')}
+          >
+            <span>Native Suite Backup (.json)</span>
+            <span class="text-[10px] text-slate-400">JSON</span>
+          </button>
+        </div>
+      </div>
+    {/if}
   </div>
 </header>
