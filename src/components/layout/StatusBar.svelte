@@ -10,6 +10,8 @@
   export let selectionSum: number | null = null;
   export let slideIndex: number = 0;
   export let totalSlides: number = 1;
+  export let pdfPage: number = 1;
+  export let pdfTotalPages: number = 1;
 </script>
 
 <footer class="no-print h-7 bg-white border-t border-slate-200 px-4 flex items-center justify-between text-xs text-slate-500 select-none z-20 shadow-inner">
@@ -47,6 +49,12 @@
       <div class="flex items-center space-x-2">
         <Layers size={13} class="text-orange-500" />
         <span>Slide {slideIndex + 1} of {totalSlides}</span>
+      </div>
+    {:else if activeMode === 'pdf'}
+      <div class="flex items-center space-x-2">
+        <span class="text-rose-600 font-semibold font-sans">PDF / Forms</span>
+        <span class="text-slate-300">•</span>
+        <span>Page {pdfPage} of {pdfTotalPages}</span>
       </div>
     {/if}
 

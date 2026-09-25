@@ -72,6 +72,24 @@
     dispatch('change');
   }
 
+  export function addNewSlide() {
+    handleAddSlide();
+  }
+
+  export function startPresenting() {
+    isPresenting = true;
+  }
+
+  export function setTheme(themeName: string) {
+    if (themeName === 'dark') {
+      handleChangeBg({ detail: '#0f172a' } as any);
+    } else if (themeName === 'light') {
+      handleChangeBg({ detail: '#ffffff' } as any);
+    } else if (themeName === 'navy') {
+      handleChangeBg({ detail: '#1e3a8a' } as any);
+    }
+  }
+
   function handleSelectSlide(e: CustomEvent<number>) {
     activeSlideIndex = e.detail;
     selectedElementId = null;

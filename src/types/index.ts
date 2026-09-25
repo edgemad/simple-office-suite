@@ -1,4 +1,4 @@
-export type WorkspaceMode = 'writer' | 'sheets' | 'slides';
+export type WorkspaceMode = 'writer' | 'sheets' | 'slides' | 'pdf';
 
 export interface DocumentMeta {
   id: string;
@@ -7,6 +7,31 @@ export interface DocumentMeta {
   isDirty: boolean;
   lastSaved?: string;
   mode: WorkspaceMode;
+}
+
+// SOS PDF & Forms Types
+export interface PdfFormField {
+  id: string;
+  type: 'text' | 'checkbox' | 'radio' | 'dropdown' | 'signature' | 'date';
+  name: string;
+  value: string | boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  page: number;
+  options?: string[];
+}
+
+export interface PdfDocument {
+  meta: DocumentMeta;
+  title: string;
+  pageCount: number;
+  currentPage: number;
+  filePath?: string;
+  dataUri?: string;
+  textContent: string;
+  formFields: PdfFormField[];
 }
 
 // SOS Writer Types

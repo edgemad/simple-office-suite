@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { WorkspaceMode, WriterDocument, SpreadsheetWorkbook, SlideDeck } from './types';
+  import type { WorkspaceMode, WriterDocument, SpreadsheetWorkbook, SlideDeck, PdfDocument } from './types';
   import Header from './components/layout/Header.svelte';
   import StatusBar from './components/layout/StatusBar.svelte';
   import ShortcutsModal from './components/layout/ShortcutsModal.svelte';
   import Writer from './components/writer/Writer.svelte';
   import Sheets from './components/sheets/Sheets.svelte';
   import Slides from './components/slides/Slides.svelte';
+  import PdfViewer from './components/pdf/PdfViewer.svelte';
   import {
     openFileDialogNative,
     saveFileDialogNative,
@@ -31,6 +32,7 @@
   let writerRef: Writer;
   let sheetsRef: Sheets;
   let slidesRef: Slides;
+  let pdfRef: PdfViewer;
 
   // Active status bar statistics
   let writerWordCount = 48;
@@ -39,6 +41,8 @@
   let sheetsSelectionSum: number | null = 14500;
   let slidesIndex = 0;
   let slidesTotal = 3;
+  let pdfPage = 1;
+  let pdfTotalPages = 1;
 
   // --- Initial Default Documents ---
   let writerDoc: WriterDocument = {
@@ -50,7 +54,7 @@
     },
     contentHtml: `
       <h1>Simple Office Suite (SOS) Project Brief</h1>
-      <p>Welcome to <strong>SOS Docs</strong> — your lightweight, high-performance, full-featured office word processor.</p>
+      <p>Welcome to <strong>SOS Word</strong> — your lightweight, high-performance, full-featured office word processor.</p>
       <h2>Comprehensive Features Included</h2>
       <ul>
         <li><strong>Full Font Selections</strong>: Inter, Arial, Times New Roman, Georgia, Merriweather, JetBrains Mono, Courier New, Trebuchet MS.</li>
@@ -183,7 +187,7 @@
             y: 26,
             width: 44,
             height: 55,
-            content: '• Comprehensive Font & Typography selections\n• Full MS Office format compatibility (.docx, .xlsx, .pptx)\n• Math & Logic formula engine (SUM, AVG, COUNT, IF, VLOOKUP)\n• Interactive Slide Layouts & Presenter Stopwatch',
+            content: '• Comprehensive Font & Typography selections\\n• Full MS Office format compatibility (.docx, .xlsx, .pptx)\\n• Math & Logic formula engine (SUM, AVG, COUNT, IF, VLOOKUP)\\n• Interactive Slide Layouts & Presenter Stopwatch',
             fontSize: 16,
           },
           {
@@ -193,7 +197,7 @@
             y: 26,
             width: 38,
             height: 55,
-            content: '// Multi-Format Universal Engine\nexport function exportToDocx(doc) {\n  return generateWordXml(doc);\n}',
+            content: '// Multi-Format Universal Engine\\nexport function exportToDocx(doc) {\\n  return generateWordXml(doc);\\n}',
           },
         ],
         notes: 'Walk through technical stack and modularity.',
@@ -241,12 +245,62 @@
     ],
   };
 
+  let pdfDoc: PdfDocument = {
+    meta: {
+      id: 'doc_pdf_1',
+      title: 'Contract Agreement Form',
+      isDirty: false,
+      mode: 'pdf',
+    },
+    title: 'Standard Service Agreement & Form',
+    pageCount: 2,
+    currentPage: 1,
+    textContent: 'This Agreement is entered into as of the Effective Date by and between the Client and the Provider. Both parties mutually agree to the terms, deliverables, and conditions set forth herein.',
+    formFields: [
+      {
+        id: 'f1',
+        type: 'text',
+        name: 'Full Name',
+        value: 'Jane Doe',
+        x: 15,
+        y: 35,
+        width: 40,
+        height: 5,
+        page: 1,
+      },
+      {
+        id: 'f2',
+        type: 'checkbox',
+        name: 'I Accept Terms',
+        value: true,
+        x: 15,
+        y: 45,
+        width: 30,
+        height: 4,
+        page: 1,
+      },
+      {
+        id: 'f3',
+        type: 'signature',
+        name: 'Authorized Signature',
+        value: 'Jane Doe (Signed)',
+        x: 15,
+        y: 55,
+        width: 45,
+        height: 6,
+        page: 1,
+      },
+    ],
+  };
+
   $: currentMeta =
     activeMode === 'writer'
       ? writerDoc.meta
       : activeMode === 'sheets'
       ? sheetsWorkbook.meta
-      : slidesDeck.meta;
+      : activeMode === 'slides'
+      ? slidesDeck.meta
+      : pdfDoc.meta;
 
   function triggerAutoSave() {
     currentMeta.isDirty = true;
@@ -254,8 +308,10 @@
       autoSaver.scheduleAutoSave('writer', writerDoc.meta.id, writerDoc);
     } else if (activeMode === 'sheets') {
       autoSaver.scheduleAutoSave('sheets', sheetsWorkbook.meta.id, sheetsWorkbook);
-    } else {
+    } else if (activeMode === 'slides') {
       autoSaver.scheduleAutoSave('slides', slidesDeck.meta.id, slidesDeck);
+    } else {
+      autoSaver.scheduleAutoSave('pdf', pdfDoc.meta.id, pdfDoc);
     }
   }
 
@@ -277,7 +333,7 @@
         activeSheetId: 's1',
         sheets: [{ id: 's1', name: 'Sheet 1', rowCount: 50, colCount: 26, cells: {} }],
       };
-    } else {
+    } else if (activeMode === 'slides') {
       slidesDeck = {
         meta: { id: `deck_${timestamp}`, title: 'Untitled Presentation', isDirty: false, mode: 'slides' },
         aspectRatio: '16:9',
@@ -290,18 +346,28 @@
           },
         ],
       };
+    } else {
+      pdfDoc = {
+        meta: { id: `pdf_${timestamp}`, title: 'Untitled Form', isDirty: false, mode: 'pdf' },
+        title: 'Untitled Document Form',
+        pageCount: 1,
+        currentPage: 1,
+        textContent: '',
+        formFields: [],
+      };
     }
   }
 
   async function handleOpenDoc() {
     const filters = [
       {
-        name: 'All Office Formats (*.docx, *.xlsx, *.pptx, *.csv, *.md, *.txt, *.json)',
-        extensions: ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'csv', 'tsv', 'md', 'txt', 'html', 'rtf', 'json', 'sosw', 'soss', 'sosp'],
+        name: 'All Office Formats (*.docx, *.xlsx, *.pptx, *.pdf, *.csv, *.md, *.txt, *.json)',
+        extensions: ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'pdf', 'csv', 'tsv', 'md', 'txt', 'html', 'rtf', 'json', 'sosw', 'soss', 'sosp'],
       },
       { name: 'Word Documents (*.docx, *.doc, *.rtf, *.odt)', extensions: ['docx', 'doc', 'rtf', 'odt', 'txt', 'md'] },
       { name: 'Excel Spreadsheets (*.xlsx, *.xls, *.csv, *.tsv)', extensions: ['xlsx', 'xls', 'csv', 'tsv'] },
       { name: 'PowerPoint Presentations (*.pptx, *.odp)', extensions: ['pptx', 'odp'] },
+      { name: 'PDF Documents (*.pdf)', extensions: ['pdf'] },
       { name: 'All Files (*)', extensions: ['*'] },
     ];
 
@@ -353,6 +419,14 @@
         slidesDeck.meta.filePath = selectedPath;
         slidesDeck.meta.isDirty = false;
         slidesDeck.meta.lastSaved = new Date().toISOString();
+      } else if (ext === 'pdf') {
+        activeMode = 'pdf';
+        pdfDoc.meta.filePath = selectedPath;
+        pdfDoc.meta.title = selectedPath.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'PDF Document';
+        pdfDoc.title = pdfDoc.meta.title;
+        pdfDoc.textContent = content.slice(0, 5000);
+        pdfDoc.meta.isDirty = false;
+        pdfDoc.meta.lastSaved = new Date().toISOString();
       } else {
         // Document / Writer mode (.docx, .doc, .rtf, .md, .txt, .html, .sosw)
         activeMode = 'writer';
@@ -389,6 +463,7 @@
     let ext = 'docx';
     if (activeMode === 'sheets') ext = 'xlsx';
     else if (activeMode === 'slides') ext = 'pptx';
+    else if (activeMode === 'pdf') ext = 'pdf';
 
     defaultName += `.${ext}`;
 
@@ -441,12 +516,14 @@
       } else {
         payload = JSON.stringify(sheetsWorkbook, null, 2);
       }
-    } else {
+    } else if (activeMode === 'slides') {
       if (ext === 'pptx') {
         payload = exportToPptxXml(slidesDeck);
       } else {
         payload = JSON.stringify(slidesDeck, null, 2);
       }
+    } else {
+      payload = JSON.stringify(pdfDoc, null, 2);
     }
 
     try {
@@ -488,7 +565,7 @@
       const data = exportToPptxXml(slidesDeck);
       downloadFile(`${baseName}.pptx`, data, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
     } else if (fmt === 'json') {
-      const payload = activeMode === 'writer' ? writerDoc : activeMode === 'sheets' ? sheetsWorkbook : slidesDeck;
+      const payload = activeMode === 'writer' ? writerDoc : activeMode === 'sheets' ? sheetsWorkbook : activeMode === 'slides' ? slidesDeck : pdfDoc;
       downloadFile(`${baseName}.json`, JSON.stringify(payload, null, 2), 'application/json');
     }
   }
@@ -514,6 +591,56 @@
       sheetsRef.triggerRedo();
     } else if (activeMode === 'slides' && slidesRef) {
       slidesRef.triggerRedo();
+    }
+  }
+
+  function handleRibbonAction(e: CustomEvent<{ action: string; payload?: any }>) {
+    const { action, payload } = e.detail;
+
+    if (activeMode === 'writer') {
+      if (['bold', 'italic', 'underline', 'strike'].includes(action)) {
+        document.execCommand(action === 'strike' ? 'strikeThrough' : action, false);
+      } else if (action === 'align') {
+        const cmd = payload === 'center' ? 'justifyCenter' : payload === 'right' ? 'justifyRight' : payload === 'justify' ? 'justifyFull' : 'justifyLeft';
+        document.execCommand(cmd, false);
+      } else if (action === 'bullet') {
+        document.execCommand('insertUnorderedList', false);
+      } else if (action === 'ordered') {
+        document.execCommand('insertOrderedList', false);
+      } else if (action === 'insertTable') {
+        writerRef?.insertTable();
+      } else if (action === 'insertImage') {
+        writerRef?.insertImage();
+      } else if (action === 'insertLink') {
+        writerRef?.insertLink();
+      } else if (action === 'insertText') {
+        document.execCommand('insertText', false, payload);
+      }
+    } else if (activeMode === 'sheets') {
+      if (action === 'bold') sheetsRef?.toggleBold();
+      else if (action === 'italic') sheetsRef?.toggleItalic();
+      else if (action === 'underline') sheetsRef?.toggleUnderline();
+      else if (action === 'autoSum') sheetsRef?.insertFormula('SUM');
+      else if (action === 'formulaQuick') sheetsRef?.insertFormula(payload);
+      else if (action === 'insertFx') {
+        const fxBtn = document.querySelector('button[title*="Insert Function"]') as HTMLButtonElement;
+        if (fxBtn) fxBtn.click();
+      } else if (action === 'importFile') {
+        sheetsRef?.handleImportSpreadsheet();
+      } else if (action === 'insertText') {
+        sheetsRef?.commitValue(sheetsActiveCell, payload);
+      }
+    } else if (activeMode === 'slides') {
+      if (action === 'newSlide') slidesRef?.addNewSlide();
+      else if (action === 'present') slidesRef?.startPresenting();
+      else if (action === 'slideTheme') slidesRef?.setTheme(payload);
+      else if (action === 'aspectRatio') slidesDeck.aspectRatio = payload;
+    } else if (activeMode === 'pdf') {
+      if (action === 'addTextField') pdfRef?.addFormField('text');
+      else if (action === 'addCheckboxField') pdfRef?.addFormField('checkbox');
+      else if (action === 'addSignatureField') pdfRef?.addFormField('signature');
+      else if (action === 'exportFormData') pdfRef?.exportFormData();
+      else if (action === 'print') triggerPrintToPdf(pdfDoc.title);
     }
   }
 
@@ -543,6 +670,9 @@
       } else if (e.key === '3') {
         e.preventDefault();
         activeMode = 'slides';
+      } else if (e.key === '4') {
+        e.preventDefault();
+        activeMode = 'pdf';
       }
     } else if (mod && e.shiftKey && !e.altKey) {
       if (e.key.toLowerCase() === 's') {
@@ -562,7 +692,7 @@
 <svelte:window on:keydown={handleGlobalKeydown} />
 
 <div class="h-screen w-screen flex flex-col bg-slate-100 overflow-hidden font-sans">
-  <!-- Top Navigation & File Actions -->
+  <!-- Top OnlyOffice Style Navigation & File Ribbon Actions -->
   <Header
     {activeMode}
     meta={currentMeta}
@@ -576,6 +706,7 @@
     on:openShortcuts={() => (showShortcutsModal = true)}
     on:undo={handleUndo}
     on:redo={handleRedo}
+    on:ribbonAction={handleRibbonAction}
   />
 
   <!-- Active Workspace Module -->
@@ -611,6 +742,16 @@
           slidesTotal = e.detail.totalSlides;
         }}
       />
+    {:else if activeMode === 'pdf'}
+      <PdfViewer
+        bind:this={pdfRef}
+        bind:doc={pdfDoc}
+        on:change={triggerAutoSave}
+        on:updateStats={(e) => {
+          pdfPage = e.detail.page;
+          pdfTotalPages = e.detail.totalPages;
+        }}
+      />
     {/if}
   </main>
 
@@ -624,6 +765,8 @@
     selectionSum={sheetsSelectionSum}
     slideIndex={slidesIndex}
     totalSlides={slidesTotal}
+    {pdfPage}
+    {pdfTotalPages}
   />
 
   <!-- Keyboard Shortcuts Cheat Sheet Modal -->

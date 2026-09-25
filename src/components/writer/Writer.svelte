@@ -41,6 +41,22 @@
     if (canvasRef) canvasRef.execCommand('redo');
   }
 
+  export function execFormat(command: string, value?: string) {
+    if (canvasRef) canvasRef.execCommand(command, value);
+  }
+
+  export function insertTable() {
+    handleInsertTable();
+  }
+
+  export function insertImage() {
+    handleInsertImage();
+  }
+
+  export function insertLink() {
+    handleInsertLink();
+  }
+
   function handleFormat(e: CustomEvent<{ command: string; value?: string }> | { detail: { command: string; value?: string } }) {
     if (canvasRef) {
       canvasRef.execCommand(e.detail.command, e.detail.value);
