@@ -178,13 +178,18 @@
   }
 
   function insertFormula(fnName: string) {
-    const match = activeCell.match(/^([A-Z]+)([0-9]+)$/);
+    const match = activeCell.replace(/\$/g, '').toUpperCase().match(/^([A-Z]+)([0-9]+)$/);
     if (!match) return;
     const col = match[1];
     const row = parseInt(match[2], 10);
-    if (row <= 1) return;
-
-    const formula = `=${fnName}(${col}1:${col}${row - 1})`;
+    let formula = '';
+    if (fnName === 'COUNTIF') {
+      formula = row > 1 ? `=COUNTIF(${col}1:${col}${row - 1}, "criteria")` : `=COUNTIF(A1:A10, "criteria")`;
+    } else if (fnName === 'IF') {
+      formula = `=IF(${col}${Math.max(1, row - 1)} > 0, "Yes", "No")`;
+    } else {
+      formula = row > 1 ? `=${fnName}(${col}1:${col}${row - 1})` : `=${fnName}()`;
+    }
     commitValue(activeCell, formula);
   }
 
@@ -422,9 +427,23 @@
         <button
           class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-slate-100 text-slate-700 font-medium transition-colors"
           on:click={() => insertFormula('COUNT')}
-          title="Count"
+          title="Count numbers"
         >
           <span>COUNT</span>
+        </button>
+        <button
+          class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-slate-100 text-emerald-700 font-medium transition-colors"
+          on:click={() => insertFormula('COUNTIF')}
+          title="Count If (e.g. =COUNTIF(A1:A10, 'S'))"
+        >
+          <span>COUNTIF</span>
+        </button>
+        <button
+          class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-slate-100 text-slate-700 font-medium transition-colors"
+          on:click={() => insertFormula('IF')}
+          title="If Condition (e.g. =IF(A1>0, 'Yes', 'No'))"
+        >
+          <span>IF</span>
         </button>
       </div>
 

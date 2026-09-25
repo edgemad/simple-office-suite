@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import { colToLetter } from './formulaEngine';
+  import { createEventDispatcher, tick } from 'svelte';
+  import { colToLetter, parseCoord } from './formulaEngine';
   import type { SheetGrid, CellFormatting } from '../../types';
 
   export let grid: SheetGrid;
@@ -15,6 +15,7 @@
 
   let editingCell: string | null = null;
   let editInputVal: string = '';
+  let editInputRef: HTMLInputElement | null = null;
 
   function getCellKey(col: number, row: number): string {
     return `${colToLetter(col)}${row + 1}`;
@@ -24,6 +25,10 @@
     if (editingCell && editingCell !== key) {
       commitEdit();
     }
+    setActiveCell(key);
+  }
+
+  function setActiveCell(key: string) {
     activeCell = key;
     const cell = grid[key];
     dispatch('selectCell', {
@@ -33,10 +38,15 @@
     });
   }
 
-  function handleCellDblClick(key: string) {
+  async function handleCellDblClick(key: string) {
     activeCell = key;
     editingCell = key;
     editInputVal = grid[key]?.raw ?? '';
+    await tick();
+    if (editInputRef) {
+      editInputRef.focus();
+      editInputRef.select();
+    }
   }
 
   function commitEdit() {
@@ -48,9 +58,60 @@
 
   function handleEditKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') {
+      e.preventDefault();
       commitEdit();
+      // Move down on Enter
+      const coord = parseCoord(activeCell);
+      if (coord && coord.row + 1 < rowCount) {
+        setActiveCell(getCellKey(coord.col, coord.row + 1));
+      }
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      commitEdit();
+      // Move right on Tab
+      const coord = parseCoord(activeCell);
+      if (coord && coord.col + 1 < colCount) {
+        setActiveCell(getCellKey(coord.col + 1, coord.row));
+      }
     } else if (e.key === 'Escape') {
       editingCell = null;
+    }
+  }
+
+  async function handleTableKeydown(e: KeyboardEvent) {
+    if (editingCell) return;
+
+    const coord = parseCoord(activeCell);
+    if (!coord) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (coord.row + 1 < rowCount) setActiveCell(getCellKey(coord.col, coord.row + 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (coord.row > 0) setActiveCell(getCellKey(coord.col, coord.row - 1));
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      if (coord.col + 1 < colCount) setActiveCell(getCellKey(coord.col + 1, coord.row));
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      if (coord.col > 0) setActiveCell(getCellKey(coord.col - 1, coord.row));
+    } else if (e.key === 'Enter' || e.key === 'F2') {
+      e.preventDefault();
+      await handleCellDblClick(activeCell);
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      dispatch('cellChange', { key: activeCell, raw: '' });
+    } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Start typing directly into active cell (e.g. "=", numbers, letters)
+      editingCell = activeCell;
+      editInputVal = e.key;
+      e.preventDefault();
+      await tick();
+      if (editInputRef) {
+        editInputRef.focus();
+        editInputRef.setSelectionRange(1, 1);
+      }
     }
   }
 
@@ -80,7 +141,12 @@
   }
 </script>
 
-<div class="flex-1 overflow-auto bg-slate-200 select-none relative">
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<div
+  class="flex-1 overflow-auto bg-slate-200 select-none relative outline-none"
+  tabindex="0"
+  on:keydown={handleTableKeydown}
+>
   <table class="border-collapse table-fixed bg-white text-xs">
     <!-- Header Row (Column Letters) -->
     <thead>
@@ -131,10 +197,11 @@
                 <!-- In-place Cell Editor -->
                 <input
                   type="text"
+                  bind:this={editInputRef}
                   bind:value={editInputVal}
                   on:blur={commitEdit}
                   on:keydown={handleEditKeydown}
-                  class="absolute inset-0 w-full h-full px-2 bg-white text-slate-900 border-2 border-emerald-600 outline-none z-20"
+                  class="absolute inset-0 w-full h-full px-2 bg-white text-slate-900 border-2 border-emerald-600 outline-none z-20 font-mono text-xs"
                 />
               {:else}
                 <div class="truncate">
