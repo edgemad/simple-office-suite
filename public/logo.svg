@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="50%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#7c3aed" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#brandGrad)" />
+  <!-- SOS Logo Monogram -->
+  <path d="M38 48 C38 42, 44 38, 52 38 C60 38, 66 42, 66 48 C66 58, 38 56, 38 68 C38 76, 46 80, 54 80 C62 80, 68 76, 68 70" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" />
+  <circle cx="88" cy="48" r="10" fill="#38bdf8" />
+  <rect x="78" y="66" width="22" height="14" rx="3" fill="#a7f3d0" />
+</svg>
