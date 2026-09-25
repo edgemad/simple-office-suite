@@ -56,12 +56,20 @@
     X,
     FileSpreadsheet,
     FileCheck,
-    Settings
+    Settings,
+    Mail,
+    Reply,
+    ReplyAll,
+    Forward,
+    Archive,
+    Trash2
   } from 'lucide-svelte';
+  import type { AppSettings } from '../../types';
   import AiAssistantModal from './AiAssistantModal.svelte';
 
   export let activeMode: WorkspaceMode;
   export let meta: DocumentMeta;
+  export let settings: AppSettings | undefined = undefined;
 
   const dispatch = createEventDispatcher<{
     changeMode: WorkspaceMode;
@@ -95,6 +103,7 @@
     sheets: ['File', 'Home', 'Insert', 'Draw', 'Layout', 'Formula', 'Data', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
     pdf: ['File', 'Home', 'Insert', 'Draw', 'Layout', 'References', 'Forms', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
     slides: ['File', 'Home', 'Insert', 'Draw', 'Design', 'Transitions', 'Animation', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
+    email: ['File', 'Home', 'View', 'Folder', 'Tools', 'Accounts', 'AI'],
   };
 
   $: currentTabs = tabsByMode[activeMode] || tabsByMode.writer;
@@ -107,7 +116,9 @@
       ? { text: 'text-emerald-500', hex: '#16a34a', bg: 'bg-emerald-600', ring: 'ring-emerald-500' }
       : activeMode === 'pdf'
       ? { text: 'text-rose-500', hex: '#e0564c', bg: 'bg-rose-600', ring: 'ring-rose-500' }
-      : { text: 'text-orange-500', hex: '#ea580c', bg: 'bg-orange-600', ring: 'ring-orange-500' };
+      : activeMode === 'slides'
+      ? { text: 'text-orange-500', hex: '#ea580c', bg: 'bg-orange-600', ring: 'ring-orange-500' }
+      : { text: 'text-indigo-400', hex: '#6366f1', bg: 'bg-indigo-600', ring: 'ring-indigo-500' };
 
   function handleTabClick(tab: string) {
     if (tab === 'File') {
@@ -176,11 +187,16 @@
             <FileCheck size={14} />
           </div>
           <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">PDF</span>
-        {:else}
+        {:else if activeMode === 'slides'}
           <div class="w-6 h-6 rounded bg-orange-600 flex items-center justify-center text-white shadow-xs" title="OnlyOffice Presentation Editor">
             <Presentation size={14} />
           </div>
           <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Slides</span>
+        {:else}
+          <div class="w-6 h-6 rounded bg-indigo-600 flex items-center justify-center text-white shadow-xs" title="OnlyOffice Mail Client">
+            <Mail size={14} />
+          </div>
+          <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Mail</span>
         {/if}
       </div>
 
@@ -288,6 +304,16 @@
       >
         <FileCheck size={13} />
         <span class="text-[11px]">PDF</span>
+      </button>
+
+      <button
+        class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
+          {activeMode === 'email' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}"
+        on:click={() => dispatch('changeMode', 'email')}
+        title="Mail Client ({modKey}+5)"
+      >
+        <Mail size={13} />
+        <span class="text-[11px]">Mail</span>
       </button>
     </nav>
 
@@ -502,6 +528,24 @@
           <button class="flex items-center space-x-1 px-2 py-0.5 rounded bg-rose-600/40 hover:bg-rose-600 text-rose-200 hover:text-white" on:click={() => triggerAction('addTextField')} title="Add Text Field">
             <Plus size={13} />
             <span>Text Field</span>
+          </button>
+        {:else if activeMode === 'email'}
+          <div class="h-4 w-px bg-slate-700 mx-1"></div>
+          <button class="flex items-center space-x-1 px-2.5 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-xs" on:click={() => triggerAction('newMail')}>
+            <Plus size={13} />
+            <span>New Message</span>
+          </button>
+          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('reply')}>
+            <Reply size={13} />
+            <span>Reply</span>
+          </button>
+          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('archive')}>
+            <Archive size={13} />
+            <span>Archive</span>
+          </button>
+          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('delete')}>
+            <Trash2 size={13} />
+            <span>Delete</span>
           </button>
         {/if}
       </div>
@@ -747,6 +791,43 @@
         <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('watermark')}>
           <span>Add Watermark</span>
         </button>
+      </div>
+
+    {:else if activeTab === 'Folder'}
+      <div class="flex items-center space-x-3">
+        <button class="flex items-center space-x-1 px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-xs" on:click={() => triggerAction('newFolder')}>
+          <Plus size={13} />
+          <span>New Folder</span>
+        </button>
+        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('markAllRead')}>
+          <CheckCircle2 size={13} class="text-emerald-400" />
+          <span>Mark All Read</span>
+        </button>
+        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('cleanTrash')}>
+          <Trash2 size={13} class="text-rose-400" />
+          <span>Empty Trash</span>
+        </button>
+      </div>
+
+    {:else if activeTab === 'Tools'}
+      <div class="flex items-center space-x-3">
+        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('exportMailbox')}>
+          <Download size={13} />
+          <span>Export Mailbox</span>
+        </button>
+        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('filterRules')}>
+          <Filter size={13} />
+          <span>Filter Rules</span>
+        </button>
+      </div>
+
+    {:else if activeTab === 'Accounts'}
+      <div class="flex items-center space-x-3">
+        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => dispatch('openSettings')}>
+          <Settings size={13} />
+          <span>Manage Accounts...</span>
+        </button>
+        <span class="text-slate-400 text-xs">Local Mailstore: 100% Offline</span>
       </div>
 
     {:else if activeTab === 'View'}

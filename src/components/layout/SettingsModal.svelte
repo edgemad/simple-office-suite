@@ -7,6 +7,7 @@
     Sheet,
     Presentation,
     FileCheck,
+    Mail,
     Sparkles,
     Download,
     Info,
@@ -30,7 +31,7 @@
     reset: void;
   }>();
 
-  let activeCategory: 'general' | 'word' | 'sheet' | 'slides' | 'pdf' | 'ai' | 'installers' | 'about' = 'general';
+  let activeCategory: 'general' | 'word' | 'sheet' | 'slides' | 'pdf' | 'email' | 'ai' | 'installers' | 'about' = 'general';
   let tempSettings: AppSettings = JSON.parse(JSON.stringify(settings));
   let savedNotice = false;
 
@@ -148,6 +149,15 @@
 
         <button
           class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors
+            {activeCategory === 'email' ? 'bg-indigo-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
+          on:click={() => (activeCategory = 'email')}
+        >
+          <Mail size={15} class={activeCategory === 'email' ? 'text-white' : 'text-indigo-400'} />
+          <span>Email & Accounts</span>
+        </button>
+
+        <button
+          class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors
             {activeCategory === 'ai' ? 'bg-purple-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
           on:click={() => (activeCategory = 'ai')}
         >
@@ -242,6 +252,7 @@
                 <option value="sheets">Sheet / Spreadsheet Editor</option>
                 <option value="slides">Slides / Presentation Editor</option>
                 <option value="pdf">PDF & Forms Editor</option>
+                <option value="email">Mail / Email Client</option>
               </select>
             </div>
 
@@ -493,6 +504,60 @@
                   <span class="text-[11px] text-slate-400">Display blue tinted outlines on interactive form inputs.</span>
                 </div>
                 <input type="checkbox" bind:checked={tempSettings.pdfHighlightFields} class="rounded bg-slate-800 border-slate-700 text-rose-500" />
+              </div>
+            </div>
+          </div>
+
+        <!-- EMAIL TAB -->
+        {:else if activeCategory === 'email'}
+          <div class="space-y-5">
+            <div>
+              <h3 class="text-sm font-semibold text-white">Email & Messaging Preferences</h3>
+              <p class="text-slate-400 text-[11px]">Configure mail signature, IMAP/SMTP accounts, and polling interval.</p>
+            </div>
+
+            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="font-medium text-slate-200 block">Default Email Account</span>
+                  <span class="text-[11px] text-slate-400">Primary sender identity for new messages.</span>
+                </div>
+                <span class="text-xs text-indigo-400 font-medium font-mono">edgar.madeja@simpleoffice.local</span>
+              </div>
+
+              <div class="space-y-1.5 border-t border-slate-800 pt-3">
+                <label class="block font-medium text-slate-200">Email Signature</label>
+                <textarea
+                  bind:value={tempSettings.emailSignature}
+                  rows="3"
+                  class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-sans"
+                  placeholder="Your automated signature..."
+                ></textarea>
+                <span class="text-[10px] text-slate-500">Automatically appended to outgoing messages.</span>
+              </div>
+
+              <div class="flex items-center justify-between border-t border-slate-800 pt-3">
+                <div>
+                  <span class="font-medium text-slate-200 block">Check for New Messages</span>
+                  <span class="text-[11px] text-slate-400">Automatic background sync interval for local inbox.</span>
+                </div>
+                <select
+                  bind:value={tempSettings.emailCheckIntervalMin}
+                  class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value={1}>Every 1 minute</option>
+                  <option value={5}>Every 5 minutes (Default)</option>
+                  <option value={15}>Every 15 minutes</option>
+                  <option value={0}>Manual Only</option>
+                </select>
+              </div>
+
+              <div class="flex items-center justify-between border-t border-slate-800 pt-3">
+                <div>
+                  <span class="font-medium text-slate-200 block">Zero-Cloud Offline Encryption</span>
+                  <span class="text-[11px] text-slate-400">All messages cached and stored on local disk only.</span>
+                </div>
+                <span class="text-xs text-emerald-400 font-semibold">Enabled (Local Storage)</span>
               </div>
             </div>
           </div>

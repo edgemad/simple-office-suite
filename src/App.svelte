@@ -11,6 +11,7 @@
   import Sheets from './components/sheets/Sheets.svelte';
   import Slides from './components/slides/Slides.svelte';
   import PdfViewer from './components/pdf/PdfViewer.svelte';
+  import EmailClient from './components/email/EmailClient.svelte';
   import {
     openFileDialogNative,
     saveFileDialogNative,
@@ -45,6 +46,18 @@
   let sheetsRef: Sheets;
   let slidesRef: Slides;
   let pdfRef: PdfViewer;
+  let emailRef: EmailClient;
+
+  // Active email stats
+  let emailTotal = 5;
+  let emailUnread = 1;
+  let emailFolder = 'INBOX';
+  let emailMeta = {
+    id: 'doc_email_1',
+    title: 'Inbox — Simple Office Mail',
+    isDirty: false,
+    mode: 'email' as WorkspaceMode,
+  };
 
   // Active status bar statistics
   let writerWordCount = 48;
@@ -312,7 +325,9 @@
       ? sheetsWorkbook.meta
       : activeMode === 'slides'
       ? slidesDeck.meta
-      : pdfDoc.meta;
+      : activeMode === 'pdf'
+      ? pdfDoc.meta
+      : emailMeta;
 
   function triggerAutoSave() {
     currentMeta.isDirty = true;
@@ -653,6 +668,8 @@
       else if (action === 'addSignatureField') pdfRef?.addFormField('signature');
       else if (action === 'exportFormData') pdfRef?.exportFormData();
       else if (action === 'print') triggerPrintToPdf(pdfDoc.title);
+    } else if (activeMode === 'email') {
+      emailRef?.triggerRibbonAction(action, payload);
     }
   }
 
@@ -685,6 +702,9 @@
       } else if (e.key === '4') {
         e.preventDefault();
         activeMode = 'pdf';
+      } else if (e.key === '5') {
+        e.preventDefault();
+        activeMode = 'email';
       }
     } else if (mod && e.shiftKey && !e.altKey) {
       if (e.key.toLowerCase() === 's') {
@@ -714,6 +734,7 @@
   <Header
     {activeMode}
     meta={currentMeta}
+    settings={appSettings}
     on:changeMode={(e) => (activeMode = e.detail)}
     on:newDoc={handleNewDoc}
     on:openDoc={handleOpenDoc}
@@ -771,6 +792,16 @@
           pdfTotalPages = e.detail.totalPages;
         }}
       />
+    {:else if activeMode === 'email'}
+      <EmailClient
+        bind:this={emailRef}
+        settings={appSettings}
+        on:updateStats={(e) => {
+          emailTotal = e.detail.total;
+          emailUnread = e.detail.unread;
+          emailFolder = e.detail.activeFolder;
+        }}
+      />
     {/if}
   </main>
 
@@ -786,6 +817,9 @@
     totalSlides={slidesTotal}
     {pdfPage}
     {pdfTotalPages}
+    {emailTotal}
+    {emailUnread}
+    {emailFolder}
   />
 
   <!-- Keyboard Shortcuts Cheat Sheet Modal -->

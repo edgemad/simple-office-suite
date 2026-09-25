@@ -12,6 +12,9 @@
   export let totalSlides: number = 1;
   export let pdfPage: number = 1;
   export let pdfTotalPages: number = 1;
+  export let emailTotal: number = 5;
+  export let emailUnread: number = 1;
+  export let emailFolder: string = 'INBOX';
 </script>
 
 <footer class="no-print h-7 bg-white border-t border-slate-200 px-4 flex items-center justify-between text-xs text-slate-500 select-none z-20 shadow-inner">
@@ -55,6 +58,14 @@
         <span class="text-rose-600 font-semibold font-sans">PDF / Forms</span>
         <span class="text-slate-300">•</span>
         <span>Page {pdfPage} of {pdfTotalPages}</span>
+      </div>
+    {:else if activeMode === 'email'}
+      <div class="flex items-center space-x-2">
+        <span class="text-indigo-600 font-semibold font-sans">Mail: {emailFolder || 'INBOX'}</span>
+        <span class="text-slate-300">•</span>
+        <span class="text-indigo-700 font-medium">{emailUnread} unread</span>
+        <span class="text-slate-300">•</span>
+        <span>{emailTotal} messages</span>
       </div>
     {/if}
 

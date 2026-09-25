@@ -1,4 +1,4 @@
-export type WorkspaceMode = 'writer' | 'sheets' | 'slides' | 'pdf';
+export type WorkspaceMode = 'writer' | 'sheets' | 'slides' | 'pdf' | 'email';
 
 export interface DocumentMeta {
   id: string;
@@ -8,6 +8,55 @@ export interface DocumentMeta {
   lastSaved?: string;
   mode: WorkspaceMode;
 }
+
+// SOS Mail & Email Types
+export type EmailFolder = 'inbox' | 'starred' | 'sent' | 'drafts' | 'archive' | 'trash' | 'junk';
+
+export interface EmailAttachment {
+  id: string;
+  name: string;
+  size: string;
+  type: string;
+  dataUrl?: string;
+}
+
+export interface EmailMessage {
+  id: string;
+  fromName: string;
+  fromEmail: string;
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  date: string;
+  preview: string;
+  bodyHtml: string;
+  folder: EmailFolder;
+  isUnread: boolean;
+  isStarred: boolean;
+  labels?: string[];
+  attachments?: EmailAttachment[];
+}
+
+export interface EmailAccount {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+  incomingServer?: string;
+  outgoingServer?: string;
+}
+
+export interface MailboxState {
+  meta: DocumentMeta;
+  activeAccount: EmailAccount;
+  activeFolder: EmailFolder;
+  selectedEmailId: string | null;
+  emails: EmailMessage[];
+  searchQuery: string;
+  filterUnreadOnly: boolean;
+}
+
 
 // SOS PDF & Forms Types
 export interface PdfFormField {
@@ -154,4 +203,6 @@ export interface AppSettings {
   aiApiKey: string;
   aiModel: string;
   aiTemperature: number;
+  emailSignature?: string;
+  emailCheckIntervalMin?: number;
 }

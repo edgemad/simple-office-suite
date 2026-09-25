@@ -22,6 +22,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   aiApiKey: '',
   aiModel: 'gpt-4o',
   aiTemperature: 0.7,
+  emailSignature: '--\nSent from Simple Office Suite (Offline & Private)',
+  emailCheckIntervalMin: 5,
 };
 
 const STORAGE_KEY = 'simple_office_settings_v1';
