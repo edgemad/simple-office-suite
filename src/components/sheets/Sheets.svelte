@@ -2,8 +2,10 @@
   import { createEventDispatcher } from 'svelte';
   import FormulaBar from './FormulaBar.svelte';
   import Grid from './Grid.svelte';
-  import { recalculateGrid, colToLetter } from './formulaEngine';
-  import type { SpreadsheetWorkbook, SheetGrid, CellFormatting, SheetTab } from '../../types';
+  import ChartModal from './ChartModal.svelte';
+  import ConditionalFormatModal from './ConditionalFormatModal.svelte';
+  import { recalculateGrid, colToLetter, parseCoord } from './formulaEngine';
+  import type { SpreadsheetWorkbook, SheetGrid, CellFormatting, SheetTab, SheetChart, ConditionalFormatRule } from '../../types';
   import {
     Plus,
     Bold,
@@ -20,7 +22,14 @@
     PaintBucket,
     X,
     Undo2,
-    Redo2
+    Redo2,
+    BarChart3,
+    Sparkles,
+    ArrowDownAZ,
+    ArrowUpZA,
+    Search,
+    Replace,
+    ArrowUpDown
   } from 'lucide-svelte';
   import { downloadFile } from '../../lib/utils';
   import { exportToXlsx, parseSpreadsheetContent } from '../../lib/fileFormats';
@@ -36,6 +45,12 @@
   let gridRef: Grid;
   let activeCell: string = 'B5';
   let rawValue: string = '';
+
+  let showChartModal = false;
+  let showConditionalModal = false;
+  let showFindBar = false;
+  let findQuery = '';
+  let replaceQuery = '';
 
   let cellFontFamily = 'Inter, sans-serif';
   let cellFontSize = 11;
@@ -213,6 +228,216 @@
     activeSheet.colCount = Math.min(activeSheet.colCount + 5, 52);
     workbook.meta.isDirty = true;
     dispatch('change');
+  }
+
+  // Google Sheets Powerhouse Features: Charts, Sorting, Row/Col Operations, Conditional Formatting
+  export function openChartDialog() {
+    showChartModal = true;
+  }
+
+  export function openConditionalFormatting() {
+    showConditionalModal = true;
+  }
+
+  export function toggleFindBar() {
+    showFindBar = !showFindBar;
+  }
+
+  function handleInsertChart(e: CustomEvent<SheetChart>) {
+    pushUndo();
+    if (!activeSheet.charts) activeSheet.charts = [];
+    activeSheet.charts = [...activeSheet.charts, e.detail];
+    workbook.meta.isDirty = true;
+    dispatch('change');
+  }
+
+  function handleSaveRules(e: CustomEvent<ConditionalFormatRule[]>) {
+    pushUndo();
+    activeSheet.conditionalRules = e.detail;
+    workbook.meta.isDirty = true;
+    dispatch('change');
+  }
+
+  // Sort Active Column Ascending / Descending
+  export function sortActiveColumn(ascending: boolean = true) {
+    pushUndo();
+    const coord = parseCoord(activeCell);
+    if (!coord) return;
+    const targetCol = coord.col;
+
+    const rowsData: { rowIdx: number; keyCell: any; cells: Record<number, any> }[] = [];
+    for (let r = 0; r < activeSheet.rowCount; r++) {
+      const colCells: Record<number, any> = {};
+      for (let c = 0; c < activeSheet.colCount; c++) {
+        const k = `${colToLetter(c)}${r + 1}`;
+        if (activeSheet.cells[k]) {
+          colCells[c] = { ...activeSheet.cells[k] };
+        }
+      }
+      const targetKey = `${colToLetter(targetCol)}${r + 1}`;
+      rowsData.push({
+        rowIdx: r,
+        keyCell: activeSheet.cells[targetKey]?.computed ?? '',
+        cells: colCells,
+      });
+    }
+
+    const isFirstRowHeader = isNaN(Number(rowsData[0]?.keyCell)) && rowsData.slice(1).some((r) => !isNaN(Number(r.keyCell)) && r.keyCell !== '');
+    const headerRow = isFirstRowHeader ? rowsData[0] : null;
+    const sortableRows = isFirstRowHeader ? rowsData.slice(1) : rowsData;
+
+    sortableRows.sort((a, b) => {
+      const valA = a.keyCell;
+      const valB = b.keyCell;
+      const numA = typeof valA === 'number' ? valA : parseFloat(String(valA).replace(/[$,%]/g, ''));
+      const numB = typeof valB === 'number' ? valB : parseFloat(String(valB).replace(/[$,%]/g, ''));
+
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return ascending ? numA - numB : numB - numA;
+      }
+      const strA = String(valA).toLowerCase();
+      const strB = String(valB).toLowerCase();
+      return ascending ? strA.localeCompare(strB) : strB.localeCompare(strA);
+    });
+
+    const finalRows = headerRow ? [headerRow, ...sortableRows] : sortableRows;
+
+    const newCells: SheetGrid = {};
+    finalRows.forEach((rowObj, newR) => {
+      for (const [cStr, cellVal] of Object.entries(rowObj.cells)) {
+        const c = parseInt(cStr, 10);
+        const newKey = `${colToLetter(c)}${newR + 1}`;
+        newCells[newKey] = cellVal;
+      }
+    });
+
+    activeSheet.cells = recalculateGrid(newCells);
+    workbook.meta.isDirty = true;
+    computeStats();
+    dispatch('change');
+  }
+
+  // Row Manipulation
+  export function insertRow(above: boolean = true) {
+    pushUndo();
+    const coord = parseCoord(activeCell);
+    if (!coord) return;
+    const targetRow = above ? coord.row : coord.row + 1;
+
+    const newCells: SheetGrid = {};
+    for (const [k, v] of Object.entries(activeSheet.cells)) {
+      const c = parseCoord(k);
+      if (!c) continue;
+      if (c.row >= targetRow) {
+        newCells[`${colToLetter(c.col)}${c.row + 2}`] = v;
+      } else {
+        newCells[k] = v;
+      }
+    }
+    activeSheet.rowCount = Math.max(activeSheet.rowCount + 1, 50);
+    activeSheet.cells = recalculateGrid(newCells);
+    workbook.meta.isDirty = true;
+    computeStats();
+    dispatch('change');
+  }
+
+  export function deleteCurrentRow() {
+    pushUndo();
+    const coord = parseCoord(activeCell);
+    if (!coord) return;
+    const targetRow = coord.row;
+
+    const newCells: SheetGrid = {};
+    for (const [k, v] of Object.entries(activeSheet.cells)) {
+      const c = parseCoord(k);
+      if (!c) continue;
+      if (c.row === targetRow) {
+        continue;
+      } else if (c.row > targetRow) {
+        newCells[`${colToLetter(c.col)}${c.row}`] = v;
+      } else {
+        newCells[k] = v;
+      }
+    }
+    activeSheet.rowCount = Math.max(1, activeSheet.rowCount - 1);
+    activeSheet.cells = recalculateGrid(newCells);
+    workbook.meta.isDirty = true;
+    computeStats();
+    dispatch('change');
+  }
+
+  // Column Manipulation
+  export function insertColumn(left: boolean = true) {
+    pushUndo();
+    const coord = parseCoord(activeCell);
+    if (!coord) return;
+    const targetCol = left ? coord.col : coord.col + 1;
+
+    const newCells: SheetGrid = {};
+    for (const [k, v] of Object.entries(activeSheet.cells)) {
+      const c = parseCoord(k);
+      if (!c) continue;
+      if (c.col >= targetCol) {
+        newCells[`${colToLetter(c.col + 1)}${c.row + 1}`] = v;
+      } else {
+        newCells[k] = v;
+      }
+    }
+    activeSheet.colCount = Math.max(activeSheet.colCount + 1, 26);
+    activeSheet.cells = recalculateGrid(newCells);
+    workbook.meta.isDirty = true;
+    computeStats();
+    dispatch('change');
+  }
+
+  export function deleteCurrentColumn() {
+    pushUndo();
+    const coord = parseCoord(activeCell);
+    if (!coord) return;
+    const targetCol = coord.col;
+
+    const newCells: SheetGrid = {};
+    for (const [k, v] of Object.entries(activeSheet.cells)) {
+      const c = parseCoord(k);
+      if (!c) continue;
+      if (c.col === targetCol) {
+        continue;
+      } else if (c.col > targetCol) {
+        newCells[`${colToLetter(c.col - 1)}${c.row + 1}`] = v;
+      } else {
+        newCells[k] = v;
+      }
+    }
+    activeSheet.colCount = Math.max(1, activeSheet.colCount - 1);
+    activeSheet.cells = recalculateGrid(newCells);
+    workbook.meta.isDirty = true;
+    computeStats();
+    dispatch('change');
+  }
+
+  // Find & Replace
+  function handleSheetFind(all: boolean = false) {
+    if (!findQuery) return;
+    pushUndo();
+    let replaced = 0;
+    const newCells = { ...activeSheet.cells };
+    for (const [k, v] of Object.entries(newCells)) {
+      if (v.raw.includes(findQuery)) {
+        newCells[k] = {
+          ...v,
+          raw: all ? v.raw.replaceAll(findQuery, replaceQuery) : v.raw.replace(findQuery, replaceQuery),
+        };
+        replaced++;
+        if (!all) break;
+      }
+    }
+    if (replaced > 0) {
+      activeSheet.cells = recalculateGrid(newCells);
+      workbook.meta.isDirty = true;
+      rawValue = activeSheet.cells[activeCell]?.raw ?? '';
+      computeStats();
+      dispatch('change');
+    }
   }
 
   function insertFormula(fnName: string) {
@@ -682,20 +907,69 @@
         </button>
       </div>
 
-      <!-- Add Rows/Columns -->
+      <!-- Google Sheets Supercharged Actions: Charts, Conditional Formatting, Sorting, Find -->
       <div class="flex items-center space-x-1 pr-1 border-r border-slate-200">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-slate-100 text-slate-700" on:click={addRow} title="Add 10 Rows">
-          <Plus size={13} />
-          <span>Rows</span>
+        <button
+          class="flex items-center space-x-1 px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-medium transition-colors"
+          on:click={() => (showChartModal = true)}
+          title="Insert Chart (Bar, Line, Pie)"
+        >
+          <BarChart3 size={13} />
+          <span>Chart</span>
         </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-slate-100 text-slate-700" on:click={addColumn} title="Add 5 Columns">
-          <Plus size={13} />
-          <span>Cols</span>
+        <button
+          class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-slate-100 text-slate-700 font-medium transition-colors"
+          on:click={() => (showConditionalModal = true)}
+          title="Conditional Formatting Rules"
+        >
+          <Sparkles size={13} class="text-amber-500" />
+          <span>Format</span>
         </button>
       </div>
 
-      <!-- Import/Export -->
+      <!-- Sorting -->
+      <div class="flex items-center space-x-0.5 pr-1 border-r border-slate-200">
+        <button
+          class="p-1.5 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+          on:click={() => sortActiveColumn(true)}
+          title="Sort Active Column A → Z (Ascending)"
+        >
+          <ArrowDownAZ size={14} />
+        </button>
+        <button
+          class="p-1.5 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+          on:click={() => sortActiveColumn(false)}
+          title="Sort Active Column Z → A (Descending)"
+        >
+          <ArrowUpZA size={14} />
+        </button>
+      </div>
+
+      <!-- Add Rows/Columns -->
+      <div class="flex items-center space-x-1 pr-1 border-r border-slate-200">
+        <button class="flex items-center space-x-1 px-1.5 py-1 rounded hover:bg-slate-100 text-slate-700" on:click={() => insertRow(true)} title="Insert Row Above">
+          <Plus size={12} />
+          <span class="text-[10px]">Row ↑</span>
+        </button>
+        <button class="flex items-center space-x-1 px-1.5 py-1 rounded hover:bg-slate-100 text-slate-700" on:click={() => insertRow(false)} title="Insert Row Below">
+          <Plus size={12} />
+          <span class="text-[10px]">Row ↓</span>
+        </button>
+        <button class="flex items-center space-x-1 px-1.5 py-1 rounded hover:bg-slate-100 text-slate-700" on:click={() => insertColumn(true)} title="Insert Column Left">
+          <Plus size={12} />
+          <span class="text-[10px]">Col ←</span>
+        </button>
+        <button class="flex items-center space-x-1 px-1.5 py-1 rounded hover:bg-slate-100 text-slate-700" on:click={() => insertColumn(false)} title="Insert Column Right">
+          <Plus size={12} />
+          <span class="text-[10px]">Col →</span>
+        </button>
+      </div>
+
+      <!-- Search & Import/Export -->
       <div class="flex items-center space-x-1">
+        <button class="p-1.5 rounded hover:bg-slate-100 text-slate-600 transition-colors" on:click={() => (showFindBar = !showFindBar)} title="Find & Replace in Sheet (Ctrl+F)">
+          <Search size={14} />
+        </button>
         <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-slate-100 text-slate-600" on:click={handleImportSpreadsheet} title="Import Spreadsheet (.xlsx, .csv, .tsv)">
           <Upload size={13} />
           <span>Import</span>
@@ -714,6 +988,48 @@
     </div>
   </div>
 
+  <!-- Find & Replace Floating Bar for Sheets -->
+  {#if showFindBar}
+    <div class="no-print bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between text-xs shadow-xs z-20">
+      <div class="flex items-center space-x-2">
+        <div class="flex items-center space-x-1.5 bg-slate-100 px-2 py-1 rounded border border-slate-300">
+          <Search size={13} class="text-slate-400" />
+          <input
+            type="text"
+            placeholder="Find in sheet..."
+            bind:value={findQuery}
+            class="bg-transparent outline-none text-xs w-36 text-slate-800"
+            on:keydown={(e) => e.key === 'Enter' && handleSheetFind(false)}
+          />
+        </div>
+        <div class="flex items-center space-x-1.5 bg-slate-100 px-2 py-1 rounded border border-slate-300">
+          <Replace size={13} class="text-slate-400" />
+          <input
+            type="text"
+            placeholder="Replace with..."
+            bind:value={replaceQuery}
+            class="bg-transparent outline-none text-xs w-36 text-slate-800"
+          />
+        </div>
+        <button
+          class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 rounded border border-emerald-200 text-emerald-800 font-medium transition-colors"
+          on:click={() => handleSheetFind(false)}
+        >
+          Replace
+        </button>
+        <button
+          class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 rounded border border-emerald-200 text-emerald-800 font-medium transition-colors"
+          on:click={() => handleSheetFind(true)}
+        >
+          Replace All
+        </button>
+      </div>
+      <button class="p-1 rounded hover:bg-slate-100 text-slate-400" on:click={() => (showFindBar = false)}>
+        <X size={15} />
+      </button>
+    </div>
+  {/if}
+
   <!-- Formula Bar -->
   <FormulaBar
     {activeCell}
@@ -729,9 +1045,26 @@
     rowCount={activeSheet.rowCount}
     colCount={activeSheet.colCount}
     bind:activeCell
+    conditionalRules={activeSheet.conditionalRules || []}
     on:selectCell={handleSelectCell}
     on:cellChange={handleCellChange}
     on:cellInput={(e) => (rawValue = e.detail.raw)}
+  />
+
+  <!-- Chart Modal -->
+  <ChartModal
+    bind:isOpen={showChartModal}
+    grid={activeSheet.cells}
+    defaultRange={activeCell}
+    on:insertChart={handleInsertChart}
+  />
+
+  <!-- Conditional Formatting Modal -->
+  <ConditionalFormatModal
+    bind:isOpen={showConditionalModal}
+    rules={activeSheet.conditionalRules || []}
+    defaultRange={activeCell}
+    on:saveRules={handleSaveRules}
   />
 
   <!-- Google Sheets & Excel Style Multi-Sheet Bottom Tab Bar -->

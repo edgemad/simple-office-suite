@@ -650,12 +650,24 @@
         document.execCommand('insertUnorderedList', false);
       } else if (action === 'ordered') {
         document.execCommand('insertOrderedList', false);
+      } else if (action === 'checklist') {
+        writerRef?.insertChecklist();
       } else if (action === 'insertTable') {
         writerRef?.insertTable();
       } else if (action === 'insertImage') {
         writerRef?.insertImage();
       } else if (action === 'insertLink') {
         writerRef?.insertLink();
+      } else if (action === 'insertCallout') {
+        writerRef?.insertCallout();
+      } else if (action === 'insertToc') {
+        writerRef?.insertTableOfContents();
+      } else if (action === 'toggleOutline') {
+        writerRef?.toggleOutline();
+      } else if (action === 'pageSetup') {
+        writerRef?.openPageSetup();
+      } else if (action === 'wordCount') {
+        writerRef?.openWordCount();
       } else if (action === 'insertText') {
         document.execCommand('insertText', false, payload);
       }
@@ -665,6 +677,17 @@
       else if (action === 'underline') sheetsRef?.toggleUnderline();
       else if (action === 'autoSum') sheetsRef?.insertFormula('SUM');
       else if (action === 'formulaQuick') sheetsRef?.insertFormula(payload);
+      else if (action === 'insertChart') sheetsRef?.openChartDialog();
+      else if (action === 'conditionalFormatting') sheetsRef?.openConditionalFormatting();
+      else if (action === 'sortAsc') sheetsRef?.sortActiveColumn(true);
+      else if (action === 'sortDesc') sheetsRef?.sortActiveColumn(false);
+      else if (action === 'insertRowAbove') sheetsRef?.insertRow(true);
+      else if (action === 'insertRowBelow') sheetsRef?.insertRow(false);
+      else if (action === 'deleteRow') sheetsRef?.deleteCurrentRow();
+      else if (action === 'insertColLeft') sheetsRef?.insertColumn(true);
+      else if (action === 'insertColRight') sheetsRef?.insertColumn(false);
+      else if (action === 'deleteCol') sheetsRef?.deleteCurrentColumn();
+      else if (action === 'find') sheetsRef?.toggleFindBar();
       else if (action === 'insertFx') {
         const fxBtn = document.querySelector('button[title*="Insert Function"]') as HTMLButtonElement;
         if (fxBtn) fxBtn.click();

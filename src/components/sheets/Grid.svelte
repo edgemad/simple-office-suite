@@ -3,12 +3,53 @@
   import { colToLetter, parseCoord, expandRange } from './formulaEngine';
   import FormulaSuggestions from './FormulaSuggestions.svelte';
   import { getSmartFormulaSuggestion, type FormulaDefinition } from './formulaDefinitions';
-  import type { SheetGrid, CellFormatting } from '../../types';
+  import type { SheetGrid, CellFormatting, ConditionalFormatRule } from '../../types';
 
   export let grid: SheetGrid;
   export let rowCount: number = 50;
   export let colCount: number = 26;
   export let activeCell: string = 'A1';
+  export let conditionalRules: ConditionalFormatRule[] = [];
+
+  function isCellInRange(cellKey: string, rangeStr: string): boolean {
+    if (!rangeStr) return false;
+    if (!rangeStr.includes(':')) return cellKey.toUpperCase() === rangeStr.trim().toUpperCase();
+    try {
+      const keys = expandRange(rangeStr.trim().toUpperCase());
+      return keys.includes(cellKey);
+    } catch {
+      return false;
+    }
+  }
+
+  function getConditionalStyle(key: string, cellVal: string | number | undefined): { bgColor?: string; textColor?: string } | null {
+    if (!conditionalRules || conditionalRules.length === 0 || cellVal === undefined || cellVal === null || cellVal === '') return null;
+    const strVal = String(cellVal).trim();
+    const numVal = typeof cellVal === 'number' ? cellVal : parseFloat(strVal.replace(/[$,%]/g, ''));
+
+    for (const rule of conditionalRules) {
+      if (isCellInRange(key, rule.range)) {
+        let match = false;
+        const ruleNum = parseFloat(rule.value);
+        if (rule.condition === 'greaterThan' && !isNaN(numVal) && !isNaN(ruleNum)) {
+          match = numVal > ruleNum;
+        } else if (rule.condition === 'lessThan' && !isNaN(numVal) && !isNaN(ruleNum)) {
+          match = numVal < ruleNum;
+        } else if (rule.condition === 'equals') {
+          match = strVal.toLowerCase() === rule.value.toLowerCase() || (!isNaN(numVal) && !isNaN(ruleNum) && numVal === ruleNum);
+        } else if (rule.condition === 'contains') {
+          match = strVal.toLowerCase().includes(rule.value.toLowerCase());
+        } else if (rule.condition === 'notEmpty') {
+          match = strVal.length > 0;
+        }
+
+        if (match) {
+          return { bgColor: rule.bgColor, textColor: rule.textColor };
+        }
+      }
+    }
+    return null;
+  }
 
   const dispatch = createEventDispatcher<{
     selectCell: { key: string; raw: string; computed: string | number };
@@ -486,6 +527,7 @@
             {@const isPointed = pointedCellKeys.includes(key)}
             {@const isPointHead = pointingState.active && (pointingState.currentCell === key || pointingState.startCell === key)}
             {@const fmt = cell?.format}
+            {@const condStyle = getConditionalStyle(key, cell?.computed)}
 
             <td
               data-cell={key}
@@ -494,8 +536,8 @@
                 {isPointed ? 'ring-2 ring-blue-500 ring-offset-0 bg-blue-100/40 z-20 font-semibold text-blue-950' : ''}
                 {isPointHead ? 'ring-2 ring-blue-600 bg-blue-200/50' : ''}"
               style="
-                background-color: {isPointed ? 'rgba(219, 234, 254, 0.45)' : (fmt?.bgColor || (isSelected && !isEditing ? '#ecfdf5' : '#ffffff'))};
-                color: {fmt?.textColor || '#1e293b'};
+                background-color: {isPointed ? 'rgba(219, 234, 254, 0.45)' : (condStyle?.bgColor || fmt?.bgColor || (isSelected && !isEditing ? '#ecfdf5' : '#ffffff'))};
+                color: {condStyle?.textColor || fmt?.textColor || '#1e293b'};
                 font-family: {fmt?.fontFamily || 'inherit'};
                 font-size: {fmt?.fontSize ? `${fmt.fontSize}pt` : 'inherit'};
                 font-weight: {fmt?.bold ? 'bold' : 'normal'};

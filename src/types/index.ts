@@ -151,6 +151,18 @@ export interface PdfDocument {
 }
 
 // SOS Writer Types
+export interface DocumentHeading {
+  id: string;
+  text: string;
+  level: number;
+}
+
+export interface DocumentPageSetup {
+  margin: 'normal' | 'narrow' | 'wide';
+  orientation: 'portrait' | 'landscape';
+  size: 'letter' | 'a4' | 'legal';
+}
+
 export interface WriterDocument {
   meta: DocumentMeta;
   contentHtml: string;
@@ -159,6 +171,7 @@ export interface WriterDocument {
   charCount: number;
   pageCount: number;
   pageSize?: 'a4' | 'letter';
+  pageSetup?: DocumentPageSetup;
 }
 
 // SOS Sheets Types
@@ -182,12 +195,36 @@ export interface CellValue {
 
 export type SheetGrid = Record<string, CellValue>; // Keyed by "A1", "B2", etc.
 
+export interface SheetChart {
+  id: string;
+  type: 'bar' | 'line' | 'pie' | 'doughnut';
+  title: string;
+  range: string;
+  labelCol?: number;
+  valueCol: number;
+  x?: number;
+  y?: number;
+}
+
+export interface ConditionalFormatRule {
+  id: string;
+  range: string;
+  condition: 'greaterThan' | 'lessThan' | 'equals' | 'contains' | 'notEmpty';
+  value: string;
+  bgColor: string;
+  textColor: string;
+}
+
 export interface SheetTab {
   id: string;
   name: string;
   cells: SheetGrid;
   rowCount: number;
   colCount: number;
+  charts?: SheetChart[];
+  conditionalRules?: ConditionalFormatRule[];
+  frozenRows?: number;
+  frozenCols?: number;
 }
 
 export interface SpreadsheetWorkbook {
@@ -197,8 +234,8 @@ export interface SpreadsheetWorkbook {
 }
 
 // SOS Slides Types
-export type SlideElementType = 'title' | 'text' | 'shape' | 'code' | 'image' | 'stat';
-export type ShapeVariant = 'rectangle' | 'circle' | 'pill' | 'quote-box';
+export type SlideElementType = 'title' | 'text' | 'shape' | 'code' | 'image' | 'stat' | 'arrow' | 'star' | 'triangle' | 'callout';
+export type ShapeVariant = 'rectangle' | 'rounded' | 'circle' | 'pill' | 'quote-box' | 'star' | 'arrow-right' | 'arrow-left' | 'triangle' | 'callout';
 
 export interface SlideElement {
   id: string;
@@ -213,9 +250,12 @@ export interface SlideElement {
   fontWeight?: string;
   fontColor?: string;
   bgColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
   borderRadius?: number;
   shapeVariant?: ShapeVariant;
   language?: string; // For code blocks
+  zIndex?: number;
 }
 
 export interface Slide {
@@ -224,7 +264,7 @@ export interface Slide {
   elements: SlideElement[];
   bgColor: string;
   notes?: string;
-  layout?: 'title' | 'content' | 'two-column' | 'blank';
+  layout?: 'title' | 'content' | 'two-column' | 'stat' | 'section-header' | 'blank';
 }
 
 export interface SlideDeck {

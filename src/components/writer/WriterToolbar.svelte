@@ -11,6 +11,7 @@
     AlignJustify,
     List,
     ListOrdered,
+    ListChecks,
     Quote,
     Code,
     Table,
@@ -25,20 +26,33 @@
     Search,
     Type,
     Baseline,
-    Highlighter
+    Highlighter,
+    ListTree,
+    Layout,
+    FileText,
+    Calendar,
+    MessageSquareQuote
   } from 'lucide-svelte';
+
+  export let showOutline: boolean = false;
 
   const dispatch = createEventDispatcher<{
     format: { command: string; value?: string };
     insertTable: void;
     insertImage: void;
     insertLink: void;
+    insertChecklist: void;
+    insertDate: void;
+    insertCallout: void;
     toggleSearch: void;
+    toggleOutline: void;
+    openPageSetup: void;
+    openWordCount: void;
   }>();
 
   let activeBlock = 'p';
   let selectedFont = 'Inter, sans-serif';
-  let selectedSize = '3'; // execCommand font size 1-7 or inline style
+  let selectedSize = '3';
   let textColor = '#000000';
   let highlightColor = '#ffff00';
 
@@ -99,7 +113,27 @@
   }
 </script>
 
-<div class="no-print bg-white border-b border-slate-200 px-3 py-1 flex items-center space-x-1.5 overflow-x-auto select-none text-slate-700 text-xs shadow-sm">
+<div class="no-print bg-white border-b border-slate-200 px-3 py-1 flex items-center space-x-1.5 overflow-x-auto select-none text-slate-700 text-xs shadow-xs">
+  <!-- Left Side: Document Outline Toggle & Page Setup -->
+  <div class="flex items-center space-x-1 pr-2 border-r border-slate-200">
+    <button
+      class="p-1.5 rounded transition-colors flex items-center space-x-1 font-medium
+        {showOutline ? 'bg-blue-100 text-blue-700' : 'hover:bg-slate-100 text-slate-600'}"
+      on:click={() => dispatch('toggleOutline')}
+      title="Toggle Document Outline / Table of Contents"
+    >
+      <ListTree size={15} />
+      <span class="text-[11px] hidden sm:inline">Outline</span>
+    </button>
+    <button
+      class="p-1.5 rounded hover:bg-slate-100 text-slate-600 transition-colors"
+      on:click={() => dispatch('openPageSetup')}
+      title="Page Setup (Margins, Orientation, Pageless)"
+    >
+      <Layout size={15} />
+    </button>
+  </div>
+
   <!-- Undo / Redo -->
   <div class="flex items-center space-x-0.5 pr-2 border-r border-slate-200">
     <button
@@ -135,12 +169,12 @@
     </select>
   </div>
 
-  <!-- Font Family Selector (User Requested) -->
+  <!-- Font Family Selector -->
   <div class="px-1 border-r border-slate-200">
     <select
       bind:value={selectedFont}
       on:change={handleFontChange}
-      class="h-7 max-w-[130px] bg-slate-50 border border-slate-200 rounded px-2 text-xs text-slate-700 outline-none hover:bg-slate-100 cursor-pointer font-medium truncate"
+      class="h-7 max-w-[120px] bg-slate-50 border border-slate-200 rounded px-2 text-xs text-slate-700 outline-none hover:bg-slate-100 cursor-pointer font-medium truncate"
       title="Font Family"
     >
       {#each fontFamilies as font}
@@ -149,7 +183,7 @@
     </select>
   </div>
 
-  <!-- Font Size Selector (User Requested) -->
+  <!-- Font Size Selector -->
   <div class="px-1 border-r border-slate-200">
     <select
       bind:value={selectedSize}
@@ -253,7 +287,7 @@
     </button>
   </div>
 
-  <!-- Lists & Quotes -->
+  <!-- Lists, Checklists & Quotes -->
   <div class="flex items-center space-x-0.5 px-1 border-r border-slate-200">
     <button
       class="p-1.5 rounded hover:bg-slate-100 hover:text-slate-900 transition-colors"
@@ -268,6 +302,13 @@
       title="Numbered List"
     >
       <ListOrdered size={15} />
+    </button>
+    <button
+      class="p-1.5 rounded hover:bg-slate-100 hover:text-slate-900 transition-colors text-blue-600"
+      on:click={() => dispatch('insertChecklist')}
+      title="Google Docs Checklist / To-Do item"
+    >
+      <ListChecks size={15} />
     </button>
     <button
       class="p-1.5 rounded hover:bg-slate-100 hover:text-slate-900 transition-colors"
@@ -285,28 +326,42 @@
     </button>
   </div>
 
-  <!-- Inserts: Table, Image, Link, Divider -->
+  <!-- Inserts: Table, Image, Link, Callout, Date -->
   <div class="flex items-center space-x-0.5 pl-1">
     <button
       class="p-1.5 rounded hover:bg-slate-100 hover:text-slate-900 transition-colors"
       on:click={() => dispatch('insertTable')}
-      title="Insert Table (3x3)"
+      title="Insert Table (Rows × Columns)"
     >
       <Table size={15} />
     </button>
     <button
       class="p-1.5 rounded hover:bg-slate-100 hover:text-slate-900 transition-colors"
       on:click={() => dispatch('insertImage')}
-      title="Insert Local Image"
+      title="Insert Image"
     >
       <Image size={15} />
     </button>
     <button
       class="p-1.5 rounded hover:bg-slate-100 hover:text-slate-900 transition-colors"
       on:click={() => dispatch('insertLink')}
-      title="Insert Hyperlink (Ctrl+K)"
+      title="Insert Link (Ctrl+K)"
     >
       <Link size={15} />
+    </button>
+    <button
+      class="p-1.5 rounded hover:bg-slate-100 hover:text-slate-900 transition-colors"
+      on:click={() => dispatch('insertCallout')}
+      title="Insert Callout Note Box"
+    >
+      <MessageSquareQuote size={15} />
+    </button>
+    <button
+      class="p-1.5 rounded hover:bg-slate-100 hover:text-slate-900 transition-colors"
+      on:click={() => dispatch('insertDate')}
+      title="Insert Date Stamp"
+    >
+      <Calendar size={15} />
     </button>
     <button
       class="p-1.5 rounded hover:bg-slate-100 hover:text-slate-900 transition-colors"
@@ -322,12 +377,23 @@
     >
       <RemoveFormatting size={15} />
     </button>
-    <button
-      class="p-1.5 rounded hover:bg-slate-100 hover:text-slate-900 transition-colors ml-1 text-slate-600"
-      on:click={() => dispatch('toggleSearch')}
-      title="Find and Replace (Ctrl+F)"
-    >
-      <Search size={15} />
-    </button>
+
+    <!-- Quick Word Count & Search -->
+    <div class="flex items-center space-x-0.5 pl-1 border-l border-slate-200">
+      <button
+        class="p-1.5 rounded hover:bg-slate-100 text-slate-600 transition-colors"
+        on:click={() => dispatch('openWordCount')}
+        title="Word Count (Ctrl+Shift+C)"
+      >
+        <FileText size={15} />
+      </button>
+      <button
+        class="p-1.5 rounded hover:bg-slate-100 text-slate-600 transition-colors"
+        on:click={() => dispatch('toggleSearch')}
+        title="Find and Replace (Ctrl+F)"
+      >
+        <Search size={15} />
+      </button>
+    </div>
   </div>
 </div>

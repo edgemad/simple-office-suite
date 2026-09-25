@@ -119,6 +119,7 @@
           background-color: {elem.bgColor || 'transparent'};
           color: {elem.fontColor || 'inherit'};
           font-family: {elem.fontFamily || 'inherit'};
+          z-index: {elem.zIndex || 1};
         "
         on:mousedown={(e) => handleMouseDown(elem, e)}
         on:click={(e) => handleSelect(elem.id, e)}
@@ -154,16 +155,77 @@
             <span class="text-xs opacity-75 font-semibold uppercase tracking-wider">Metric Callout</span>
           </div>
         {:else if elem.type === 'shape'}
-          <div class="w-full h-full bg-slate-500/10 border-2 border-slate-400/30 rounded-xl p-4 flex flex-col justify-center">
-            <input
-              type="text"
-              value={elem.content}
-              on:input={(e) => handleContentInput(elem.id, e.currentTarget.value)}
-              style="font-size: {elem.fontSize || 20}px;"
-              class="w-full bg-transparent font-semibold text-center outline-none"
-              placeholder="Card Title / Callout"
-            />
-          </div>
+          {#if elem.shapeVariant === 'circle'}
+            <div class="w-full aspect-square bg-slate-500/10 border-2 border-slate-400/30 rounded-full p-4 flex flex-col items-center justify-center shadow-xs">
+              <input
+                type="text"
+                value={elem.content}
+                on:input={(e) => handleContentInput(elem.id, e.currentTarget.value)}
+                style="font-size: {elem.fontSize || 18}px;"
+                class="w-full bg-transparent font-semibold text-center outline-none"
+                placeholder="Circle Label"
+              />
+            </div>
+          {:else if elem.shapeVariant === 'pill'}
+            <div class="w-full h-full bg-slate-500/10 border-2 border-slate-400/30 rounded-full px-6 py-2 flex flex-col items-center justify-center shadow-xs">
+              <input
+                type="text"
+                value={elem.content}
+                on:input={(e) => handleContentInput(elem.id, e.currentTarget.value)}
+                style="font-size: {elem.fontSize || 16}px;"
+                class="w-full bg-transparent font-semibold text-center outline-none"
+                placeholder="Pill Badge"
+              />
+            </div>
+          {:else if elem.shapeVariant === 'star'}
+            <div class="w-full h-full bg-amber-500/15 border-2 border-amber-500/40 rounded-2xl p-4 flex flex-col items-center justify-center shadow-xs">
+              <span class="text-amber-500 text-lg mb-1">★</span>
+              <input
+                type="text"
+                value={elem.content}
+                on:input={(e) => handleContentInput(elem.id, e.currentTarget.value)}
+                style="font-size: {elem.fontSize || 18}px;"
+                class="w-full bg-transparent font-bold text-center outline-none text-amber-900"
+                placeholder="Milestone ★"
+              />
+            </div>
+          {:else if elem.shapeVariant === 'arrow-right'}
+            <div class="w-full h-full bg-blue-500/15 border-2 border-blue-500/40 rounded-xl p-3 flex items-center justify-between shadow-xs">
+              <input
+                type="text"
+                value={elem.content}
+                on:input={(e) => handleContentInput(elem.id, e.currentTarget.value)}
+                style="font-size: {elem.fontSize || 16}px;"
+                class="flex-1 bg-transparent font-bold text-center outline-none text-blue-900"
+                placeholder="Process Step →"
+              />
+              <span class="text-blue-600 font-extrabold text-xl pr-2">➔</span>
+            </div>
+          {:else if elem.shapeVariant === 'callout'}
+            <div class="w-full h-full bg-emerald-500/15 border-2 border-emerald-500/40 rounded-2xl p-4 flex flex-col justify-center relative shadow-xs">
+              <div class="text-emerald-700 text-[10px] font-bold uppercase tracking-wider mb-1">💬 Callout</div>
+              <textarea
+                value={elem.content}
+                on:input={(e) => handleContentInput(elem.id, e.currentTarget.value)}
+                rows={2}
+                style="font-size: {elem.fontSize || 15}px;"
+                class="w-full bg-transparent resize-none outline-none text-emerald-950 font-medium"
+                placeholder="Important quote or callout message..."
+              ></textarea>
+            </div>
+          {:else}
+            <!-- Default Card / Box -->
+            <div class="w-full h-full bg-slate-500/10 border-2 border-slate-400/30 rounded-xl p-4 flex flex-col justify-center shadow-xs">
+              <input
+                type="text"
+                value={elem.content}
+                on:input={(e) => handleContentInput(elem.id, e.currentTarget.value)}
+                style="font-size: {elem.fontSize || 20}px;"
+                class="w-full bg-transparent font-semibold text-center outline-none"
+                placeholder="Card Title / Callout"
+              />
+            </div>
+          {/if}
         {:else if elem.type === 'code'}
           <div class="w-full bg-slate-900 text-emerald-400 rounded-lg p-3 font-mono text-xs shadow-inner">
             <div class="flex items-center space-x-1.5 pb-2 mb-2 border-b border-slate-800 text-slate-500 text-[10px]">
