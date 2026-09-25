@@ -23,7 +23,8 @@
     Redo2
   } from 'lucide-svelte';
   import { downloadFile } from '../../lib/utils';
-  import { exportToXlsx } from '../../lib/fileFormats';
+  import { exportToXlsx, parseSpreadsheetContent } from '../../lib/fileFormats';
+  import { openFileDialogNative, readTextFileNative } from '../../lib/tauri';
 
   export let workbook: SpreadsheetWorkbook;
 
@@ -412,10 +413,31 @@
     downloadFile(`${workbook.meta.title || 'spreadsheet'}.xlsx`, xml, 'application/vnd.ms-excel');
   }
 
-  function handleCsvFileSelect() {
+  async function handleImportSpreadsheet() {
+    try {
+      const selectedPath = await openFileDialogNative('Import Spreadsheet', [
+        {
+          name: 'Spreadsheet Files (*.xlsx, *.xls, *.csv, *.tsv)',
+          extensions: ['xlsx', 'xls', 'csv', 'tsv'],
+        },
+        { name: 'Microsoft Excel (*.xlsx, *.xls)', extensions: ['xlsx', 'xls'] },
+        { name: 'CSV / TSV Text (*.csv, *.tsv)', extensions: ['csv', 'tsv'] },
+        { name: 'All Files (*)', extensions: ['*'] },
+      ]);
+
+      if (selectedPath) {
+        const content = await readTextFileNative(selectedPath);
+        loadSpreadsheetContent(content, selectedPath);
+        return;
+      }
+    } catch (err) {
+      console.warn('Native dialog failed, falling back to web file picker:', err);
+    }
+
+    // Web fallback file picker
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.csv,text/csv,.tsv';
+    input.accept = '.xlsx,.xls,.csv,text/csv,.tsv';
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
@@ -429,27 +451,63 @@
     input.click();
   }
 
+  function loadSpreadsheetContent(content: string, filename: string) {
+    let parsedGrid: Record<string, any> = {};
+
+    if (content.startsWith('{') && content.includes('"cells":')) {
+      try {
+        const parsed = JSON.parse(content);
+        parsedGrid = recalculateGrid(parsed.cells || {});
+      } catch {
+        parsedGrid = parseSpreadsheetContent(content, filename);
+      }
+    } else {
+      parsedGrid = parseSpreadsheetContent(content, filename);
+    }
+
+    pushUndo();
+    activeSheet.cells = parsedGrid;
+    const cellKeys = Object.keys(parsedGrid);
+    let maxRow = 50;
+    let maxCol = 26;
+    for (const k of cellKeys) {
+      const m = k.match(/^([A-Z]+)([0-9]+)$/);
+      if (m) {
+        const r = parseInt(m[2], 10);
+        if (r > maxRow) maxRow = r + 10;
+      }
+    }
+    activeSheet.rowCount = maxRow;
+    activeSheet.colCount = Math.max(maxCol, 35);
+    workbook.meta.filePath = filename;
+    const baseTitle = filename.split('/').pop()?.replace(/\.[^/.]+$/, '');
+    if (baseTitle) {
+      workbook.meta.title = baseTitle;
+    }
+    workbook.meta.isDirty = true;
+    computeStats();
+    dispatch('change');
+  }
+
   export function importFromCsv(csvText: string) {
-    // Safety check: if binary zip archive, abort
     if (csvText.startsWith('PK') || csvText.includes('[Content_Types].xml')) {
-      alert('This file is a binary Microsoft Excel workbook (.xlsx), not a plain text CSV. Please open it using the File menu or Open button.');
+      alert('This is a binary Excel (.xlsx) file. Please click the Import button or use File → Open (Cmd+O) to open it.');
       return;
     }
 
-    const lines = csvText.split(/\r?\n/).filter(Boolean);
-    const newCells: SheetGrid = {};
-
-    lines.forEach((line, r) => {
-      const cols = line.split(',');
-      cols.forEach((val, c) => {
-        const letter = colToLetter(c);
-        const clean = val.replace(/^"|"$/g, '').trim();
-        newCells[`${letter}${r + 1}`] = { raw: clean, computed: clean };
-      });
-    });
-
-    activeSheet.cells = recalculateGrid(newCells);
-    activeSheet.rowCount = Math.max(activeSheet.rowCount, lines.length + 10);
+    const newCells = parseSpreadsheetContent(csvText, 'import.csv');
+    pushUndo();
+    activeSheet.cells = newCells;
+    const cellKeys = Object.keys(newCells);
+    let maxRow = 50;
+    for (const k of cellKeys) {
+      const m = k.match(/^([A-Z]+)([0-9]+)$/);
+      if (m) {
+        const r = parseInt(m[2], 10);
+        if (r > maxRow) maxRow = r + 10;
+      }
+    }
+    activeSheet.rowCount = maxRow;
     workbook.meta.isDirty = true;
     computeStats();
     dispatch('change');
@@ -639,7 +697,7 @@
 
       <!-- Import/Export -->
       <div class="flex items-center space-x-1">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-slate-100 text-slate-600" on:click={handleCsvFileSelect} title="Import CSV/TSV">
+        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-slate-100 text-slate-600" on:click={handleImportSpreadsheet} title="Import Spreadsheet (.xlsx, .csv, .tsv)">
           <Upload size={13} />
           <span>Import</span>
         </button>

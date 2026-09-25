@@ -312,8 +312,8 @@
       const content = await readTextFileNative(selectedPath);
       const ext = selectedPath.split('.').pop()?.toLowerCase();
 
-      // Auto-detect mode based on file format
-      if (['xlsx', 'xls', 'csv', 'tsv', 'soss'].includes(ext || '')) {
+      // Auto-detect mode based on file format or parsed payload
+      if (['xlsx', 'xls', 'csv', 'tsv', 'soss'].includes(ext || '') || (content.startsWith('{') && content.includes('"cells":'))) {
         activeMode = 'sheets';
         let parsedGrid: Record<string, any> = {};
         if (content.startsWith('{') && content.includes('"cells":')) {
