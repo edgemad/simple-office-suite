@@ -54,3 +54,9 @@ core.*
 # Test & Coverage Outputs
 coverage/
 .nyc_output/
+-e 
+# Installers & Bundles
+dist-installer/
+*.app/
+package-lock.json
+

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager, State};
+use tauri::AppHandle;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FileFilter {
