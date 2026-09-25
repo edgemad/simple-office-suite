@@ -43,7 +43,7 @@ macos_installer_sh = os.path.join(DIST_INSTALLER, "install-macos.sh")
 with open(macos_installer_sh, "w") as f:
     f.write('''#!/bin/bash
 set -e
-echo "=== Installing Simple Office Suite on macOS ==="
+echo "=== Installing Simple Office Suite & Teams Communicator on macOS ==="
 APP_NAME="Simple Office Suite.app"
 DEST="/Applications/$APP_NAME"
 
@@ -68,10 +68,11 @@ chmod +x "$DEST/Contents/MacOS/simple-office-suite"
 # Create terminal CLI shortcut if possible
 if [ -d "/usr/local/bin" ] && [ -w "/usr/local/bin" ]; then
     ln -sf "$DEST/Contents/MacOS/simple-office-suite" /usr/local/bin/simple-office-suite
-    echo "CLI command created: /usr/local/bin/simple-office-suite"
+    ln -sf "$DEST/Contents/MacOS/simple-office-suite" /usr/local/bin/simple-communicator
+    echo "CLI commands created in /usr/local/bin: simple-office-suite, simple-communicator"
 fi
 
-echo "Installation complete! You can now launch Simple Office Suite from Applications or Spotlight."
+echo "Installation complete! Launch from Applications or Spotlight."
 ''')
 os.chmod(macos_installer_sh, 0o755)
 
@@ -90,14 +91,18 @@ if os.path.exists(icons_dir):
 
 # Windows launcher batch
 with open(os.path.join(win_staging, "Simple-Office-Suite.bat"), "w") as f:
-    f.write('@echo off\r\ntitle Simple Office Suite\r\necho Starting Simple Office Suite...\r\nstart "" "%~dp0app_dist\\index.html"\r\n')
+    f.write('@echo off\r\ntitle Simple Office Suite\r\nstart "" "%~dp0app_dist\\index.html"\r\n')
+
+with open(os.path.join(win_staging, "Simple-Communicator.bat"), "w") as f:
+    f.write('@echo off\r\ntitle Simple Communicator (Secure Teams)\r\nstart "" "%~dp0app_dist\\index.html?mode=communicator"\r\n')
 
 # Windows PowerShell unattended installer
 with open(os.path.join(win_staging, "install-windows.ps1"), "w") as f:
-    f.write('''# Simple Office Suite Windows Installer
+    f.write('''# Simple Office Suite & Teams Communicator Windows Installer
 $ErrorActionPreference = "Stop"
 
 $AppName = "Simple Office Suite"
+$CommName = "Simple Communicator"
 $InstallDir = "$env:LOCALAPPDATA\\Programs\\SimpleOfficeSuite"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
@@ -110,9 +115,11 @@ New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 
 Copy-Item -Recurse -Force "$ScriptDir\\*" "$InstallDir"
 
-# Create Desktop Shortcut
+# Create Desktop Shortcuts
 $WshShell = New-Object -ComObject WScript.Shell
 $DesktopPath = [Environment]::GetFolderPath("Desktop")
+
+# Suite Shortcut
 $Shortcut = $WshShell.CreateShortcut("$DesktopPath\\$AppName.lnk")
 $Shortcut.TargetPath = "$InstallDir\\Simple-Office-Suite.bat"
 $Shortcut.WorkingDirectory = "$InstallDir"
@@ -122,9 +129,20 @@ if (Test-Path "$InstallDir\\icons\\icon.ico") {
 }
 $Shortcut.Save()
 
-# Create Start Menu Shortcut
+# Standalone Communicator Shortcut
+$CommShortcut = $WshShell.CreateShortcut("$DesktopPath\\$CommName.lnk")
+$CommShortcut.TargetPath = "$InstallDir\\Simple-Communicator.bat"
+$CommShortcut.WorkingDirectory = "$InstallDir"
+$CommShortcut.Description = "Secure Internal Teams Communicator (E2EE)"
+if (Test-Path "$InstallDir\\icons\\icon.ico") {
+    $CommShortcut.IconLocation = "$InstallDir\\icons\\icon.ico"
+}
+$CommShortcut.Save()
+
+# Create Start Menu Shortcuts
 $StartMenuPath = [Environment]::GetFolderPath("StartMenu")
 $ProgramsPath = "$StartMenuPath\\Programs"
+
 $StartShortcut = $WshShell.CreateShortcut("$ProgramsPath\\$AppName.lnk")
 $StartShortcut.TargetPath = "$InstallDir\\Simple-Office-Suite.bat"
 $StartShortcut.WorkingDirectory = "$InstallDir"
@@ -133,12 +151,20 @@ if (Test-Path "$InstallDir\\icons\\icon.ico") {
 }
 $StartShortcut.Save()
 
-Write-Host "Installation successful! Shortcuts created on Desktop and Start Menu." -ForegroundColor Green
+$StartCommShortcut = $WshShell.CreateShortcut("$ProgramsPath\\$CommName.lnk")
+$StartCommShortcut.TargetPath = "$InstallDir\\Simple-Communicator.bat"
+$StartCommShortcut.WorkingDirectory = "$InstallDir"
+if (Test-Path "$InstallDir\\icons\\icon.ico") {
+    $StartCommShortcut.IconLocation = "$InstallDir\\icons\\icon.ico"
+}
+$StartCommShortcut.Save()
+
+Write-Host "Installation successful! Shortcuts created for Simple Office Suite and Simple Communicator." -ForegroundColor Green
 ''')
 
 # Windows cmd setup wrapper
 with open(os.path.join(win_staging, "install-windows.bat"), "w") as f:
-    f.write('@echo off\r\necho Installing Simple Office Suite...\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-windows.ps1"\r\npause\r\n')
+    f.write('@echo off\r\necho Installing Simple Office Suite and Communicator...\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-windows.ps1"\r\npause\r\n')
 
 # NSIS script for native Windows .exe compiler
 with open(os.path.join(win_staging, "Simple-Office-Suite.nsi"), "w") as f:
@@ -146,6 +172,7 @@ with open(os.path.join(win_staging, "Simple-Office-Suite.nsi"), "w") as f:
 !define APP_VERSION "1.0.0"
 !define APP_PUBLISHER "Simple Office"
 !define APP_EXE "Simple-Office-Suite.bat"
+!define COMM_EXE "Simple-Communicator.bat"
 
 Name "${APP_NAME} ${APP_VERSION}"
 OutFile "Simple-Office-Suite-1.0.0-Setup.exe"
@@ -160,8 +187,10 @@ Section "MainSection" SEC01
     File /r "*.*"
     
     CreateShortCut "$DESKTOP\\${APP_NAME}.lnk" "$INSTDIR\\${APP_EXE}" "" "$INSTDIR\\icons\\icon.ico"
+    CreateShortCut "$DESKTOP\\Simple Communicator.lnk" "$INSTDIR\\${COMM_EXE}" "" "$INSTDIR\\icons\\icon.ico"
     CreateDirectory "$SMPROGRAMS\\${APP_NAME}"
     CreateShortCut "$SMPROGRAMS\\${APP_NAME}\\${APP_NAME}.lnk" "$INSTDIR\\${APP_EXE}" "" "$INSTDIR\\icons\\icon.ico"
+    CreateShortCut "$SMPROGRAMS\\${APP_NAME}\\Simple Communicator.lnk" "$INSTDIR\\${COMM_EXE}" "" "$INSTDIR\\icons\\icon.ico"
     CreateShortCut "$SMPROGRAMS\\${APP_NAME}\\Uninstall.lnk" "$INSTDIR\\uninstall.exe"
     
     WriteUninstaller "$INSTDIR\\uninstall.exe"
@@ -170,26 +199,28 @@ SectionEnd
 Section "Uninstall"
     RMDir /r "$INSTDIR"
     Delete "$DESKTOP\\${APP_NAME}.lnk"
+    Delete "$DESKTOP\\Simple Communicator.lnk"
     RMDir /r "$SMPROGRAMS\\${APP_NAME}"
 SectionEnd
 ''')
 
 # Windows README
 with open(os.path.join(win_staging, "README-Windows.txt"), "w") as f:
-    f.write('''=====================================================
-Simple Office Suite (SOS) - Windows Installation
-=====================================================
+    f.write('''================================================================
+Simple Office Suite & Teams Communicator - Windows Package
+================================================================
 Version: 1.0.0
-Architecture: x64 / ARM64
 
-QUICK INSTALLATION:
-Double-click "install-windows.bat" (or run install-windows.ps1 in PowerShell).
-This will:
-1. Install Simple Office Suite to %LOCALAPPDATA%\\Programs\\SimpleOfficeSuite
-2. Place a launch shortcut on your Desktop and Start Menu.
+APPLICATIONS INCLUDED:
+1. Simple Office Suite (Word, Sheets, Slides, PDF, Mail, Teams)
+2. Simple Communicator (Standalone Secure E2EE Teams Communicator)
 
-PORTABLE USAGE:
-You can also run "Simple-Office-Suite.bat" directly without installing.
+INSTALLATION:
+Double-click "install-windows.bat".
+Creates Desktop and Start Menu shortcuts for both applications.
+
+PORTABLE EXECUTION:
+Run "Simple-Office-Suite.bat" or "Simple-Communicator.bat" directly!
 ''')
 
 win_zip = os.path.join(DIST_INSTALLER, "Simple-Office-Suite-1.0.0-Windows-x64-Portable.zip")
@@ -202,7 +233,7 @@ with zipfile.ZipFile(win_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
             rel_path = os.path.relpath(full_path, win_staging)
             zipf.write(full_path, arcname=os.path.join("Simple-Office-Suite", rel_path))
 
-# Copy the setup scripts directly to dist-installer as well
+# Copy setup scripts directly to dist-installer
 shutil.copy(os.path.join(win_staging, "install-windows.bat"), os.path.join(DIST_INSTALLER, "install-windows.bat"))
 shutil.copy(os.path.join(win_staging, "install-windows.ps1"), os.path.join(DIST_INSTALLER, "install-windows.ps1"))
 shutil.copy(os.path.join(win_staging, "Simple-Office-Suite.nsi"), os.path.join(DIST_INSTALLER, "Simple-Office-Suite.nsi"))
@@ -221,19 +252,17 @@ os.makedirs(os.path.join(deb_dir, "usr", "share", "applications"), exist_ok=True
 os.makedirs(os.path.join(deb_dir, "usr", "share", "icons", "hicolor", "128x128", "apps"), exist_ok=True)
 os.makedirs(os.path.join(deb_dir, "usr", "share", "simple-office-suite"), exist_ok=True)
 
-# Copy web bundle to Linux staging
 shutil.copytree(os.path.join(BASE_DIR, 'dist'), os.path.join(deb_dir, "usr", "share", "simple-office-suite", "dist"))
 
-# Icon
 src_icon = os.path.join(BASE_DIR, "src-tauri", "icons", "128x128.png")
 if os.path.exists(src_icon):
     shutil.copy(src_icon, os.path.join(deb_dir, "usr", "share", "icons", "hicolor", "128x128", "apps", "simple-office-suite.png"))
 
-# Desktop entry
+# Desktop entries
 desktop_file_content = '''[Desktop Entry]
 Name=Simple Office Suite
 GenericName=Office Suite
-Comment=Lightweight, offline-first productivity suite (Word, Sheets, Slides, PDF)
+Comment=Lightweight, offline-first productivity suite (Word, Sheets, Slides, PDF, Mail, Teams)
 Exec=/usr/bin/simple-office-suite %U
 Icon=simple-office-suite
 Terminal=false
@@ -244,39 +273,57 @@ MimeType=application/vnd.openxmlformats-officedocument.wordprocessingml.document
 with open(os.path.join(deb_dir, "usr", "share", "applications", "simple-office-suite.desktop"), "w") as f:
     f.write(desktop_file_content)
 
-# Launcher executable
-launcher_script = '''#!/bin/bash
-# Simple Office Suite Launcher
+comm_desktop_content = '''[Desktop Entry]
+Name=Simple Communicator
+GenericName=Team Chat & Calls
+Comment=Secure, end-to-end encrypted team communicator (MS Teams compatible)
+Exec=/usr/bin/simple-communicator %U
+Icon=simple-office-suite
+Terminal=false
+Type=Application
+Categories=Office;InstantMessaging;Chat;Network;
+'''
+with open(os.path.join(deb_dir, "usr", "share", "applications", "simple-communicator.desktop"), "w") as f:
+    f.write(comm_desktop_content)
+
+# Launchers
+with open(os.path.join(deb_dir, "usr", "bin", "simple-office-suite"), "w") as f:
+    f.write('''#!/bin/bash
 SHARE_DIR="/usr/share/simple-office-suite"
 if command -v xdg-open > /dev/null; then
     xdg-open "$SHARE_DIR/dist/index.html"
-elif command -v sensible-browser > /dev/null; then
-    sensible-browser "$SHARE_DIR/dist/index.html"
 else
-    echo "Opening Simple Office Suite at $SHARE_DIR/dist/index.html"
+    sensible-browser "$SHARE_DIR/dist/index.html"
 fi
-'''
-launcher_path = os.path.join(deb_dir, "usr", "bin", "simple-office-suite")
-with open(launcher_path, "w") as f:
-    f.write(launcher_script)
-os.chmod(launcher_path, 0o755)
+''')
+os.chmod(os.path.join(deb_dir, "usr", "bin", "simple-office-suite"), 0o755)
 
-# DEBIAN/control
-control_content = '''Package: simple-office-suite
+with open(os.path.join(deb_dir, "usr", "bin", "simple-communicator"), "w") as f:
+    f.write('''#!/bin/bash
+SHARE_DIR="/usr/share/simple-office-suite"
+if command -v xdg-open > /dev/null; then
+    xdg-open "$SHARE_DIR/dist/index.html?mode=communicator"
+else
+    sensible-browser "$SHARE_DIR/dist/index.html?mode=communicator"
+fi
+''')
+os.chmod(os.path.join(deb_dir, "usr", "bin", "simple-communicator"), 0o755)
+
+# Control & Postinst
+with open(os.path.join(deb_dir, "DEBIAN", "control"), "w") as f:
+    f.write('''Package: simple-office-suite
 Version: 1.0.0
 Section: utils
 Priority: optional
 Architecture: amd64
 Maintainer: Simple Office Suite Team <support@simpleoffice.local>
-Description: Lightweight, offline-first productivity suite
- Zero-cloud word processor, spreadsheet modeler, presentation slide
- designer, and fillable PDF editor built with Tauri and modern web engine.
-'''
-with open(os.path.join(deb_dir, "DEBIAN", "control"), "w") as f:
-    f.write(control_content)
+Description: Lightweight, offline-first productivity suite & Teams communicator
+ Complete 6-module office suite (Word, Sheets, Slides, PDF, Mail, and
+ End-to-End Encrypted Teams Communicator).
+''')
 
-# DEBIAN/postinst
-postinst_content = '''#!/bin/sh
+with open(os.path.join(deb_dir, "DEBIAN", "postinst"), "w") as f:
+    f.write('''#!/bin/sh
 set -e
 if command -v update-desktop-database > /dev/null 2>&1; then
     update-desktop-database -q || true
@@ -285,19 +332,14 @@ if command -v gtk-update-icon-cache > /dev/null 2>&1; then
     gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
 fi
 exit 0
-'''
-postinst_path = os.path.join(deb_dir, "DEBIAN", "postinst")
-with open(postinst_path, "w") as f:
-    f.write(postinst_content)
-os.chmod(postinst_path, 0o755)
+''')
+os.chmod(os.path.join(deb_dir, "DEBIAN", "postinst"), 0o755)
 
 # Package debian archive manually using python AR format
 def create_deb(staging_dir, output_deb_path):
     import io
-    # 1. debian-binary
     deb_binary = b"2.0\n"
 
-    # 2. control.tar.gz
     ctrl_buf = io.BytesIO()
     with tarfile.open(fileobj=ctrl_buf, mode="w:gz") as tar:
         for item in ["control", "postinst"]:
@@ -306,18 +348,15 @@ def create_deb(staging_dir, output_deb_path):
                 tar.add(p, arcname=f"./{item}")
     ctrl_bytes = ctrl_buf.getvalue()
 
-    # 3. data.tar.gz
     data_buf = io.BytesIO()
     with tarfile.open(fileobj=data_buf, mode="w:gz") as tar:
         tar.add(os.path.join(staging_dir, "usr"), arcname="./usr")
     data_bytes = data_buf.getvalue()
 
-    # Write ar archive
     with open(output_deb_path, "wb") as f:
         f.write(b"!<arch>\n")
         
         def write_ar_member(name, data):
-            # name (16), mtime (12), uid (6), gid (6), mode (8), size (10), magic (2)
             hdr = f"{name:<16}{int(time.time()):<12}{0:<6}{0:<6}{100644:<8}{len(data):<10}`\n".encode('ascii')
             f.write(hdr)
             f.write(data)
@@ -342,7 +381,7 @@ linux_installer_sh = os.path.join(DIST_INSTALLER, "install-linux.sh")
 with open(linux_installer_sh, "w") as f:
     f.write('''#!/bin/bash
 set -e
-echo "=== Installing Simple Office Suite on Linux ==="
+echo "=== Installing Simple Office Suite & Communicator on Linux ==="
 
 if [ "$EUID" -ne 0 ]; then
     SUDO="sudo"
@@ -360,87 +399,20 @@ else
     $SUDO mkdir -p /usr/share/simple-office-suite /usr/share/applications /usr/share/icons/hicolor/128x128/apps
     tar -xzf "$SCRIPT_DIR/simple-office-suite-1.0.0-linux-x86_64.tar.gz" -C /tmp/
     $SUDO cp -R /tmp/simple-office-suite/usr/* /usr/
-    $SUDO chmod +x /usr/bin/simple-office-suite
+    $SUDO chmod +x /usr/bin/simple-office-suite /usr/bin/simple-communicator
     if command -v update-desktop-database > /dev/null 2>&1; then
         $SUDO update-desktop-database -q || true
     fi
 fi
 
-echo "Installation complete! Run 'simple-office-suite' or find it in your application menu."
+echo "Installation complete! Launch with 'simple-office-suite' or 'simple-communicator'."
 ''')
 os.chmod(linux_installer_sh, 0o755)
 
 shutil.rmtree(linux_staging)
 
-# 6. Generate GitHub Actions CI/CD Multi-Platform Workflow
-print("5. Generating multi-platform CI/CD release workflow...")
-gh_dir = os.path.join(BASE_DIR, ".github", "workflows")
-os.makedirs(gh_dir, exist_ok=True)
-with open(os.path.join(gh_dir, "release.yml"), "w") as f:
-    f.write('''name: Release Cross-Platform Installers
-
-on:
-  push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
-
-jobs:
-  release:
-    permissions:
-      contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
-          - platform: 'macos-13'
-            args: '--target x86_64-apple-darwin'
-          - platform: 'ubuntu-22.04'
-            args: ''
-          - platform: 'windows-latest'
-            args: ''
-
-    runs-on: ${{ matrix.platform }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || matrix.platform == 'macos-13' && 'x86_64-apple-darwin' || '' }}
-
-      - name: Install Linux Dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-
-      - name: Install Frontend Dependencies
-        run: npm ci
-
-      - name: Build Application Installers with Tauri Action
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: v__VERSION__
-          releaseName: 'Simple Office Suite v__VERSION__'
-          releaseBody: 'Production cross-platform release for macOS, Windows, and Linux.'
-          releaseDraft: true
-          prerelease: false
-          args: ${{ matrix.args }}
-''')
-
-# 7. Checksums and Readme in dist-installer
-print("6. Calculating SHA256 checksums...")
+# 6. Generate Checksums
+print("5. Calculating SHA256 checksums...")
 checksum_lines = []
 for fname in sorted(os.listdir(DIST_INSTALLER)):
     fpath = os.path.join(DIST_INSTALLER, fname)
@@ -455,9 +427,15 @@ with open(os.path.join(DIST_INSTALLER, "SHA256SUMS.txt"), "w") as f:
     f.write("\n".join(checksum_lines) + "\n")
 
 with open(os.path.join(DIST_INSTALLER, "README.md"), "w") as f:
-    f.write('''# Simple Office Suite (SOS) - Cross-Platform Installers
+    f.write('''# Simple Office Suite & Teams Communicator - Cross-Platform Installers
 
 Production application installers, standalone packages, and setup scripts for macOS, Windows, and Linux.
+
+---
+
+## 🚀 Applications Included:
+1. **Simple Office Suite**: Word, Sheets, Slides, PDF, and Mail.
+2. **Simple Communicator**: End-to-End Encrypted Team Chat & Video Meetings (MS Teams compatible, detachable as standalone).
 
 ---
 
@@ -467,24 +445,13 @@ Production application installers, standalone packages, and setup scripts for ma
 - **Tarball Archive**: `Simple-Office-Suite-1.0.0-macOS-arm64.tar.gz`
 - **Installer Script**: `install-macos.sh`
 
-### Quick Install (macOS):
-```bash
-./install-macos.sh
-```
-Or simply drag `Simple Office Suite.app` into `/Applications`.
-
 ---
 
 ## 🪟 Windows
-- **Portable Suite**: `Simple-Office-Suite-1.0.0-Windows-x64-Portable.zip`
+- **Portable Suite & Communicator**: `Simple-Office-Suite-1.0.0-Windows-x64-Portable.zip`
 - **One-Click Batch Installer**: `install-windows.bat`
 - **PowerShell Setup Script**: `install-windows.ps1`
 - **Nullsoft NSIS Setup Definition**: `Simple-Office-Suite.nsi`
-
-### Quick Install (Windows):
-1. Extract `Simple-Office-Suite-1.0.0-Windows-x64-Portable.zip`.
-2. Double-click `install-windows.bat`.
-3. Launch from the Desktop or Start Menu shortcut.
 
 ---
 
@@ -492,15 +459,6 @@ Or simply drag `Simple Office Suite.app` into `/Applications`.
 - **Debian / Ubuntu Package**: `simple-office-suite_1.0.0_amd64.deb`
 - **Portable Linux Tarball**: `simple-office-suite-1.0.0-linux-x86_64.tar.gz`
 - **Installer Script**: `install-linux.sh`
-
-### Quick Install (Linux):
-```bash
-# Debian / Ubuntu / Linux Mint
-sudo dpkg -i simple-office-suite_1.0.0_amd64.deb
-
-# Other Distributions
-./install-linux.sh
-```
 
 ---
 

@@ -12,11 +12,13 @@
   import Slides from './components/slides/Slides.svelte';
   import PdfViewer from './components/pdf/PdfViewer.svelte';
   import EmailClient from './components/email/EmailClient.svelte';
+  import Communicator from './components/communicator/Communicator.svelte';
   import {
     openFileDialogNative,
     saveFileDialogNative,
     readTextFileNative,
-    writeTextFileNative
+    writeTextFileNative,
+    openDetachedCommunicatorNative
   } from './lib/tauri';
   import { autoSaver } from './lib/storage';
   import { downloadFile, triggerPrintToPdf, htmlToMarkdown } from './lib/utils';
@@ -42,11 +44,23 @@
     }
   });
 
+  let isStandaloneCommunicator = typeof window !== 'undefined' && window.location.search.includes('mode=communicator');
+
   let writerRef: Writer;
   let sheetsRef: Sheets;
   let slidesRef: Slides;
   let pdfRef: PdfViewer;
   let emailRef: EmailClient;
+  let communicatorRef: Communicator;
+
+  let communicatorChannel = '#general';
+  let communicatorUnread = 3;
+  let communicatorMeta = {
+    id: 'doc_comm_1',
+    title: 'Teams — Simple Communicator',
+    isDirty: false,
+    mode: 'communicator' as WorkspaceMode,
+  };
 
   // Active email stats
   let emailTotal = 5;
@@ -327,7 +341,9 @@
       ? slidesDeck.meta
       : activeMode === 'pdf'
       ? pdfDoc.meta
-      : emailMeta;
+      : activeMode === 'email'
+      ? emailMeta
+      : communicatorMeta;
 
   function triggerAutoSave() {
     currentMeta.isDirty = true;
@@ -670,6 +686,8 @@
       else if (action === 'print') triggerPrintToPdf(pdfDoc.title);
     } else if (activeMode === 'email') {
       emailRef?.triggerRibbonAction(action, payload);
+    } else if (activeMode === 'communicator') {
+      communicatorRef?.triggerRibbonAction(action, payload);
     }
   }
 
@@ -705,6 +723,9 @@
       } else if (e.key === '5') {
         e.preventDefault();
         activeMode = 'email';
+      } else if (e.key === '6') {
+        e.preventDefault();
+        activeMode = 'communicator';
       }
     } else if (mod && e.shiftKey && !e.altKey) {
       if (e.key.toLowerCase() === 's') {
@@ -729,6 +750,17 @@
 
 <svelte:window on:keydown={handleGlobalKeydown} />
 
+{#if isStandaloneCommunicator}
+  <div class="h-screen w-screen flex flex-col bg-[#141517] overflow-hidden font-sans">
+    <Communicator
+      settings={appSettings}
+      isStandaloneWindow={true}
+      on:openOfficeDoc={() => {
+        window.open('index.html', '_blank');
+      }}
+    />
+  </div>
+{:else}
 <div class="h-screen w-screen flex flex-col bg-slate-100 overflow-hidden font-sans">
   <!-- Top OnlyOffice Style Navigation & File Ribbon Actions -->
   <Header
@@ -802,6 +834,24 @@
           emailFolder = e.detail.activeFolder;
         }}
       />
+    {:else if activeMode === 'communicator'}
+      <Communicator
+        bind:this={communicatorRef}
+        settings={appSettings}
+        isStandaloneWindow={false}
+        on:updateStats={(e) => {
+          communicatorUnread = e.detail.unread;
+          communicatorChannel = e.detail.activeChannel;
+        }}
+        on:detachWindow={openDetachedCommunicatorNative}
+        on:openOfficeDoc={(e) => {
+          const t = e.detail.type;
+          if (t === 'docx') activeMode = 'writer';
+          else if (t === 'xlsx') activeMode = 'sheets';
+          else if (t === 'pptx') activeMode = 'slides';
+          else if (t === 'pdf') activeMode = 'pdf';
+        }}
+      />
     {/if}
   </main>
 
@@ -820,6 +870,8 @@
     {emailTotal}
     {emailUnread}
     {emailFolder}
+    communicatorChannel={communicatorChannel}
+    communicatorOnline={4}
   />
 
   <!-- Keyboard Shortcuts Cheat Sheet Modal -->
@@ -841,3 +893,4 @@
     />
   {/if}
 </div>
+{/if}

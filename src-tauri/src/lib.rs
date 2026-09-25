@@ -496,6 +496,27 @@ async fn save_native_file_dialog(
     Ok(file_path.map(|p| p.to_string()))
 }
 
+
+#[tauri::command]
+async fn open_detached_communicator(app: AppHandle) -> Result<(), String> {
+    use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+
+    if let Some(win) = app.get_webview_window("communicator") {
+        let _ = win.set_focus();
+        return Ok(());
+    }
+
+    WebviewWindowBuilder::new(&app, "communicator", WebviewUrl::App("index.html?mode=communicator".into()))
+        .title("Simple Communicator (Secure)")
+        .inner_size(1050.0, 720.0)
+        .min_inner_size(800.0, 550.0)
+        .resizable(true)
+        .build()
+        .map_err(|e| format!("Failed to open standalone communicator window: {}", e))?;
+
+    Ok(())
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -508,7 +529,8 @@ pub fn run() {
             read_auto_save_snapshot,
             get_system_metrics,
             open_native_file_dialog,
-            save_native_file_dialog
+            save_native_file_dialog,
+            open_detached_communicator
         ])
         .run(tauri::generate_context!())
         .expect("error while running Simple Office Suite application");

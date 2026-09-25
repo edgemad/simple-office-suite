@@ -15,6 +15,8 @@
   export let emailTotal: number = 5;
   export let emailUnread: number = 1;
   export let emailFolder: string = 'INBOX';
+  export let communicatorChannel: string = '#general';
+  export let communicatorOnline: number = 4;
 </script>
 
 <footer class="no-print h-7 bg-white border-t border-slate-200 px-4 flex items-center justify-between text-xs text-slate-500 select-none z-20 shadow-inner">
@@ -66,6 +68,14 @@
         <span class="text-indigo-700 font-medium">{emailUnread} unread</span>
         <span class="text-slate-300">•</span>
         <span>{emailTotal} messages</span>
+      </div>
+    {:else if activeMode === 'communicator'}
+      <div class="flex items-center space-x-2">
+        <span class="text-cyan-600 font-semibold font-sans">Teams: {communicatorChannel}</span>
+        <span class="text-slate-300">•</span>
+        <span class="text-emerald-600 font-medium">{communicatorOnline} team members online</span>
+        <span class="text-slate-300">•</span>
+        <span class="text-cyan-600 font-mono text-[10px]">E2EE AES-256</span>
       </div>
     {/if}
 

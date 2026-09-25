@@ -62,7 +62,11 @@
     ReplyAll,
     Forward,
     Archive,
-    Trash2
+    Trash2,
+    Video,
+    Phone,
+    ExternalLink,
+    ShieldCheck
   } from 'lucide-svelte';
   import type { AppSettings } from '../../types';
   import AiAssistantModal from './AiAssistantModal.svelte';
@@ -104,6 +108,7 @@
     pdf: ['File', 'Home', 'Insert', 'Draw', 'Layout', 'References', 'Forms', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
     slides: ['File', 'Home', 'Insert', 'Draw', 'Design', 'Transitions', 'Animation', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
     email: ['File', 'Home', 'View', 'Folder', 'Tools', 'Accounts', 'AI'],
+    communicator: ['File', 'Home', 'Channels', 'Calls', 'Security', 'Tools', 'AI'],
   };
 
   $: currentTabs = tabsByMode[activeMode] || tabsByMode.writer;
@@ -118,7 +123,9 @@
       ? { text: 'text-rose-500', hex: '#e0564c', bg: 'bg-rose-600', ring: 'ring-rose-500' }
       : activeMode === 'slides'
       ? { text: 'text-orange-500', hex: '#ea580c', bg: 'bg-orange-600', ring: 'ring-orange-500' }
-      : { text: 'text-indigo-400', hex: '#6366f1', bg: 'bg-indigo-600', ring: 'ring-indigo-500' };
+      : activeMode === 'email'
+      ? { text: 'text-indigo-400', hex: '#6366f1', bg: 'bg-indigo-600', ring: 'ring-indigo-500' }
+      : { text: 'text-cyan-400', hex: '#06b6d4', bg: 'bg-cyan-600', ring: 'ring-cyan-500' };
 
   function handleTabClick(tab: string) {
     if (tab === 'File') {
@@ -192,11 +199,16 @@
             <Presentation size={14} />
           </div>
           <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Slides</span>
-        {:else}
+        {:else if activeMode === 'email'}
           <div class="w-6 h-6 rounded bg-indigo-600 flex items-center justify-center text-white shadow-xs" title="OnlyOffice Mail Client">
             <Mail size={14} />
           </div>
           <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Mail</span>
+        {:else}
+          <div class="w-6 h-6 rounded bg-cyan-600 flex items-center justify-center text-white shadow-xs" title="Teams Communicator">
+            <MessageSquare size={14} />
+          </div>
+          <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Teams</span>
         {/if}
       </div>
 
@@ -314,6 +326,16 @@
       >
         <Mail size={13} />
         <span class="text-[11px]">Mail</span>
+      </button>
+
+      <button
+        class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
+          {activeMode === 'communicator' ? 'bg-cyan-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}"
+        on:click={() => dispatch('changeMode', 'communicator')}
+        title="Teams Communicator ({modKey}+6)"
+      >
+        <MessageSquare size={13} />
+        <span class="text-[11px]">Teams</span>
       </button>
     </nav>
 
@@ -546,6 +568,19 @@
           <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('delete')}>
             <Trash2 size={13} />
             <span>Delete</span>
+          </button>
+        {:else if activeMode === 'communicator'}
+          <div class="h-4 w-px bg-slate-700 mx-1"></div>
+          <button class="flex items-center space-x-1 px-2.5 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-medium shadow-xs" on:click={() => triggerAction('meetNow')}>
+            <Video size={13} />
+            <span>Meet Now</span>
+          </button>
+          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('detach')}>
+            <ExternalLink size={13} />
+            <span>Detach Window</span>
+          </button>
+          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('switchAccount')}>
+            <span>Switch Account</span>
           </button>
         {/if}
       </div>
@@ -791,6 +826,41 @@
         <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('watermark')}>
           <span>Add Watermark</span>
         </button>
+      </div>
+
+    {:else if activeTab === 'Channels'}
+      <div class="flex items-center space-x-3">
+        <span class="text-xs text-white font-medium">Teams Channels:</span>
+        <button class="px-2 py-0.5 rounded bg-white/10 text-cyan-300 text-xs">#general</button>
+        <button class="px-2 py-0.5 rounded bg-white/10 text-slate-300 text-xs">#engineering</button>
+        <button class="px-2 py-0.5 rounded bg-white/10 text-slate-300 text-xs">#product-design</button>
+        <button class="px-2 py-0.5 rounded bg-white/10 text-slate-300 text-xs">#leadership-sync</button>
+      </div>
+
+    {:else if activeTab === 'Calls'}
+      <div class="flex items-center space-x-3">
+        <button class="flex items-center space-x-1 px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-xs" on:click={() => triggerAction('meetNow')}>
+          <Video size={13} />
+          <span>Start Video Meeting</span>
+        </button>
+        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('meetNow')}>
+          <Phone size={13} />
+          <span>Audio Call</span>
+        </button>
+        <div class="h-4 w-px bg-slate-700 mx-1"></div>
+        <span class="text-cyan-400 text-xs flex items-center space-x-1">
+          <ShieldCheck size={12} />
+          <span>End-to-End Encrypted</span>
+        </span>
+      </div>
+
+    {:else if activeTab === 'Security'}
+      <div class="flex items-center space-x-3">
+        <div class="flex items-center space-x-1.5 px-2 py-1 rounded bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 text-xs font-medium">
+          <ShieldCheck size={14} class="text-cyan-400" />
+          <span>AES-256-GCM + Ed25519 Local Session Guard: Active</span>
+        </div>
+        <span class="text-slate-400 text-xs">100% Zero-Cloud Storage</span>
       </div>
 
     {:else if activeTab === 'Folder'}

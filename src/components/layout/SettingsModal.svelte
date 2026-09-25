@@ -8,6 +8,7 @@
     Presentation,
     FileCheck,
     Mail,
+    MessageSquare,
     Sparkles,
     Download,
     Info,
@@ -31,7 +32,7 @@
     reset: void;
   }>();
 
-  let activeCategory: 'general' | 'word' | 'sheet' | 'slides' | 'pdf' | 'email' | 'ai' | 'installers' | 'about' = 'general';
+  let activeCategory: 'general' | 'word' | 'sheet' | 'slides' | 'pdf' | 'email' | 'communicator' | 'ai' | 'installers' | 'about' = 'general';
   let tempSettings: AppSettings = JSON.parse(JSON.stringify(settings));
   let savedNotice = false;
 
@@ -158,6 +159,15 @@
 
         <button
           class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors
+            {activeCategory === 'communicator' ? 'bg-cyan-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
+          on:click={() => (activeCategory = 'communicator')}
+        >
+          <MessageSquare size={15} class={activeCategory === 'communicator' ? 'text-white' : 'text-cyan-400'} />
+          <span>Teams & Communicator</span>
+        </button>
+
+        <button
+          class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors
             {activeCategory === 'ai' ? 'bg-purple-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
           on:click={() => (activeCategory = 'ai')}
         >
@@ -253,6 +263,7 @@
                 <option value="slides">Slides / Presentation Editor</option>
                 <option value="pdf">PDF & Forms Editor</option>
                 <option value="email">Mail / Email Client</option>
+                <option value="communicator">Teams / Secure Communicator</option>
               </select>
             </div>
 
@@ -558,6 +569,55 @@
                   <span class="text-[11px] text-slate-400">All messages cached and stored on local disk only.</span>
                 </div>
                 <span class="text-xs text-emerald-400 font-semibold">Enabled (Local Storage)</span>
+              </div>
+            </div>
+          </div>
+
+        <!-- COMMUNICATOR TAB -->
+        {:else if activeCategory === 'communicator'}
+          <div class="space-y-5">
+            <div>
+              <h3 class="text-sm font-semibold text-white">Teams & Communicator Preferences</h3>
+              <p class="text-slate-400 text-[11px]">Configure end-to-end encryption, workspace identity, and standalone window detachment.</p>
+            </div>
+
+            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="font-medium text-slate-200 block">Workspace Security Mode</span>
+                  <span class="text-[11px] text-slate-400">Cryptographic protection for channel and direct messages.</span>
+                </div>
+                <span class="text-xs text-cyan-400 font-semibold flex items-center space-x-1">
+                  <ShieldCheck size={14} />
+                  <span>AES-256-GCM + Ed25519 (Enforced)</span>
+                </span>
+              </div>
+
+              <div class="flex items-center justify-between border-t border-slate-800 pt-3">
+                <div>
+                  <span class="font-medium text-slate-200 block">Window Detachment</span>
+                  <span class="text-[11px] text-slate-400">Launch Communicator as an independent, floating application window.</span>
+                </div>
+                <button
+                  type="button"
+                  class="px-3 py-1.5 rounded-lg bg-cyan-600/30 hover:bg-cyan-600 border border-cyan-500/40 text-cyan-200 hover:text-white text-xs font-medium transition-colors flex items-center space-x-1.5"
+                  on:click={() => {
+                    if (typeof window !== 'undefined') {
+                      window.open('index.html?mode=communicator', '_blank', 'width=1050,height=720');
+                    }
+                  }}
+                >
+                  <ExternalLink size={13} />
+                  <span>Detach Window Now</span>
+                </button>
+              </div>
+
+              <div class="flex items-center justify-between border-t border-slate-800 pt-3">
+                <div>
+                  <span class="font-medium text-slate-200 block">Universal Email Login</span>
+                  <span class="text-[11px] text-slate-400">Log in with company domain or personal address without cloud tracking.</span>
+                </div>
+                <span class="text-xs text-emerald-400 font-medium">Any Email Supported</span>
               </div>
             </div>
           </div>

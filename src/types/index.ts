@@ -1,4 +1,4 @@
-export type WorkspaceMode = 'writer' | 'sheets' | 'slides' | 'pdf' | 'email';
+export type WorkspaceMode = 'writer' | 'sheets' | 'slides' | 'pdf' | 'email' | 'communicator';
 
 export interface DocumentMeta {
   id: string;
@@ -8,6 +8,73 @@ export interface DocumentMeta {
   lastSaved?: string;
   mode: WorkspaceMode;
 }
+
+// SOS Communicator / Teams Types
+export type UserPresence = 'online' | 'away' | 'busy' | 'offline';
+
+export interface CommunicatorUser {
+  id: string;
+  name: string;
+  email: string;
+  avatar: string;
+  role: string;
+  presence: UserPresence;
+  statusMessage?: string;
+  isSelf?: boolean;
+}
+
+export type ChannelType = 'channel' | 'dm';
+
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  type: 'docx' | 'xlsx' | 'pptx' | 'pdf' | 'image' | 'code';
+  size: string;
+  url?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar: string;
+  senderRole?: string;
+  content: string;
+  timestamp: string;
+  reactions?: Record<string, number>;
+  attachments?: ChatAttachment[];
+  isEncrypted: boolean;
+  replyToId?: string;
+}
+
+export interface ChatChannel {
+  id: string;
+  name: string;
+  description?: string;
+  type: ChannelType;
+  unreadCount: number;
+  recipientUser?: CommunicatorUser;
+  isPrivate?: boolean;
+  isEncrypted: boolean;
+}
+
+export interface CommunicatorState {
+  currentUser: CommunicatorUser | null;
+  channels: ChatChannel[];
+  activeChannelId: string;
+  messages: Record<string, ChatMessage[]>;
+  isDetached: boolean;
+  activeCall: {
+    isInCall: boolean;
+    channelName: string;
+    isMuted: boolean;
+    isVideoOn: boolean;
+    isScreenSharing: boolean;
+    durationSeconds: number;
+    participants: CommunicatorUser[];
+  } | null;
+}
+
 
 // SOS Mail & Email Types
 export type EmailFolder = 'inbox' | 'starred' | 'sent' | 'drafts' | 'archive' | 'trash' | 'junk';
