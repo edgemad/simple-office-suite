@@ -264,9 +264,8 @@
     const target = e.target as HTMLElement;
     const targetTag = target?.tagName?.toLowerCase();
 
-    // If user is currently focused on the Formula Bar input, do not intercept simple arrow keys or characters
-    const isFormulaBarInput = targetTag === 'input' && target.getAttribute('placeholder')?.includes('formula');
-    if (isFormulaBarInput) {
+    // If user is inside an input, textarea or select outside a grid cell (e.g. Formula Bar, modals, inputs), do not intercept
+    if ((targetTag === 'input' || targetTag === 'textarea' || targetTag === 'select') && !target?.closest('td')) {
       return;
     }
 

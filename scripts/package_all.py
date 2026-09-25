@@ -16,7 +16,7 @@ os.makedirs(DIST_INSTALLER, exist_ok=True)
 
 print("=== Simple Office Suite: Cross-Platform Packaging Pipeline ===")
 
-# 1. Update root macOS .app
+# 1. Update root macOS .app and dist-installer .app
 if os.path.exists(RELEASE_APP):
     print("1. Updating macOS .app bundle...")
     if os.path.exists(TARGET_APP):
@@ -24,6 +24,13 @@ if os.path.exists(RELEASE_APP):
     shutil.copytree(RELEASE_APP, TARGET_APP, symlinks=True)
     os.system(f'chmod +x "{TARGET_APP}/Contents/MacOS/simple-office-suite"')
     os.system(f'xattr -cr "{TARGET_APP}"')
+    
+    dist_app = os.path.join(DIST_INSTALLER, "Simple Office Suite.app")
+    if os.path.exists(dist_app):
+        shutil.rmtree(dist_app)
+    shutil.copytree(RELEASE_APP, dist_app, symlinks=True)
+    os.system(f'chmod +x "{dist_app}/Contents/MacOS/simple-office-suite"')
+    os.system(f'xattr -cr "{dist_app}"')
 else:
     print(f"Warning: {RELEASE_APP} not found")
 
