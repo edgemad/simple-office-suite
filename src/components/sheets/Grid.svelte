@@ -1,6 +1,8 @@
 <script lang="ts">
   import { createEventDispatcher, tick } from 'svelte';
   import { colToLetter, parseCoord } from './formulaEngine';
+  import FormulaSuggestions from './FormulaSuggestions.svelte';
+  import { getSmartFormulaSuggestion, type FormulaDefinition } from './formulaDefinitions';
   import type { SheetGrid, CellFormatting } from '../../types';
 
   export let grid: SheetGrid;
@@ -17,6 +19,9 @@
   let editInputVal: string = '';
   let editInputRef: HTMLInputElement | null = null;
   let containerRef: HTMLDivElement | null = null;
+  let cellSuggestionsRef: FormulaSuggestions;
+
+  $: smartSuggestion = editingCell ? getSmartFormulaSuggestion(editingCell, grid) : null;
 
   function getCellKey(col: number, row: number): string {
     return `${colToLetter(col)}${row + 1}`;
@@ -100,6 +105,42 @@
   }
 
   function handleEditKeydown(e: KeyboardEvent) {
+    const isFormula = editInputVal.trim().startsWith('=');
+
+    if (isFormula) {
+      if (e.key === 'ArrowDown') {
+        if (cellSuggestionsRef?.moveSelection(1)) {
+          e.preventDefault();
+          return;
+        }
+      } else if (e.key === 'ArrowUp') {
+        if (cellSuggestionsRef?.moveSelection(-1)) {
+          e.preventDefault();
+          return;
+        }
+      } else if (e.key === 'Tab') {
+        // Smart suggestion or autocomplete formula insertion
+        if (smartSuggestion && (editInputVal === '=' || editInputVal.trim() === '')) {
+          e.preventDefault();
+          editInputVal = smartSuggestion;
+          return;
+        }
+        const selected = cellSuggestionsRef?.getSelectedFormula();
+        if (selected) {
+          e.preventDefault();
+          editInputVal = `=${selected.name}(`;
+          return;
+        }
+      } else if (e.key === 'Enter') {
+        const selected = cellSuggestionsRef?.getSelectedFormula();
+        if (selected && !editInputVal.includes('(')) {
+          e.preventDefault();
+          editInputVal = `=${selected.name}(`;
+          return;
+        }
+      }
+    }
+
     if (e.key === 'Enter') {
       e.preventDefault();
       commitEdit();
@@ -111,6 +152,16 @@
     } else if (e.key === 'Escape') {
       cancelEditing();
     }
+  }
+
+  function handleSuggestionSelect(e: CustomEvent<{ formula: FormulaDefinition; completedText: string }>) {
+    editInputVal = e.detail.completedText;
+    editInputRef?.focus();
+  }
+
+  function handleAcceptSmart(e: CustomEvent<string>) {
+    editInputVal = e.detail;
+    editInputRef?.focus();
   }
 
   function formatDisplayValue(val: string | number | undefined, format?: CellFormatting): string {
@@ -146,12 +197,12 @@
   tabindex="0"
 >
   <table class="border-collapse table-fixed bg-white text-xs">
-    <!-- Header Row (Column Letters) -->
+    <!-- Header Row (Column Letters) - OnlyOffice Style -->
     <thead>
       <tr class="sticky top-0 z-20 bg-slate-100 shadow-sm">
         <th class="w-12 h-6 border-b border-r border-slate-300 bg-slate-200 sticky left-0 z-30 text-slate-500 font-mono text-[10px]"></th>
         {#each Array(colCount) as _, colIdx}
-          <th class="w-28 h-6 border-b border-r border-slate-300 text-slate-600 font-semibold font-mono text-center hover:bg-slate-200">
+          <th class="w-28 h-6 border-b border-r border-slate-300 text-slate-600 font-semibold font-mono text-center hover:bg-slate-200 transition-colors">
             {colToLetter(colIdx)}
           </th>
         {/each}
@@ -181,7 +232,7 @@
                 {isSelected ? 'ring-2 ring-emerald-500 ring-inset z-10' : ''}"
               style="
                 background-color: {fmt?.bgColor || (isSelected ? '#ecfdf5' : '#ffffff')};
-                color: {fmt?.textColor || '#1e293b'};
+                color: {fmt?.textColor || '#1e293b'};\
                 font-family: {fmt?.fontFamily || 'inherit'};
                 font-size: {fmt?.fontSize ? `${fmt.fontSize}pt` : 'inherit'};
                 font-weight: {fmt?.bold ? 'bold' : 'normal'};
@@ -198,10 +249,28 @@
                   type="text"
                   bind:this={editInputRef}
                   bind:value={editInputVal}
-                  on:blur={commitEdit}
+                  on:blur={() => {
+                    // Small delay to allow clicking suggestion items
+                    setTimeout(() => {
+                      if (editingCell) commitEdit();
+                    }, 150);
+                  }}
                   on:keydown={handleEditKeydown}
                   class="absolute inset-0 w-full h-full px-2 bg-white text-slate-900 border-2 border-emerald-600 outline-none z-20 font-mono text-xs shadow-md"
                 />
+
+                <!-- OnlyOffice In-Cell Floating Formula Suggestion Box -->
+                {#if editInputVal.trim().startsWith('=')}
+                  <div class="absolute left-0 top-full mt-1 z-40">
+                    <FormulaSuggestions
+                      bind:this={cellSuggestionsRef}
+                      inputValue={editInputVal}
+                      {smartSuggestion}
+                      on:select={handleSuggestionSelect}
+                      on:acceptSmartSuggestion={handleAcceptSmart}
+                    />
+                  </div>
+                {/if}
               {:else}
                 <div class="truncate">
                   {formatDisplayValue(cell?.computed, fmt)}

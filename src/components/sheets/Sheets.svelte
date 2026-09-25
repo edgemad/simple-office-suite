@@ -719,6 +719,7 @@
   <FormulaBar
     {activeCell}
     {rawValue}
+    grid={activeSheet.cells}
     on:commit={handleFormulaCommit}
   />
 
