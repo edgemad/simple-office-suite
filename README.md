@@ -50,14 +50,34 @@ The AI assistant is optional. Its default `local` provider is a deterministic of
 
 The project makes no zero-telemetry, zero-network, or encryption claim when a remote AI provider is selected.
 
-## Requirements
+## Platform requirements for people using the app
+
+End users do not install drivers, runtimes, or extra services. There is no separate database, no bundled server to start, and no vendor graphics driver requirement.
+
+| Platform | What the user installs | What is handled for the user |
+| --- | --- | --- |
+| macOS 10.15 or newer | Nothing | The system WebKit view is used directly. The bundle is code signed at build time. |
+| Windows 10/11 x64 | Nothing | WebView2 is shipped inside the installer as an offline installer, so no runtime download is needed. NSIS and MSI bundles are produced. |
+| Debian/Ubuntu x64 | Nothing | The `.deb` declares its WebKit and GTK dependencies, so the package manager resolves them. AppImage is also produced. |
+
+Notes and honest limits:
+
+- The WebView is the operating system's own engine (WebKit on macOS and Linux, WebView2 on Windows). That is a property of the toolkit, not a driver you install per machine.
+- On Linux the WebKitGTK libraries are a toolkit requirement. The `.deb` declares them so `apt` installs them automatically; the AppImage expects them to be present on the host.
+- No application code shells out to external binaries such as LibreOffice, `pdftotext`, ImageMagick, or OnlyOffice, so there is no hidden external program dependency.
+- Fonts fall back to whatever the host provides. The app never downloads fonts or assets at runtime, so it works with the network disconnected.
+- Cloud AI is optional. When no provider is configured, nothing is sent anywhere.
+
+## Requirements for people building from source
 
 - Node.js 20.19 or newer, or Node.js 22.12 or newer, for the current Vite toolchain
 - npm
 - Rust stable toolchain and `rustfmt` and `clippy` components for Rust checks
 - macOS: Xcode Command Line Tools
 - Linux: the Tauri WebKit and build packages, including `libwebkit2gtk-4.1-dev`, `build-essential`, `libxdo-dev`, `libssl-dev`, `libayatana-appindicator3-dev`, and `librsvg2-dev`
-- Windows: Visual Studio C++ Build Tools, the Windows SDK, and WebView2
+- Windows: Visual Studio C++ Build Tools and the Windows SDK
+
+These are build-time toolchains only. They are not needed to run the shipped app.
 
 `package-lock.json` and `src-tauri/Cargo.lock` are intentionally not ignored. Commit both lockfiles so npm and Cargo resolve the same dependency graph in development and CI.
 

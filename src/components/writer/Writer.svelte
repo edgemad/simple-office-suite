@@ -2,13 +2,16 @@
   import { createEventDispatcher } from 'svelte';
   import WriterToolbar from './WriterToolbar.svelte';
   import WriterCanvas from './WriterCanvas.svelte';
-  import type { DocumentMeta } from '../../types';
+  import DocumentOutline from './DocumentOutline.svelte';
+  import TableInsertModal from './TableInsertModal.svelte';
+  import PageSetupModal from './PageSetupModal.svelte';
+  import type { DocumentMeta, DocumentPageSetup } from '../../types';
   import { Search, X, Replace, FileText } from '@lucide/svelte';
 
   export let meta: DocumentMeta;
   export let contentHtml: string = `
     <h1>Simple Office Suite (SOS) Project Brief</h1>
-    <p>Welcome to <strong>SOS Writer</strong> — your full-featured, lightweight, and offline-first word processor.</p>
+    <p>Welcome to <strong>SOS Writer</strong> — your full-featured, lightweight, and offline-first word processor inspired by Google Docs and OnlyOffice.</p>
     <h2>Comprehensive Capabilities</h2>
     <ul>
       <li>Full font family typography selection (Inter, Arial, Times New Roman, Georgia, Merriweather, JetBrains Mono)</li>
@@ -16,17 +19,30 @@
       <li>Tables, embedded local images, hyperlinks, dividers, and real-time word counting</li>
       <li>Universal format compatibility: Open and Export <strong>.docx, .rtf, .md, .txt, .html, and PDF</strong></li>
     </ul>
+    <h2>Document Architecture</h2>
+    <p>Use the left outline sidebar to navigate across sections, insert checklists, configure pageless or paginated views, and format layouts seamlessly.</p>
     <blockquote>\"Simplicity is the soul of efficiency.\" — Austin Freeman</blockquote>
     <p>Start drafting your executive brief, novel, or documentation below...</p>
   `;
 
   let canvasRef: WriterCanvas;
+  let showOutline = true;
+  let showTableModal = false;
+  let showPageSetupModal = false;
   let showSearch = false;
   let showWordCountModal = false;
+
   let findQuery = '';
   let replaceQuery = '';
   let currentWords = 0;
   let currentChars = 0;
+
+  let pageSetup: DocumentPageSetup = {
+    margin: 'normal',
+    orientation: 'portrait',
+    size: 'a4',
+  };
+  let isPageless = false;
 
   const dispatch = createEventDispatcher<{
     updateStats: { words: number; chars: number };
@@ -46,7 +62,7 @@
   }
 
   export function insertTable() {
-    handleInsertTable();
+    showTableModal = true;
   }
 
   export function insertImage() {
@@ -57,15 +73,39 @@
     handleInsertLink();
   }
 
+  export function insertChecklist() {
+    if (canvasRef) canvasRef.insertChecklist();
+  }
+
+  export function insertCallout(type: 'info' | 'tip' | 'warning' = 'info') {
+    if (canvasRef) canvasRef.insertCallout(type);
+  }
+
+  export function insertTableOfContents() {
+    if (canvasRef) canvasRef.insertTableOfContents();
+  }
+
+  export function toggleOutline() {
+    showOutline = !showOutline;
+  }
+
+  export function openPageSetup() {
+    showPageSetupModal = true;
+  }
+
+  export function openWordCount() {
+    showWordCountModal = true;
+  }
+
   function handleFormat(e: CustomEvent<{ command: string; value?: string }> | { detail: { command: string; value?: string } }) {
     if (canvasRef) {
       canvasRef.execCommand(e.detail.command, e.detail.value);
     }
   }
 
-  function handleInsertTable() {
+  function handleTableInsert(e: CustomEvent<{ rows: number; cols: number; hasHeader: boolean }>) {
     if (canvasRef) {
-      canvasRef.insertTable();
+      canvasRef.insertCustomTable(e.detail.rows, e.detail.cols, e.detail.hasHeader);
     }
   }
 
@@ -124,7 +164,6 @@
       e.preventDefault();
       handleInsertLink();
     } else if (mod && e.shiftKey && e.key.toLowerCase() === 'c') {
-      // Google Docs Word Count shortcut (Cmd+Shift+C)
       e.preventDefault();
       showWordCountModal = true;
     } else if (mod && e.shiftKey && e.key.toLowerCase() === 'l') {
@@ -145,6 +184,9 @@
     } else if (mod && e.shiftKey && (e.key === '8' || e.key === '*')) {
       e.preventDefault();
       handleFormat({ detail: { command: 'insertUnorderedList' } });
+    } else if (mod && e.shiftKey && (e.key === '9' || e.key === '(')) {
+      e.preventDefault();
+      insertChecklist();
     } else if (mod && e.altKey) {
       if (e.key === '1') {
         e.preventDefault();
@@ -167,18 +209,25 @@
 
 <div class="flex-1 flex flex-col h-full overflow-hidden bg-slate-100">
   <WriterToolbar
+    {showOutline}
     on:format={handleFormat}
-    on:insertTable={handleInsertTable}
+    on:insertTable={() => (showTableModal = true)}
     on:insertImage={handleInsertImage}
     on:insertLink={handleInsertLink}
+    on:insertChecklist={insertChecklist}
+    on:insertDate={() => canvasRef?.insertDate()}
+    on:insertCallout={() => insertCallout('info')}
+    on:toggleOutline={toggleOutline}
+    on:openPageSetup={openPageSetup}
+    on:openWordCount={openWordCount}
     on:toggleSearch={() => (showSearch = !showSearch)}
   />
 
   <!-- Find & Replace Floating / Top Bar -->
   {#if showSearch}
-    <div class="no-print bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between text-xs shadow-md z-10 animate-in fade-in slide-in-from-top duration-150">
+    <div class="no-print bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between text-xs shadow-md z-20 animate-in fade-in slide-in-from-top duration-150">
       <div class="flex items-center space-x-2">
-        <div class="flex items-center space-x-1.5 bg-slate-100 px-2 py-1 rounded border border-slate-300">
+        <div class="flex items-center space-x-1.5 bg-slate-100 px-2.5 py-1 rounded border border-slate-300">
           <Search size={13} class="text-slate-400" />
           <input
             type="text"
@@ -190,13 +239,13 @@
         </div>
 
         <button
-          class="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded border border-slate-300 text-slate-700 font-medium"
+          class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded border border-slate-300 text-slate-700 font-medium transition-colors"
           on:click={handleFindNext}
         >
           Find Next
         </button>
 
-        <div class="flex items-center space-x-1.5 bg-slate-100 px-2 py-1 rounded border border-slate-300 ml-2">
+        <div class="flex items-center space-x-1.5 bg-slate-100 px-2.5 py-1 rounded border border-slate-300 ml-2">
           <Replace size={13} class="text-slate-400" />
           <input
             type="text"
@@ -207,14 +256,14 @@
         </div>
 
         <button
-          class="px-2 py-1 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200 text-blue-700 font-medium"
+          class="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200 text-blue-700 font-medium transition-colors"
           on:click={() => handleReplace(false)}
         >
           Replace
         </button>
 
         <button
-          class="px-2 py-1 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200 text-blue-700 font-medium"
+          class="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200 text-blue-700 font-medium transition-colors"
           on:click={() => handleReplace(true)}
         >
           Replace All
@@ -222,7 +271,7 @@
       </div>
 
       <button
-        class="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+        class="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
         on:click={() => (showSearch = false)}
         title="Close (Esc)"
       >
@@ -231,15 +280,47 @@
     </div>
   {/if}
 
-  <WriterCanvas
-    bind:this={canvasRef}
-    bind:contentHtml
-    on:change={handleCanvasChange}
+  <!-- Main Body: Document Outline Sidebar + Canvas -->
+  <div class="flex-1 flex overflow-hidden relative">
+    <DocumentOutline
+      isOpen={showOutline}
+      {contentHtml}
+      on:close={() => (showOutline = false)}
+      on:jumpToHeading={(e) => canvasRef?.scrollToHeading(e.detail.text)}
+      on:insertToc={insertTableOfContents}
+    />
+
+    <WriterCanvas
+      bind:this={canvasRef}
+      bind:contentHtml
+      {pageSetup}
+      {isPageless}
+      on:change={handleCanvasChange}
+    />
+  </div>
+
+  <!-- Table Insert Grid Modal -->
+  <TableInsertModal
+    isOpen={showTableModal}
+    on:close={() => (showTableModal = false)}
+    on:insert={handleTableInsert}
+  />
+
+  <!-- Page Setup Modal (Google Docs style) -->
+  <PageSetupModal
+    isOpen={showPageSetupModal}
+    {pageSetup}
+    {isPageless}
+    on:close={() => (showPageSetupModal = false)}
+    on:save={(e) => {
+      pageSetup = e.detail.pageSetup;
+      isPageless = e.detail.isPageless;
+    }}
   />
 
   <!-- Google Docs Style Word Count Modal (Cmd+Shift+C) -->
   {#if showWordCountModal}
-    <div class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
       <div class="bg-white rounded-xl shadow-2xl border border-slate-200 p-6 w-80 text-xs text-slate-700 animate-in fade-in zoom-in-95 duration-100">
         <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
           <div class="flex items-center space-x-2 font-bold text-slate-800 text-sm">
@@ -253,7 +334,7 @@
         <div class="space-y-3">
           <div class="flex items-center justify-between py-1 border-b border-slate-50">
             <span class="text-slate-500">Pages</span>
-            <span class="font-bold text-slate-800 font-mono">1</span>
+            <span class="font-bold text-slate-800 font-mono">{isPageless ? 'Pageless' : '1'}</span>
           </div>
           <div class="flex items-center justify-between py-1 border-b border-slate-50">
             <span class="text-slate-500">Words</span>
@@ -263,9 +344,13 @@
             <span class="text-slate-500">Characters</span>
             <span class="font-bold text-slate-800 font-mono">{currentChars}</span>
           </div>
-          <div class="flex items-center justify-between py-1">
+          <div class="flex items-center justify-between py-1 border-b border-slate-50">
             <span class="text-slate-500">Characters (no spaces)</span>
             <span class="font-bold text-slate-800 font-mono">{Math.max(0, currentChars - Math.floor(currentWords * 0.8))}</span>
+          </div>
+          <div class="flex items-center justify-between py-1">
+            <span class="text-slate-500">Est. reading time</span>
+            <span class="font-bold text-blue-600 font-mono">~{Math.ceil(currentWords / 200)} min</span>
           </div>
         </div>
         <div class="pt-5 flex justify-end">

@@ -13,7 +13,13 @@
     FileCheck,
     ChevronDown,
     Building2,
-    LogIn
+    Plus,
+    Lock,
+    Users,
+    LogIn,
+    MessageSquare,
+    Trash2,
+    UserPlus,
   } from '@lucide/svelte';
   import type {
     CommunicatorUser,
@@ -23,15 +29,25 @@
     AppSettings
   } from '../../types';
   import {
-    INITIAL_CHANNELS,
     COMMUNICATOR_DEMO_NOTICE,
     loadCurrentCommunicatorUser,
     loadCommunicatorMessages,
-    saveCommunicatorMessages
+    saveCommunicatorMessages,
+    loadCommunicatorUsers,
+    addCommunicatorUser,
+    loadCommunicatorChannels,
+    saveCommunicatorChannels,
+    deleteConversation,
+    deleteChatMessage,
+    
   } from '../../lib/communicatorStore';
   import { processAiRequest } from '../../lib/ai';
   import LoginModal from './LoginModal.svelte';
   import CallModal from './CallModal.svelte';
+  import AddParticipantModal from './AddParticipantModal.svelte';
+  import CreateChannelModal from './CreateChannelModal.svelte';
+  import ChannelMembersModal from './ChannelMembersModal.svelte';
+  import DeleteChatModal from './DeleteChatModal.svelte';
 
   export let settings: AppSettings;
   export let isStandaloneWindow: boolean = false;
@@ -43,18 +59,32 @@
   }>();
 
   let currentUser: CommunicatorUser = loadCurrentCommunicatorUser();
-  let channels: ChatChannel[] = INITIAL_CHANNELS;
-  let activeChannelId: string = 'chan_general';
+  let teamUsers: CommunicatorUser[] = loadCommunicatorUsers();
+  let channels: ChatChannel[] = loadCommunicatorChannels();
+  let activeChannelId: string = channels[0]?.id || 'chan_general';
   let messagesByChannel: Record<string, ChatMessage[]> = loadCommunicatorMessages();
 
   let chatInputText: string = '';
   let showLoginModal: boolean = false;
   let showCallModal: boolean = false;
+  let showAddParticipantModal: boolean = false;
+  let showCreateChannelModal: boolean = false;
+  let showMembersModal: boolean = false;
+  let showDeleteChatModal: boolean = false;
+  let channelToDelete: ChatChannel | null = null;
+
   let isAiDrafting: boolean = false;
 
   let chatScrollContainer: HTMLDivElement;
 
-  $: activeChannel = channels.find(c => c.id === activeChannelId) || channels[0];
+  $: activeChannel = channels.find(c => c.id === activeChannelId) || channels[0] || {
+    id: 'chan_general',
+    name: 'general',
+    type: 'channel',
+    unreadCount: 0,
+    isEncrypted: true,
+  };
+
   $: currentMessages = messagesByChannel[activeChannelId] || [];
 
   $: totalUnread = channels.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
@@ -91,6 +121,7 @@
     activeChannelId = channel.id;
     channel.unreadCount = 0;
     channels = [...channels];
+    saveCommunicatorChannels(channels);
     updateStats();
     scrollToBottom();
   }
@@ -157,6 +188,88 @@
     saveCommunicatorMessages(messagesByChannel);
   }
 
+  function handleDeleteMessage(msgId: string) {
+    messagesByChannel = deleteChatMessage(activeChannelId, msgId);
+  }
+
+  function promptDeleteConversation(channel: ChatChannel) {
+    channelToDelete = channel;
+    showDeleteChatModal = true;
+  }
+
+  function handleConfirmDeleteConversation(channelId: string) {
+    const res = deleteConversation(channelId);
+    channels = res.channels;
+    messagesByChannel = res.messages;
+
+    if (activeChannelId === channelId) {
+      activeChannelId = channels[0]?.id || 'chan_general';
+    }
+    updateStats();
+  }
+
+  function handleAddParticipant(e: CustomEvent<{ user: CommunicatorUser; startDm: boolean; addToChannel: boolean }>) {
+    const { user, startDm, addToChannel } = e.detail;
+    teamUsers = addCommunicatorUser(user);
+
+    if (addToChannel && activeChannel && activeChannel.type === 'channel') {
+      const currentMembers = activeChannel.memberIds || [];
+      if (!currentMembers.includes(user.id)) {
+        activeChannel.memberIds = [...currentMembers, user.id];
+        channels = [...channels];
+        saveCommunicatorChannels(channels);
+      }
+    }
+
+    if (startDm) {
+      const dmId = `dm_${user.id}`;
+      let existingDm = channels.find(c => c.id === dmId || (c.type === 'dm' && c.recipientUser?.email === user.email));
+      if (!existingDm) {
+        existingDm = {
+          id: dmId,
+          name: user.name,
+          type: 'dm',
+          unreadCount: 0,
+          recipientUser: user,
+          isEncrypted: true,
+        };
+        channels = [...channels, existingDm];
+        saveCommunicatorChannels(channels);
+      }
+      activeChannelId = existingDm.id;
+    }
+
+    updateStats();
+    scrollToBottom();
+  }
+
+  function handleCreateChannel(e: CustomEvent<ChatChannel>) {
+    const newChan = e.detail;
+    channels = [...channels, newChan];
+    saveCommunicatorChannels(channels);
+    activeChannelId = newChan.id;
+    updateStats();
+    scrollToBottom();
+  }
+
+  function handleAddMemberToActiveChannel(userId: string) {
+    if (!activeChannel) return;
+    const current = activeChannel.memberIds || [];
+    if (!current.includes(userId)) {
+      activeChannel.memberIds = [...current, userId];
+      channels = [...channels];
+      saveCommunicatorChannels(channels);
+    }
+  }
+
+  function handleRemoveMemberFromActiveChannel(userId: string) {
+    if (!activeChannel) return;
+    const current = activeChannel.memberIds || [];
+    activeChannel.memberIds = current.filter(id => id !== userId);
+    channels = [...channels];
+    saveCommunicatorChannels(channels);
+  }
+
   function attachSuiteFile(type: 'docx' | 'xlsx' | 'pptx' | 'pdf') {
     const names = {
       docx: 'Sample_Document.docx',
@@ -211,7 +324,6 @@
   }
 
   function handleDetach() {
-    // 1. If in Tauri desktop, attempt to open standalone window
     if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
       try {
         const { invoke } = (window as any).__TAURI_INTERNALS__;
@@ -234,6 +346,9 @@
     else if (action === 'detach') handleDetach();
     else if (action === 'switchAccount') showLoginModal = true;
     else if (action === 'aiDraft') handleAiAssist();
+    else if (action === 'addParticipant') showAddParticipantModal = true;
+    else if (action === 'createChannel') showCreateChannelModal = true;
+    else if (action === 'deleteChat') promptDeleteConversation(activeChannel);
   }
 </script>
 
@@ -271,6 +386,7 @@
       <button
         type="button"
         class="mt-2.5 p-2 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/10 transition-colors w-full text-left"
+
         on:click={() => (showLoginModal = true)}
         title="Edit Profile & Email"
       >
@@ -302,27 +418,47 @@
       <div>
         <div class="flex items-center justify-between px-2 mb-1">
           <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Channels</span>
+          <button
+            class="p-0.5 rounded hover:bg-white/10 text-slate-400 hover:text-cyan-400 transition-colors"
+            on:click={() => (showCreateChannelModal = true)}
+            title="Create New Channel"
+          >
+            <Plus size={13} />
+          </button>
         </div>
 
         <div class="space-y-0.5">
           {#each channels.filter(c => c.type === 'channel') as chan (chan.id)}
             {@const isActive = activeChannelId === chan.id}
-            <button
-              class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors
-                {isActive ? 'bg-cyan-600/30 text-cyan-200 font-semibold border border-cyan-500/30 shadow-xs' : 'text-slate-300 hover:text-white hover:bg-white/5'}"
-              on:click={() => switchChannel(chan)}
-            >
-              <div class="flex items-center space-x-2 truncate">
-                <Hash size={14} class={isActive ? 'text-cyan-400' : 'text-slate-400'} />
-                <span class="truncate">{chan.name}</span>
-              </div>
+            <div class="relative group/item flex items-center">
+              <button
+                class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors
+                  {isActive ? 'bg-cyan-600/30 text-cyan-200 font-semibold border border-cyan-500/30 shadow-xs' : 'text-slate-300 hover:text-white hover:bg-white/5'}"
+                on:click={() => switchChannel(chan)}
+              >
+                <div class="flex items-center space-x-2 truncate">
+                  <Hash size={14} class={isActive ? 'text-cyan-400' : 'text-slate-400'} />
+                  <span class="truncate">{chan.name}</span>
+                </div>
 
-              {#if chan.unreadCount > 0}
-                <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-cyan-400 text-cyan-950">
-                  {chan.unreadCount}
-                </span>
-              {/if}
-            </button>
+                <div class="flex items-center space-x-1">
+                  {#if chan.unreadCount > 0}
+                    <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-cyan-400 text-cyan-950">
+                      {chan.unreadCount}
+                    </span>
+                  {/if}
+                </div>
+              </button>
+
+              <!-- Delete Chat Action Button (Hover) -->
+              <button
+                class="absolute right-1.5 p-1 rounded hover:bg-rose-500/30 text-slate-500 hover:text-rose-400 opacity-0 group-hover/item:opacity-100 transition-opacity"
+                on:click|stopPropagation={() => promptDeleteConversation(chan)}
+                title="Delete channel conversation"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
           {/each}
         </div>
       </div>
@@ -331,37 +467,70 @@
       <div>
         <div class="flex items-center justify-between px-2 mb-1">
           <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Direct Messages</span>
+          <button
+            class="p-0.5 rounded hover:bg-white/10 text-slate-400 hover:text-cyan-400 transition-colors"
+            on:click={() => (showAddParticipantModal = true)}
+            title="Add Participant / New Chat"
+          >
+            <Plus size={13} />
+          </button>
         </div>
 
         <div class="space-y-0.5">
           {#each channels.filter(c => c.type === 'dm') as dm (dm.id)}
             {@const isActive = activeChannelId === dm.id}
-            <button
-              class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors
-                {isActive ? 'bg-cyan-600/30 text-cyan-200 font-semibold border border-cyan-500/30 shadow-xs' : 'text-slate-300 hover:text-white hover:bg-white/5'}"
-              on:click={() => switchChannel(dm)}
-            >
-              <div class="flex items-center space-x-2 truncate">
-                <div class="relative">
-                  <div class="w-5 h-5 rounded-md bg-slate-700 text-white font-bold flex items-center justify-center text-[10px]">
-                    {dm.recipientUser?.avatar || dm.name[0]}
+            <div class="relative group/item flex items-center">
+              <button
+                class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors
+                  {isActive ? 'bg-cyan-600/30 text-cyan-200 font-semibold border border-cyan-500/30 shadow-xs' : 'text-slate-300 hover:text-white hover:bg-white/5'}"
+                on:click={() => switchChannel(dm)}
+              >
+                <div class="flex items-center space-x-2 truncate">
+                  <div class="relative">
+                    <div class="w-5 h-5 rounded-md bg-slate-700 text-white font-bold flex items-center justify-center text-[10px]">
+                      {dm.recipientUser?.avatar || 'DM'}
+                    </div>
+                    {#if dm.recipientUser}
+                      <span
+                        class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#141517]
+                          {dm.recipientUser.presence === 'online' ? 'bg-emerald-400' : dm.recipientUser.presence === 'busy' ? 'bg-rose-500' : dm.recipientUser.presence === 'away' ? 'bg-amber-400' : 'bg-slate-500'}"
+                      ></span>
+                    {/if}
                   </div>
-                  <span
-                    class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#141517]
-                      {dm.recipientUser?.presence === 'online' ? 'bg-emerald-400' : dm.recipientUser?.presence === 'busy' ? 'bg-rose-500' : dm.recipientUser?.presence === 'away' ? 'bg-amber-400' : 'bg-slate-500'}"
-                  ></span>
-                </div>
-                <span class="truncate">{dm.name}</span>
-              </div>
 
-              {#if dm.unreadCount > 0}
-                <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-cyan-400 text-cyan-950">
-                  {dm.unreadCount}
-                </span>
-              {/if}
-            </button>
+                  <span class="truncate">{dm.name}</span>
+                </div>
+
+                {#if dm.unreadCount > 0}
+                  <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-cyan-400 text-cyan-950">
+                    {dm.unreadCount}
+                  </span>
+                {/if}
+              </button>
+
+              <!-- Delete Chat Action Button (Hover) -->
+              <button
+                class="absolute right-1.5 p-1 rounded hover:bg-rose-500/30 text-slate-500 hover:text-rose-400 opacity-0 group-hover/item:opacity-100 transition-opacity"
+                on:click|stopPropagation={() => promptDeleteConversation(dm)}
+                title="Delete chat conversation"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
           {/each}
         </div>
+      </div>
+
+      <!-- Quick Action: Add Member Button in Sidebar -->
+      <div class="pt-2 px-1">
+        <button
+          class="w-full py-1.5 px-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-slate-300 hover:text-cyan-300 flex items-center justify-center space-x-1.5 transition-colors font-medium text-[11px]"
+          on:click={() => (showAddParticipantModal = true)}
+          title="Add Participant to Team"
+        >
+          <UserPlus size={13} class="text-cyan-400" />
+          <span>Add Participant</span>
+        </button>
       </div>
 
     </nav>
@@ -411,7 +580,25 @@
       <!-- Action Buttons -->
       <div class="flex items-center space-x-2">
         
-        <div class="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-950/50 border border-amber-500/30 text-amber-200 text-[10px] font-medium">
+        <button
+          class="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors text-[11px] font-medium"
+          on:click={() => (showMembersModal = true)}
+          title="View participants in this conversation"
+        >
+          <Users size={13} class="text-cyan-400" />
+          <span>Participants</span>
+        </button>
+
+        <button
+          class="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/30 text-cyan-300 transition-colors text-[11px] font-semibold"
+          on:click={() => (showAddParticipantModal = true)}
+          title="Add or invite participant"
+        >
+          <UserPlus size={13} />
+          <span class="hidden sm:inline">Add People</span>
+        </button>
+
+        <div class="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-950/50 border border-amber-500/30 text-amber-200 text-[10px] font-medium" title="No chat server is connected. Messages are stored locally.">
           <Info size={11} class="text-amber-300" />
           <span>Local demo data</span>
         </div>
@@ -423,6 +610,15 @@
         >
           <Video size={13} />
           <span>Meet Now</span>
+        </button>
+
+        <!-- Delete Chat Conversation Button (MS Teams / Zoom / Meet Style) -->
+        <button
+          class="p-1.5 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors"
+          on:click={() => promptDeleteConversation(activeChannel)}
+          title="Delete this chat conversation"
+        >
+          <Trash2 size={14} />
         </button>
 
         <!-- Detach Button -->
@@ -449,89 +645,109 @@
       bind:this={chatScrollContainer}
       class="flex-1 p-5 overflow-y-auto space-y-4"
     >
-      {#each currentMessages as msg (msg.id)}
-        <div class="flex items-start space-x-3 group">
-          <!-- Avatar -->
-          <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-slate-700 to-slate-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
-            {msg.senderAvatar}
+      {#if currentMessages.length === 0}
+        <div class="h-full flex flex-col items-center justify-center text-center p-8 text-slate-500">
+          <div class="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-cyan-400 mb-3">
+            <MessageSquare size={24} />
           </div>
-
-          <!-- Content Box -->
-          <div class="flex-1 min-w-0">
-            <div class="flex items-baseline space-x-2">
-              <span class="font-bold text-xs text-white">{msg.senderName}</span>
-              {#if msg.senderRole}
-                <span class="text-[10px] text-cyan-400/90 font-medium">[{msg.senderRole}]</span>
-              {/if}
-              <span class="text-[10px] text-slate-500">{msg.timestamp}</span>
-            </div>
-
-            <!-- Text Body -->
-            <div class="mt-1 text-xs text-slate-200 leading-relaxed font-sans select-text whitespace-pre-wrap">
-              {msg.content}
-            </div>
-
-            <!-- Attached Office Documents (Interactive) -->
-            {#if msg.attachments && msg.attachments.length > 0}
-              <div class="mt-2.5 flex flex-wrap gap-2">
-                {#each msg.attachments as att}
-                  <div class="flex items-center space-x-2.5 p-2.5 bg-[#202226] border border-slate-700 rounded-xl hover:border-cyan-500 transition-colors">
-                    {#if att.type === 'docx'}
-                      <FileText size={18} class="text-blue-400 shrink-0" />
-                    {:else if att.type === 'xlsx'}
-                      <FileSpreadsheet size={18} class="text-emerald-400 shrink-0" />
-                    {:else if att.type === 'pptx'}
-                      <Presentation size={18} class="text-orange-400 shrink-0" />
-                    {:else}
-                      <FileCheck size={18} class="text-rose-400 shrink-0" />
-                    {/if}
-
-                    <div class="min-w-0 pr-2">
-                      <span class="font-semibold text-xs text-white block truncate">{att.name}</span>
-                      <span class="text-[10px] text-slate-400">{att.size}</span>
-                    </div>
-
-                    <button
-                      class="px-2 py-1 rounded bg-white/10 hover:bg-cyan-600 hover:text-white text-[11px] font-medium text-slate-200 transition-colors"
-                      on:click={() => dispatch('openOfficeDoc', { type: att.type, name: att.name })}
-                      title="Switches to the matching workspace. The demo attachment has no stored file."
-                    >
-                      Open
-                    </button>
-                  </div>
-                {/each}
-              </div>
-              <p class="mt-1.5 text-[10px] text-amber-200/70">
-                Demo attachment: no file data is stored or transferred. "Open" only switches workspaces.
-              </p>
-            {/if}
-
-            <!-- Reactions Bar -->
-            <div class="mt-2 flex items-center space-x-1">
-              {#if msg.reactions}
-                {#each Object.entries(msg.reactions) as [emoji, count]}
-                  <button
-                    class="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 text-xs flex items-center space-x-1"
-                    on:click={() => addReaction(msg, emoji)}
-                  >
-                    <span>{emoji}</span>
-                    <span class="text-[10px] text-slate-400">{count}</span>
-                  </button>
-                {/each}
-              {/if}
-
-              <!-- Add reaction triggers (visible on hover) -->
-              <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-0.5 pl-1">
-                <button class="p-1 rounded hover:bg-white/10 text-xs" on:click={() => addReaction(msg, '👍')}>👍</button>
-                <button class="p-1 rounded hover:bg-white/10 text-xs" on:click={() => addReaction(msg, '❤️')}>❤️</button>
-                <button class="p-1 rounded hover:bg-white/10 text-xs" on:click={() => addReaction(msg, '🚀')}>🚀</button>
-                <button class="p-1 rounded hover:bg-white/10 text-xs" on:click={() => addReaction(msg, '🎉')}>🎉</button>
-              </div>
-            </div>
-
-          </div>
+          <h4 class="text-white font-bold text-sm mb-1">No messages in this conversation yet</h4>
+          <p class="text-xs text-slate-400 max-w-sm">
+            Send a message below, share an office file, or click "Add People" to invite teammates to this chat.
+          </p>
         </div>
-      {/each}
+      {:else}
+        {#each currentMessages as msg (msg.id)}
+          <div class="flex items-start space-x-3 group relative">
+            <!-- Avatar -->
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-slate-700 to-slate-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+              {msg.senderAvatar}
+            </div>
+
+            <!-- Content Box -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-baseline space-x-2">
+                <span class="font-bold text-xs text-white">{msg.senderName}</span>
+                {#if msg.senderRole}
+                  <span class="text-[10px] text-cyan-400/90 font-medium">[{msg.senderRole}]</span>
+                {/if}
+                <span class="text-[10px] text-slate-500">{msg.timestamp}</span>
+                {#if msg.isEncrypted}
+                  <Lock size={10} class="text-slate-500" title="Local demo message. No transport encryption is applied." />
+                {/if}
+              </div>
+
+              <!-- Text Body -->
+              <div class="mt-1 text-xs text-slate-200 leading-relaxed font-sans select-text whitespace-pre-wrap">
+                {msg.content}
+              </div>
+
+              <!-- Attached Office Documents (Interactive) -->
+              {#if msg.attachments && msg.attachments.length > 0}
+                <div class="mt-2.5 flex flex-wrap gap-2">
+                  {#each msg.attachments as att}
+                    <div class="flex items-center space-x-2.5 p-2.5 bg-[#202226] border border-slate-700 rounded-xl hover:border-cyan-500 transition-colors">
+                      {#if att.type === 'docx'}
+                        <FileText size={18} class="text-blue-400 shrink-0" />
+                      {:else if att.type === 'xlsx'}
+                        <FileSpreadsheet size={18} class="text-emerald-400 shrink-0" />
+                      {:else if att.type === 'pptx'}
+                        <Presentation size={18} class="text-orange-400 shrink-0" />
+                      {:else}
+                        <FileCheck size={18} class="text-rose-400 shrink-0" />
+                      {/if}
+
+                      <div class="min-w-0 pr-2">
+                        <span class="font-semibold text-xs text-white block truncate">{att.name}</span>
+                        <span class="text-[10px] text-slate-400">{att.size}</span>
+                      </div>
+
+                      <button
+                        class="px-2 py-1 rounded bg-white/10 hover:bg-cyan-600 hover:text-white text-[11px] font-medium text-slate-200 transition-colors"
+                        on:click={() => dispatch('openOfficeDoc', { type: att.type, name: att.name })}
+                      >
+                        Open
+                      </button>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+
+              <!-- Reactions Bar & Quick Actions (Delete message) -->
+              <div class="mt-2 flex items-center space-x-1">
+                {#if msg.reactions}
+                  {#each Object.entries(msg.reactions) as [emoji, count]}
+                    <button
+                      class="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 text-xs flex items-center space-x-1"
+                      on:click={() => addReaction(msg, emoji)}
+                    >
+                      <span>{emoji}</span>
+                      <span class="text-[10px] text-slate-400">{count}</span>
+                    </button>
+                  {/each}
+                {/if}
+
+                <!-- Add reaction triggers (visible on hover) -->
+                <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-0.5 pl-1">
+                  <button class="p-1 rounded hover:bg-white/10 text-xs" on:click={() => addReaction(msg, '👍')}>👍</button>
+                  <button class="p-1 rounded hover:bg-white/10 text-xs" on:click={() => addReaction(msg, '❤️')}>❤️</button>
+                  <button class="p-1 rounded hover:bg-white/10 text-xs" on:click={() => addReaction(msg, '🚀')}>🚀</button>
+                  <button class="p-1 rounded hover:bg-white/10 text-xs" on:click={() => addReaction(msg, '🎉')}>🎉</button>
+                  
+                  <!-- Delete single message action -->
+                  <button
+                    class="p-1 rounded hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition-colors ml-1"
+                    on:click={() => handleDeleteMessage(msg.id)}
+                    title="Delete message"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        {/each}
+      {/if}
     </div>
 
     <!-- Bottom Message Input Toolbar -->
@@ -628,11 +844,50 @@
     />
   {/if}
 
+  <!-- Add Participant / Invite Modal -->
+  <AddParticipantModal
+    isOpen={showAddParticipantModal}
+    activeChannelName={activeChannel.name}
+    isGroupChannel={activeChannel.type === 'channel'}
+    on:close={() => (showAddParticipantModal = false)}
+    on:addParticipant={handleAddParticipant}
+  />
+
+  <!-- Create New Channel Modal -->
+  <CreateChannelModal
+    isOpen={showCreateChannelModal}
+    availableUsers={teamUsers}
+    on:close={() => (showCreateChannelModal = false)}
+    on:createChannel={handleCreateChannel}
+  />
+
+  <!-- Channel Members Management Modal -->
+  <ChannelMembersModal
+    isOpen={showMembersModal}
+    channel={activeChannel}
+    allUsers={teamUsers}
+    on:close={() => (showMembersModal = false)}
+    on:addMember={(e) => handleAddMemberToActiveChannel(e.detail)}
+    on:removeMember={(e) => handleRemoveMemberFromActiveChannel(e.detail)}
+    on:openInviteModal={() => (showAddParticipantModal = true)}
+  />
+
+  <!-- Delete Chat Conversation Confirmation Modal (MS Teams / Zoom / Meet Style) -->
+  <DeleteChatModal
+    isOpen={showDeleteChatModal}
+    channel={channelToDelete}
+    messageCount={channelToDelete ? (messagesByChannel[channelToDelete.id]?.length || 0) : 0}
+    on:close={() => (showDeleteChatModal = false)}
+    on:confirmDelete={(e) => handleConfirmDeleteConversation(e.detail)}
+  />
+
   <!-- Video Meeting Call Modal -->
   {#if showCallModal}
     <CallModal
       channelName={activeChannel.name}
       {currentUser}
+      initialParticipants={activeChannel.type === 'dm' && activeChannel.recipientUser ? [currentUser, activeChannel.recipientUser] : teamUsers}
+      availableUsers={teamUsers}
       on:close={() => (showCallModal = false)}
     />
   {/if}

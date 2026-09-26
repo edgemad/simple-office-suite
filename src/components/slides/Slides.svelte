@@ -4,7 +4,8 @@
   import SlideDeckSidebar from './SlideDeckSidebar.svelte';
   import SlideCanvas from './SlideCanvas.svelte';
   import PresenterModal from './PresenterModal.svelte';
-  import type { SlideDeck, Slide, SlideElementType } from '../../types';
+  import { FileText } from '@lucide/svelte';
+  import type { SlideDeck, Slide, SlideElementType, SlideElement } from '../../types';
 
   export let deck: SlideDeck;
 
@@ -16,6 +17,7 @@
   let activeSlideIndex = 0;
   let selectedElementId: string | null = null;
   let isPresenting = false;
+  let showNotes = false;
 
   let currentFont = 'Inter, sans-serif';
   let currentFontSize = 24;
@@ -238,6 +240,56 @@
     dispatch('change');
   }
 
+  function handleAddShape(e: CustomEvent<string>) {
+    pushUndo();
+    const shapeVariant = e.detail as any;
+    const id = `elem_${Date.now()}`;
+    const newElem: SlideElement = {
+      id,
+      type: 'shape',
+      x: 25,
+      y: 35,
+      width: shapeVariant === 'circle' ? 30 : 45,
+      height: shapeVariant === 'circle' ? 30 : 25,
+      content:
+        shapeVariant === 'star'
+          ? 'Milestone ★'
+          : shapeVariant === 'callout'
+          ? 'Executive takeaway...'
+          : shapeVariant === 'arrow-right'
+          ? 'Process Step →'
+          : 'Card / Shape',
+      fontSize: 18,
+      shapeVariant,
+      zIndex: (currentSlide.elements.length || 0) + 1,
+    };
+    currentSlide.elements = [...currentSlide.elements, newElem];
+    deck.slides = [...deck.slides];
+    selectedElementId = id;
+    deck.meta.isDirty = true;
+    dispatch('change');
+  }
+
+  function handleBringToFront() {
+    if (!selectedElement) return;
+    pushUndo();
+    const maxZ = Math.max(1, ...currentSlide.elements.map((e) => e.zIndex || 1));
+    selectedElement.zIndex = maxZ + 1;
+    deck.slides = [...deck.slides];
+    deck.meta.isDirty = true;
+    dispatch('change');
+  }
+
+  function handleSendToBack() {
+    if (!selectedElement) return;
+    pushUndo();
+    const minZ = Math.min(1, ...currentSlide.elements.map((e) => e.zIndex || 1));
+    selectedElement.zIndex = Math.max(0, minZ - 1);
+    deck.slides = [...deck.slides];
+    deck.meta.isDirty = true;
+    dispatch('change');
+  }
+
   function handleDeleteElement() {
     if (!selectedElementId) return;
     pushUndo();
@@ -366,6 +418,9 @@
     selectedFontSize={currentFontSize}
     selectedColor={currentColor}
     on:addElement={handleAddElement}
+    on:addShape={handleAddShape}
+    on:bringToFront={handleBringToFront}
+    on:sendToBack={handleSendToBack}
     on:deleteElement={handleDeleteElement}
     on:changeBg={handleChangeBg}
     on:changeFont={handleChangeFont}
@@ -388,15 +443,46 @@
       on:moveSlide={handleMoveSlide}
     />
 
-    <!-- Slide Canvas -->
-    <SlideCanvas
-      slide={currentSlide}
-      bind:selectedElementId
-      on:elementChange={() => {
-        deck.meta.isDirty = true;
-        dispatch('change');
-      }}
-    />
+    <!-- Main Slide Workspace: Canvas + Google Slides Speaker Notes Drawer -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <!-- Slide Canvas -->
+      <SlideCanvas
+        slide={currentSlide}
+        bind:selectedElementId
+        on:elementChange={() => {
+          deck.meta.isDirty = true;
+          dispatch('change');
+        }}
+      />
+
+      <!-- Google Slides Style Speaker Notes Drawer -->
+      <div class="no-print bg-white border-t border-slate-300 flex flex-col transition-all {showNotes ? 'h-36' : 'h-7'} shrink-0">
+        <div class="h-7 px-3 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between text-xs select-none">
+          <button
+            class="flex items-center space-x-1.5 font-semibold text-slate-700 hover:text-orange-600 transition-colors"
+            on:click={() => (showNotes = !showNotes)}
+          >
+            <FileText size={13} class="text-orange-600" />
+            <span>Speaker notes</span>
+            <span class="text-[10px] text-slate-400 font-normal">({currentSlide.notes ? 'Has notes' : 'Click to add notes'})</span>
+          </button>
+          <button
+            class="text-slate-400 hover:text-slate-700 text-[11px] font-medium"
+            on:click={() => (showNotes = !showNotes)}
+          >
+            {showNotes ? 'Collapse ▲' : 'Expand ▼'}
+          </button>
+        </div>
+        {#if showNotes}
+          <textarea
+            bind:value={currentSlide.notes}
+            on:input={() => { deck.meta.isDirty = true; dispatch('change'); }}
+            placeholder="Type speaker notes here. These will appear in presentation mode to guide your talk..."
+            class="flex-1 w-full p-2.5 text-xs text-slate-800 bg-white outline-none resize-none font-sans leading-relaxed"
+          ></textarea>
+        {/if}
+      </div>
+    </div>
   </div>
 
   <!-- Presenter Mode Overlay -->

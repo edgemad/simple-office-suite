@@ -3,7 +3,7 @@
   import {
     Heading,
     Type,
-    Square,
+    
     Code2,
     Image,
     Play,
@@ -23,6 +23,9 @@
 
   const dispatch = createEventDispatcher<{
     addElement: { type: SlideElementType };
+    addShape: string;
+    bringToFront: void;
+    sendToBack: void;
     deleteElement: void;
     changeBg: string;
     changeFont: string;
@@ -172,14 +175,28 @@
         <span>Text</span>
       </button>
 
-      <button
-        class="flex items-center space-x-1 px-1.5 py-1 rounded hover:bg-slate-100 text-slate-700"
-        on:click={() => dispatch('addElement', { type: 'shape' })}
-        title="Insert Card / Shape"
-      >
-        <Square size={13} />
-        <span>Card</span>
-      </button>
+      <!-- Shapes Dropdown (Google Slides) -->
+      <div class="pr-1">
+        <select
+          on:change={(e) => {
+            const val = e.currentTarget.value;
+            if (val) {
+              dispatch('addShape', val);
+              e.currentTarget.value = '';
+            }
+          }}
+          class="h-7 bg-slate-50 border border-slate-200 rounded px-1.5 text-xs text-slate-700 outline-none hover:bg-slate-100 cursor-pointer font-medium"
+          title="Insert Shape (Google Slides)"
+        >
+          <option value="">Shapes...</option>
+          <option value="rectangle">Card / Box</option>
+          <option value="circle">Circle / Ellipse</option>
+          <option value="pill">Pill / Badge</option>
+          <option value="star">Star Milestone ★</option>
+          <option value="arrow-right">Process Arrow ➔</option>
+          <option value="callout">Callout Quote 💬</option>
+        </select>
+      </div>
 
       <button
         class="flex items-center space-x-1 px-1.5 py-1 rounded hover:bg-slate-100 text-slate-700"
@@ -223,13 +240,29 @@
     </div>
 
     {#if selectedElementId}
-      <button
-        class="p-1.5 rounded hover:bg-rose-50 text-rose-600 transition-colors ml-2"
-        on:click={() => dispatch('deleteElement')}
-        title="Delete Selected Element"
-      >
-        <Trash2 size={14} />
-      </button>
+      <div class="flex items-center space-x-1 border-l border-slate-200 pl-1.5 ml-1">
+        <button
+          class="px-1.5 py-0.5 rounded hover:bg-slate-100 text-slate-700 font-medium text-[11px] transition-colors"
+          on:click={() => dispatch('bringToFront')}
+          title="Bring Element to Front (Ctrl+])"
+        >
+          Front ↑
+        </button>
+        <button
+          class="px-1.5 py-0.5 rounded hover:bg-slate-100 text-slate-700 font-medium text-[11px] transition-colors"
+          on:click={() => dispatch('sendToBack')}
+          title="Send Element to Back (Ctrl+[)"
+        >
+          Back ↓
+        </button>
+        <button
+          class="p-1.5 rounded hover:bg-rose-50 text-rose-600 transition-colors ml-1"
+          on:click={() => dispatch('deleteElement')}
+          title="Delete Selected Element"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
     {/if}
   </div>
 
