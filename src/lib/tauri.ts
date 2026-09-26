@@ -168,16 +168,3 @@ function detectPlatform(): string {
   return 'Unknown';
 }
 
-export async function openDetachedCommunicatorNative(): Promise<void> {
-  if (isTauri()) {
-    try {
-      await invokeCommand('open_detached_communicator');
-      return;
-    } catch (err) {
-      console.warn('Native detached window error, opening web popup:', err);
-    }
-  }
-  if (typeof window !== 'undefined') {
-    window.open('index.html?mode=communicator', '_blank', 'width=1050,height=720');
-  }
-}

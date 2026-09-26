@@ -8,7 +8,6 @@
     Wand2,
     FileText,
     Bot,
-    Mail,
     Presentation,
     Loader2,
     Info
@@ -25,9 +24,6 @@
     writer: 'Writer (documents)',
     sheets: 'Sheet (spreadsheets)',
     slides: 'Slides (presentations)',
-    pdf: 'PDF & forms',
-    email: 'Mail (simulated demo mailbox)',
-    communicator: 'Communicator (simulated demo chat)',
   };
 
   $: activeSettings = settings ?? DEFAULT_SETTINGS;
@@ -52,14 +48,8 @@
   let userPrompt = '';
   let generatedOutput = '';
   let isGenerating = false;
-  let selectedAction: 'draft' | 'summarize' | 'polish' | 'grammar' | 'formula' | 'email' | 'slides' =
-    activeMode === 'sheets'
-      ? 'formula'
-      : activeMode === 'email'
-      ? 'email'
-      : activeMode === 'slides'
-      ? 'slides'
-      : 'draft';
+  let selectedAction: 'draft' | 'summarize' | 'polish' | 'grammar' | 'formula' | 'slides' =
+    activeMode === 'sheets' ? 'formula' : activeMode === 'slides' ? 'slides' : 'draft';
 
   const quickActions = [
     { id: 'draft', label: 'Draft Content', icon: Wand2, desc: 'Generate new sections or paragraphs' },
@@ -67,7 +57,6 @@
     { id: 'polish', label: 'Rewrite & Polish', icon: Sparkles, desc: 'Improve professional tone' },
     { id: 'grammar', label: 'Fix Grammar', icon: Check, desc: 'Correct spelling & syntax' },
     { id: 'formula', label: 'Build Formula (fx)', icon: Bot, desc: 'Smart formula generator' },
-    { id: 'email', label: 'Draft Email', icon: Mail, desc: 'Professional emails & replies' },
     { id: 'slides', label: 'Slide Content', icon: Presentation, desc: 'Generate slide bullets' },
   ];
 
@@ -85,8 +74,6 @@
           ? `Rewrite and polish text to be professional and concise: ${userPrompt || currentContext}`
           : selectedAction === 'grammar'
           ? `Fix grammar, punctuation, and syntax errors: ${userPrompt || currentContext}`
-          : selectedAction === 'email'
-          ? `Draft professional office email: ${userPrompt || 'Project milestone update'}`
           : selectedAction === 'slides'
           ? `Generate presentation slide points: ${userPrompt || 'Quarterly strategic drivers'}`
           : `Draft document content: ${userPrompt || 'Project proposal overview'}`;
@@ -170,8 +157,6 @@
         <label for="ai-prompt-input" class="text-xs font-semibold text-slate-300 block mb-1">
           {#if selectedAction === 'formula'}
             Describe the calculation you want:
-          {:else if selectedAction === 'email'}
-            Email prompt or reply scenario:
           {:else}
             Instructions or prompt:
           {/if}
@@ -182,8 +167,6 @@
           placeholder={
             selectedAction === 'formula'
               ? 'e.g. Sum all expenses in column B where department in column A is Marketing'
-              : selectedAction === 'email'
-              ? 'e.g. Write a friendly meeting confirmation for tomorrow at 2 PM'
               : 'e.g. Write a comprehensive executive summary for this report...'
           }
           rows="3"

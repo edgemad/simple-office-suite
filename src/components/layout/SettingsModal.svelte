@@ -6,9 +6,6 @@
     FileText,
     Sheet,
     Presentation,
-    FileCheck,
-    Mail,
-    MessageSquare,
     Sparkles,
     Download,
     Info,
@@ -17,13 +14,10 @@
     Laptop,
     Moon,
     Sun,
-    ExternalLink,
     HardDrive
   } from '@lucide/svelte';
   import type { AppSettings } from '../../types';
   import { DEFAULT_SETTINGS, saveSettings } from '../../lib/settings';
-  import { EMAIL_DEMO_NOTICE } from '../../lib/emailStore';
-  import { COMMUNICATOR_DEMO_NOTICE } from '../../lib/communicatorStore';
   import { TEMPLATE_ASSISTANT_LABEL } from '../../lib/ai';
 
   export let settings: AppSettings;
@@ -34,7 +28,7 @@
     reset: void;
   }>();
 
-  let activeCategory: 'general' | 'word' | 'sheet' | 'slides' | 'pdf' | 'email' | 'communicator' | 'ai' | 'installers' | 'about' = 'general';
+  let activeCategory: 'general' | 'word' | 'sheet' | 'slides' | 'ai' | 'installers' | 'about' = 'general';
   let tempSettings: AppSettings = JSON.parse(JSON.stringify(settings));
   let savedNotice = false;
 
@@ -143,33 +137,6 @@
 
         <button
           class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors
-            {activeCategory === 'pdf' ? 'bg-rose-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
-          on:click={() => (activeCategory = 'pdf')}
-        >
-          <FileCheck size={15} class={activeCategory === 'pdf' ? 'text-white' : 'text-rose-400'} />
-          <span>PDF & Forms</span>
-        </button>
-
-        <button
-          class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors
-            {activeCategory === 'email' ? 'bg-indigo-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
-          on:click={() => (activeCategory = 'email')}
-        >
-          <Mail size={15} class={activeCategory === 'email' ? 'text-white' : 'text-indigo-400'} />
-          <span>Email & Accounts</span>
-        </button>
-
-        <button
-          class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors
-            {activeCategory === 'communicator' ? 'bg-cyan-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
-          on:click={() => (activeCategory = 'communicator')}
-        >
-          <MessageSquare size={15} class={activeCategory === 'communicator' ? 'text-white' : 'text-cyan-400'} />
-          <span>Communicator (Demo Chat)</span>
-        </button>
-
-        <button
-          class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors
             {activeCategory === 'ai' ? 'bg-purple-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
           on:click={() => (activeCategory = 'ai')}
         >
@@ -263,9 +230,6 @@
                 <option value="writer">Word / Document Editor</option>
                 <option value="sheets">Sheet / Spreadsheet Editor</option>
                 <option value="slides">Slides / Presentation Editor</option>
-                <option value="pdf">PDF & Forms Editor</option>
-                <option value="email">Mail (simulated demo mailbox)</option>
-                <option value="communicator">Communicator (simulated demo chat)</option>
               </select>
             </div>
 
@@ -481,156 +445,6 @@
                   <option value="light">Clean Light</option>
                   <option value="navy">Corporate Navy</option>
                 </select>
-              </div>
-            </div>
-          </div>
-
-        <!-- PDF TAB -->
-        {:else if activeCategory === 'pdf'}
-          <div class="space-y-5">
-            <div>
-              <h3 class="text-sm font-semibold text-white">PDF & Form Preferences</h3>
-              <p class="text-slate-400 text-[11px]">Settings for viewing, annotating, and completing fillable PDF documents.</p>
-            </div>
-
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <span class="font-medium text-slate-200 block">Default Zoom Level</span>
-                  <span class="text-[11px] text-slate-400">Initial view magnification when opening PDF files.</span>
-                </div>
-                <select
-                  bind:value={tempSettings.pdfDefaultZoom}
-                  class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-rose-500"
-                >
-                  <option value="100%">100% (Actual Size)</option>
-                  <option value="125%">125%</option>
-                  <option value="150%">150%</option>
-                  <option value="width">Fit to Width</option>
-                  <option value="page">Fit to Page</option>
-                </select>
-              </div>
-
-              <div class="flex items-center justify-between border-t border-slate-800 pt-3">
-                <div>
-                  <span class="font-medium text-slate-200 block">Highlight Fillable Fields</span>
-                  <span class="text-[11px] text-slate-400">Display blue tinted outlines on interactive form inputs.</span>
-                </div>
-                <input type="checkbox" bind:checked={tempSettings.pdfHighlightFields} class="rounded bg-slate-800 border-slate-700 text-rose-500" />
-              </div>
-            </div>
-          </div>
-
-        <!-- EMAIL TAB -->
-        {:else if activeCategory === 'email'}
-          <div class="space-y-5">
-            <div>
-              <h3 class="text-sm font-semibold text-white">Mail (Demo) Preferences</h3>
-              <p class="text-slate-400 text-[11px]">Configure the sample mailbox signature and the sample refresh interval.</p>
-            </div>
-
-            <div class="p-3 bg-amber-950/40 border border-amber-600/40 rounded-lg text-amber-100 text-[11px] leading-relaxed flex items-start space-x-2">
-              <Info size={15} class="text-amber-300 shrink-0 mt-0.5" />
-              <span>{EMAIL_DEMO_NOTICE} Account fields below are placeholders: no IMAP or SMTP connection is opened, and "send" only appends a message to the local sample Sent folder.</span>
-            </div>
-
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <span class="font-medium text-slate-200 block">Sample Sender Identity</span>
-                  <span class="text-[11px] text-slate-400">Fictional demo address used on sample messages.</span>
-                </div>
-                <span class="text-xs text-indigo-400 font-medium font-mono">riley.adams@demo.example</span>
-              </div>
-
-              <div class="space-y-1.5 border-t border-slate-800 pt-3">
-                <label class="block font-medium text-slate-200" for="email-signature">Email Signature</label>
-                <textarea
-                  id="email-signature"
-                  bind:value={tempSettings.emailSignature}
-                  rows="3"
-                  class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-sans"
-                  placeholder="Your automated signature..."
-                ></textarea>
-                <span class="text-[10px] text-slate-500">Automatically appended to outgoing messages.</span>
-              </div>
-
-              <div class="flex items-center justify-between border-t border-slate-800 pt-3">
-                <div>
-                  <span class="font-medium text-slate-200 block">Sample Refresh Interval</span>
-                  <span class="text-[11px] text-slate-400">Display-only interval for the local sample mailbox. No network sync happens.</span>
-                </div>
-                <select
-                  bind:value={tempSettings.emailCheckIntervalMin}
-                  class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-                >
-                  <option value={1}>Every 1 minute</option>
-                  <option value={5}>Every 5 minutes (Default)</option>
-                  <option value={15}>Every 15 minutes</option>
-                  <option value={0}>Manual Only</option>
-                </select>
-              </div>
-
-              <div class="flex items-center justify-between border-t border-slate-800 pt-3">
-                <div>
-                  <span class="font-medium text-slate-200 block">Message Storage</span>
-                  <span class="text-[11px] text-slate-400">Sample messages are stored as plain text in the app profile. They are not encrypted.</span>
-                </div>
-                <span class="text-xs text-amber-300 font-semibold">Plain text, local only</span>
-              </div>
-            </div>
-          </div>
-
-        <!-- COMMUNICATOR TAB -->
-        {:else if activeCategory === 'communicator'}
-          <div class="space-y-5">
-            <div>
-              <h3 class="text-sm font-semibold text-white">Communicator (Demo Chat) Preferences</h3>
-              <p class="text-slate-400 text-[11px]">Review how the simulated chat behaves and detach it into its own window.</p>
-            </div>
-
-            <div class="p-3 bg-amber-950/40 border border-amber-600/40 rounded-lg text-amber-100 text-[11px] leading-relaxed flex items-start space-x-2">
-              <Info size={15} class="text-amber-300 shrink-0 mt-0.5" />
-              <span>{COMMUNICATOR_DEMO_NOTICE} The profile form only renames the local demo identity, and presence indicators are sample values, not real availability.</span>
-            </div>
-
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <span class="font-medium text-slate-200 block">Message Protection</span>
-                  <span class="text-[11px] text-slate-400">No encryption is implemented. Chat text is stored as plain text in the app profile on this device.</span>
-                </div>
-                <span class="text-xs text-amber-300 font-semibold flex items-center space-x-1">
-                  <Info size={14} />
-                  <span>None (local demo storage)</span>
-                </span>
-              </div>
-
-              <div class="flex items-center justify-between border-t border-slate-800 pt-3">
-                <div>
-                  <span class="font-medium text-slate-200 block">Window Detachment</span>
-                  <span class="text-[11px] text-slate-400">Open the demo chat in a separate browser window of this same local app.</span>
-                </div>
-                <button
-                  type="button"
-                  class="px-3 py-1.5 rounded-lg bg-cyan-600/30 hover:bg-cyan-600 border border-cyan-500/40 text-cyan-200 hover:text-white text-xs font-medium transition-colors flex items-center space-x-1.5"
-                  on:click={() => {
-                    if (typeof window !== 'undefined') {
-                      window.open('index.html?mode=communicator', '_blank', 'width=1050,height=720');
-                    }
-                  }}
-                >
-                  <ExternalLink size={13} />
-                  <span>Detach Window Now</span>
-                </button>
-              </div>
-
-              <div class="flex items-center justify-between border-t border-slate-800 pt-3">
-                <div>
-                  <span class="font-medium text-slate-200 block">Profile Address Field</span>
-                  <span class="text-[11px] text-slate-400">Accepts any address to label the demo identity. No sign-in happens and nothing is transmitted.</span>
-                </div>
-                <span class="text-xs text-amber-300 font-medium">Display label only</span>
               </div>
             </div>
           </div>
@@ -874,9 +688,9 @@
                 <div>
                   <span class="font-semibold text-amber-200 text-xs block">Local app with clear limits</span>
                   <span class="text-[11px] text-amber-100/80 block">
-                    Documents, settings, API keys, sample mail, and sample chat are stored as plain text in the app profile
-                    on this device. They are not encrypted. The only network requests this app can make are the AI provider
-                    calls you enable in Settings, plus opening a file you export yourself.
+                    Documents, settings, and API keys are stored as plain text in the app profile on this device. They are
+                    not encrypted. The only network requests this app can make are the AI provider calls you enable in
+                    Settings, plus opening a file you export yourself.
                   </span>
                 </div>
               </div>
@@ -884,10 +698,10 @@
               <div class="p-3 bg-slate-800/40 border border-slate-700/60 rounded-lg flex items-start space-x-3">
                 <Info size={22} class="text-slate-300 shrink-0" />
                 <div>
-                  <span class="font-semibold text-slate-200 text-xs block">Simulated modules</span>
+                  <span class="font-semibold text-slate-200 text-xs block">Three local workspaces</span>
                   <span class="text-[11px] text-slate-400 block">
-                    Mail, the demo chat login, presence, attachments, and the call screen are scripted local demos with
-                    sample data. They do not connect to a mail, chat, or conferencing service.
+                    This build ships Writer, Sheet, and Slides only. There is no mail, chat, or PDF editing module, and no
+                    account system of any kind. Every document stays on this machine unless you print or export it yourself.
                   </span>
                 </div>
               </div>

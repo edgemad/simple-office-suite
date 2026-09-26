@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { WorkspaceMode, DocumentMeta, WriterDocument, SpreadsheetWorkbook, SlideDeck, PdfDocument } from './types';
+  import type { WorkspaceMode, WriterDocument, SpreadsheetWorkbook, SlideDeck } from './types';
   import Header from './components/layout/Header.svelte';
   import StatusBar from './components/layout/StatusBar.svelte';
   import ShortcutsModal from './components/layout/ShortcutsModal.svelte';
@@ -10,15 +10,11 @@
   import Writer from './components/writer/Writer.svelte';
   import Sheets from './components/sheets/Sheets.svelte';
   import Slides from './components/slides/Slides.svelte';
-  import PdfViewer from './components/pdf/PdfViewer.svelte';
-  import EmailClient from './components/email/EmailClient.svelte';
-  import Communicator from './components/communicator/Communicator.svelte';
   import {
     openFileDialogNative,
     saveFileDialogNative,
     readTextFileNative,
     writeTextFileNative,
-    openDetachedCommunicatorNative
   } from './lib/tauri';
   import { autoSaver } from './lib/storage';
   import { downloadFile, triggerPrintToPdf, htmlToMarkdown } from './lib/utils';
@@ -47,34 +43,9 @@
     }
   });
 
-  let isStandaloneCommunicator = typeof window !== 'undefined' && window.location.search.includes('mode=communicator');
-
   let writerRef: Writer;
   let sheetsRef: Sheets;
   let slidesRef: Slides;
-  let pdfRef: PdfViewer;
-  let emailRef: EmailClient;
-  let communicatorRef: Communicator;
-
-  let communicatorChannel = '#general';
-  let communicatorMeta: DocumentMeta = {
-    id: 'doc_comm_1',
-    title: 'Teams — Simple Communicator',
-    isDirty: false,
-    mode: 'communicator' as WorkspaceMode,
-  };
-
-  // Active email stats
-  let emailTotal = 5;
-  let emailUnread = 1;
-  let emailFolder = 'INBOX';
-  let emailMeta: DocumentMeta = {
-    id: 'doc_email_1',
-    title: 'Inbox — Simple Office Mail',
-    isDirty: false,
-    mode: 'email' as WorkspaceMode,
-  };
-
   // Active status bar statistics
   let writerWordCount = 48;
   let writerCharCount = 312;
@@ -82,8 +53,6 @@
   let sheetsSelectionSum: number | null = 14500;
   let slidesIndex = 0;
   let slidesTotal = 3;
-  let pdfPage = 1;
-  let pdfTotalPages = 1;
 
   // --- Initial Default Documents ---
   let writerDoc: WriterDocument = {
@@ -104,7 +73,7 @@
         <li><strong>Local by default</strong>: your documents stay on this machine. Cloud AI is optional and only used if you configure a provider in Settings.</li>
       </ul>
       <blockquote>&quot;Simplicity is the soul of efficiency.&quot; — Austin Freeman</blockquote>
-      <p>Mail and Communicator are local demo modules with no mail or chat server behind them.</p>
+      <p>Everything runs locally on this machine. Nothing is uploaded unless you configure a cloud AI provider.</p>
     `,
     contentMarkdown: '',
     wordCount: 65,
@@ -286,54 +255,6 @@
     ],
   };
 
-  let pdfDoc: PdfDocument = {
-    meta: {
-      id: 'doc_pdf_1',
-      title: 'Contract Agreement Form',
-      isDirty: false,
-      mode: 'pdf',
-    },
-    title: 'Standard Service Agreement & Form',
-    pageCount: 2,
-    currentPage: 1,
-    textContent: 'This Agreement is entered into as of the Effective Date by and between the Client and the Provider. Both parties mutually agree to the terms, deliverables, and conditions set forth herein.',
-    formFields: [
-      {
-        id: 'f1',
-        type: 'text',
-        name: 'Full Name',
-        value: 'Jane Doe',
-        x: 15,
-        y: 35,
-        width: 40,
-        height: 5,
-        page: 1,
-      },
-      {
-        id: 'f2',
-        type: 'checkbox',
-        name: 'I Accept Terms',
-        value: true,
-        x: 15,
-        y: 45,
-        width: 30,
-        height: 4,
-        page: 1,
-      },
-      {
-        id: 'f3',
-        type: 'signature',
-        name: 'Authorized Signature',
-        value: 'Jane Doe (Signed)',
-        x: 15,
-        y: 55,
-        width: 45,
-        height: 6,
-        page: 1,
-      },
-    ],
-  };
-
   $: currentMeta =
     activeMode === 'writer'
       ? writerDoc.meta
@@ -341,11 +262,7 @@
       ? sheetsWorkbook.meta
       : activeMode === 'slides'
       ? slidesDeck.meta
-      : activeMode === 'pdf'
-      ? pdfDoc.meta
-      : activeMode === 'email'
-      ? emailMeta
-      : communicatorMeta;
+      : slidesDeck.meta;
 
   function triggerAutoSave() {
     currentMeta.isDirty = true;
@@ -355,8 +272,6 @@
       autoSaver.scheduleAutoSave('sheets', sheetsWorkbook.meta.id, sheetsWorkbook);
     } else if (activeMode === 'slides') {
       autoSaver.scheduleAutoSave('slides', slidesDeck.meta.id, slidesDeck);
-    } else {
-      autoSaver.scheduleAutoSave('pdf', pdfDoc.meta.id, pdfDoc);
     }
   }
 
@@ -391,28 +306,18 @@
           },
         ],
       };
-    } else {
-      pdfDoc = {
-        meta: { id: `pdf_${timestamp}`, title: 'Untitled Form', isDirty: false, mode: 'pdf' },
-        title: 'Untitled Document Form',
-        pageCount: 1,
-        currentPage: 1,
-        textContent: '',
-        formFields: [],
-      };
     }
   }
 
   async function handleOpenDoc() {
     const filters = [
       {
-        name: 'All Office Formats (*.docx, *.xlsx, *.pptx, *.pdf, *.csv, *.md, *.txt, *.json)',
-        extensions: ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'pdf', 'csv', 'tsv', 'md', 'txt', 'html', 'rtf', 'json', 'sosw', 'soss', 'sosp'],
+        name: 'All Supported Formats (*.docx, *.xlsx, *.pptx, *.csv, *.md, *.txt, *.json)',
+        extensions: ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'csv', 'tsv', 'md', 'txt', 'html', 'rtf', 'json', 'sosw', 'soss', 'sosp'],
       },
       { name: 'Word Documents (*.docx, *.doc, *.rtf, *.odt)', extensions: ['docx', 'doc', 'rtf', 'odt', 'txt', 'md'] },
       { name: 'Excel Spreadsheets (*.xlsx, *.xls, *.csv, *.tsv)', extensions: ['xlsx', 'xls', 'csv', 'tsv'] },
       { name: 'PowerPoint Presentations (*.pptx, *.odp)', extensions: ['pptx', 'odp'] },
-      { name: 'PDF Documents (*.pdf)', extensions: ['pdf'] },
       { name: 'All Files (*)', extensions: ['*'] },
     ];
 
@@ -470,14 +375,6 @@
         slidesDeck.meta.filePath = selectedPath;
         slidesDeck.meta.isDirty = false;
         slidesDeck.meta.lastSaved = new Date().toISOString();
-      } else if (ext === 'pdf') {
-        activeMode = 'pdf';
-        pdfDoc.meta.filePath = selectedPath;
-        pdfDoc.meta.title = selectedPath.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'PDF Document';
-        pdfDoc.title = pdfDoc.meta.title;
-        pdfDoc.textContent = content.slice(0, 5000);
-        pdfDoc.meta.isDirty = false;
-        pdfDoc.meta.lastSaved = new Date().toISOString();
       } else {
         // Document / Writer mode (.docx, .doc, .rtf, .md, .txt, .html, .sosw)
         activeMode = 'writer';
@@ -515,7 +412,6 @@
     let ext = 'docx';
     if (activeMode === 'sheets') ext = 'xlsx';
     else if (activeMode === 'slides') ext = 'pptx';
-    else if (activeMode === 'pdf') ext = 'pdf';
 
     defaultName += `.${ext}`;
 
@@ -574,8 +470,6 @@
       } else {
         payload = JSON.stringify(slidesDeck, null, 2);
       }
-    } else {
-      payload = JSON.stringify(pdfDoc, null, 2);
     }
 
     try {
@@ -617,7 +511,7 @@
       const data = exportToPptxXml(slidesDeck);
       downloadFile(`${baseName}.pptx`, data, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
     } else if (fmt === 'json') {
-      const payload = activeMode === 'writer' ? writerDoc : activeMode === 'sheets' ? sheetsWorkbook : activeMode === 'slides' ? slidesDeck : pdfDoc;
+      const payload = activeMode === 'writer' ? writerDoc : activeMode === 'sheets' ? sheetsWorkbook : slidesDeck;
       downloadFile(`${baseName}.json`, JSON.stringify(payload, null, 2), 'application/json');
     }
   }
@@ -710,16 +604,6 @@
       else if (action === 'present') slidesRef?.startPresenting();
       else if (action === 'slideTheme') slidesRef?.setTheme(payload);
       else if (action === 'aspectRatio') slidesDeck.aspectRatio = payload;
-    } else if (activeMode === 'pdf') {
-      if (action === 'addTextField') pdfRef?.addFormField('text');
-      else if (action === 'addCheckboxField') pdfRef?.addFormField('checkbox');
-      else if (action === 'addSignatureField') pdfRef?.addFormField('signature');
-      else if (action === 'exportFormData') pdfRef?.exportFormData();
-      else if (action === 'print') triggerPrintToPdf(pdfDoc.title);
-    } else if (activeMode === 'email') {
-      emailRef?.triggerRibbonAction(action, payload);
-    } else if (activeMode === 'communicator') {
-      communicatorRef?.triggerRibbonAction(action, payload);
     }
   }
 
@@ -749,15 +633,6 @@
       } else if (e.key === '3') {
         e.preventDefault();
         activeMode = 'slides';
-      } else if (e.key === '4') {
-        e.preventDefault();
-        activeMode = 'pdf';
-      } else if (e.key === '5') {
-        e.preventDefault();
-        activeMode = 'email';
-      } else if (e.key === '6') {
-        e.preventDefault();
-        activeMode = 'communicator';
       }
     } else if (mod && e.shiftKey && !e.altKey) {
       if (e.key.toLowerCase() === 's') {
@@ -782,17 +657,6 @@
 
 <svelte:window on:keydown={handleGlobalKeydown} />
 
-{#if isStandaloneCommunicator}
-  <div class="h-screen w-screen flex flex-col bg-[#141517] overflow-hidden font-sans">
-    <Communicator
-      settings={appSettings}
-      isStandaloneWindow={true}
-      on:openOfficeDoc={() => {
-        window.open('index.html', '_blank');
-      }}
-    />
-  </div>
-{:else}
 <div class="h-screen w-screen flex flex-col bg-slate-100 overflow-hidden font-sans">
   <!-- Top OnlyOffice Style Navigation & File Ribbon Actions -->
   <Header
@@ -846,43 +710,6 @@
           slidesTotal = e.detail.totalSlides;
         }}
       />
-    {:else if activeMode === 'pdf'}
-      <PdfViewer
-        bind:this={pdfRef}
-        bind:doc={pdfDoc}
-        on:change={triggerAutoSave}
-        on:updateStats={(e) => {
-          pdfPage = e.detail.page;
-          pdfTotalPages = e.detail.totalPages;
-        }}
-      />
-    {:else if activeMode === 'email'}
-      <EmailClient
-        bind:this={emailRef}
-        settings={appSettings}
-        on:updateStats={(e) => {
-          emailTotal = e.detail.total;
-          emailUnread = e.detail.unread;
-          emailFolder = e.detail.activeFolder;
-        }}
-      />
-    {:else if activeMode === 'communicator'}
-      <Communicator
-        bind:this={communicatorRef}
-        settings={appSettings}
-        isStandaloneWindow={false}
-        on:updateStats={(e: CustomEvent<{ activeChannel: string }>) => {
-          communicatorChannel = e.detail.activeChannel;
-        }}
-        on:detachWindow={openDetachedCommunicatorNative}
-        on:openOfficeDoc={(e: CustomEvent<{ type: string }>) => {
-          const t = e.detail.type;
-          if (t === 'docx') activeMode = 'writer';
-          else if (t === 'xlsx') activeMode = 'sheets';
-          else if (t === 'pptx') activeMode = 'slides';
-          else if (t === 'pdf') activeMode = 'pdf';
-        }}
-      />
     {/if}
   </main>
 
@@ -896,13 +723,6 @@
     selectionSum={sheetsSelectionSum}
     slideIndex={slidesIndex}
     totalSlides={slidesTotal}
-    {pdfPage}
-    {pdfTotalPages}
-    {emailTotal}
-    {emailUnread}
-    {emailFolder}
-    communicatorChannel={communicatorChannel}
-    communicatorOnline={4}
   />
 
   <!-- Keyboard Shortcuts Cheat Sheet Modal -->
@@ -924,4 +744,3 @@
     />
   {/if}
 </div>
-{/if}

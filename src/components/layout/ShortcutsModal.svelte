@@ -21,9 +21,6 @@
     { key: `${modKey} + 1`, desc: 'Switch to the Word document editor' },
     { key: `${modKey} + 2`, desc: 'Switch to the Sheet spreadsheet editor' },
     { key: `${modKey} + 3`, desc: 'Switch to the Slides presentation editor' },
-    { key: `${modKey} + 4`, desc: 'Switch to the PDF and form viewer' },
-    { key: `${modKey} + 5`, desc: 'Switch to the Mail demo mailbox' },
-    { key: `${modKey} + 6`, desc: 'Switch to the Chat demo workspace' },
     { key: `${modKey} + /`, desc: 'Open Keyboard Shortcuts cheat sheet' },
   ];
 

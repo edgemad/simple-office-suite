@@ -20,7 +20,7 @@ const MAX_DIALOG_FILTERS: usize = 32;
 const MAX_DIALOG_EXTENSIONS: usize = 32;
 const MAX_DIALOG_TEXT_BYTES: usize = 256;
 const MAX_DIALOG_EXTENSION_BYTES: usize = 32;
-const ALLOWED_AUTOSAVE_MODULES: [&str; 4] = ["writer", "sheets", "slides", "pdf"];
+const ALLOWED_AUTOSAVE_MODULES: [&str; 3] = ["writer", "sheets", "slides"];
 
 static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -663,7 +663,7 @@ fn parse_pptx_archive(path: &Path) -> Result<String, String> {
 fn reject_binary_input(bytes: &[u8]) -> Result<(), String> {
     if bytes.starts_with(b"%PDF") {
         return Err(
-            "Opening binary PDF files is not implemented in this build. The PDF workspace is a form layout prototype. Use print to PDF from a Writer or Slides document instead."
+            "Opening PDF files is not supported. Simple Office Suite opens text documents, Markdown, HTML, RTF, CSV/TSV, suite JSON, and DOCX/XLSX/PPTX packages. Use print to PDF from a document to produce a PDF."
                 .to_string(),
         );
     }
@@ -1099,30 +1099,6 @@ async fn save_native_file_dialog(
     Ok(Some(raw_path))
 }
 
-#[tauri::command]
-async fn open_detached_communicator(app: AppHandle) -> Result<(), String> {
-    use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
-
-    if let Some(window) = app.get_webview_window("communicator") {
-        let _ = window.set_focus();
-        return Ok(());
-    }
-
-    WebviewWindowBuilder::new(
-        &app,
-        "communicator",
-        WebviewUrl::App("index.html?mode=communicator".into()),
-    )
-    .title("Simple Communicator (Secure)")
-    .inner_size(1050.0, 720.0)
-    .min_inner_size(800.0, 550.0)
-    .resizable(true)
-    .build()
-    .map_err(|e| format!("Failed to open standalone communicator window: {}", e))?;
-
-    Ok(())
-}
-
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -1134,8 +1110,7 @@ pub fn run() {
             read_auto_save_snapshot,
             get_system_metrics,
             open_native_file_dialog,
-            save_native_file_dialog,
-            open_detached_communicator
+            save_native_file_dialog
         ])
         .run(tauri::generate_context!())
         .expect("error while running Simple Office Suite application");
@@ -1290,7 +1265,7 @@ mod tests {
     fn binary_input_is_rejected_with_actionable_messages() {
         let pdf = b"%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>";
         let pdf_error = reject_binary_input(pdf).expect_err("PDF bytes should be rejected");
-        assert!(pdf_error.contains("binary PDF"));
+        assert!(pdf_error.contains("Opening PDF files is not supported"));
         assert!(pdf_error.contains("print to PDF"));
 
         let binary = [0x00u8, 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1, 0x00];

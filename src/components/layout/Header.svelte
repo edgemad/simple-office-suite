@@ -38,7 +38,6 @@
     ArrowDownAZ,
     ArrowUpZA,
     BookOpen,
-    CheckSquare,
     CheckCircle2,
     Shield,
     Lock,
@@ -51,20 +50,7 @@
     MessageSquare,
     Plus,
     FileSpreadsheet,
-    FileCheck,
-    Settings,
-    Mail,
-    Reply,
-    Archive,
-    Trash2,
-    Video,
-    Phone,
-    ExternalLink,
-    Info,
-    
-    UserPlus,
-    Hash
-  } from '@lucide/svelte';
+    Settings } from '@lucide/svelte';
   import type { AppSettings } from '../../types';
   import AiAssistantModal from './AiAssistantModal.svelte';
 
@@ -100,16 +86,6 @@
     writer: 'Writer (document editor)',
     sheets: 'Sheet (spreadsheet editor)',
     slides: 'Slides (presentation editor)',
-    pdf: 'PDF & form editor',
-    email: 'Mail (simulated demo mailbox)',
-    communicator: 'Communicator (simulated demo chat)',
-  };
-
-  const demoModeNotes: Partial<Record<WorkspaceMode, string>> = {
-    email:
-      'Demo mailbox: messages, folders, accounts, and attachments are fictional sample data stored locally. No mail server is contacted, nothing is sent or received, and no account can sign in.',
-    communicator:
-      'Demo chat: people, presence, messages, attachments, and the call screen are simulated locally. No login, no messaging service, no audio or video, and no uploads.',
   };
 
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
@@ -119,10 +95,7 @@
   const tabsByMode: Record<WorkspaceMode, string[]> = {
     writer: ['File', 'Home', 'Insert', 'Draw', 'Layout', 'References', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
     sheets: ['File', 'Home', 'Insert', 'Draw', 'Layout', 'Formula', 'Data', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
-    pdf: ['File', 'Home', 'Insert', 'Draw', 'Layout', 'References', 'Forms', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
     slides: ['File', 'Home', 'Insert', 'Draw', 'Design', 'Transitions', 'Animation', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
-    email: ['File', 'Home', 'View', 'Folder', 'Tools', 'Accounts', 'AI'],
-    communicator: ['File', 'Home', 'Channels', 'Calls', 'Security', 'Tools', 'AI'],
   };
 
   $: currentTabs = tabsByMode[activeMode] || tabsByMode.writer;
@@ -133,13 +106,7 @@
       ? { text: 'text-blue-500', hex: '#3b82f6', bg: 'bg-blue-600', ring: 'ring-blue-500' }
       : activeMode === 'sheets'
       ? { text: 'text-emerald-500', hex: '#16a34a', bg: 'bg-emerald-600', ring: 'ring-emerald-500' }
-      : activeMode === 'pdf'
-      ? { text: 'text-rose-500', hex: '#e0564c', bg: 'bg-rose-600', ring: 'ring-rose-500' }
-      : activeMode === 'slides'
-      ? { text: 'text-orange-500', hex: '#ea580c', bg: 'bg-orange-600', ring: 'ring-orange-500' }
-      : activeMode === 'email'
-      ? { text: 'text-indigo-400', hex: '#6366f1', bg: 'bg-indigo-600', ring: 'ring-indigo-500' }
-      : { text: 'text-cyan-400', hex: '#06b6d4', bg: 'bg-cyan-600', ring: 'ring-cyan-500' };
+      : { text: 'text-orange-500', hex: '#ea580c', bg: 'bg-orange-600', ring: 'ring-orange-500' };
 
   function handleTabClick(tab: string) {
     if (tab === 'File') {
@@ -236,26 +203,11 @@
             <Sheet size={14} />
           </div>
           <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Sheet</span>
-        {:else if activeMode === 'pdf'}
-          <div class="w-6 h-6 rounded bg-rose-600 flex items-center justify-center text-white shadow-xs" title="Simple Office Suite PDF & Forms">
-            <FileCheck size={14} />
-          </div>
-          <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">PDF</span>
         {:else if activeMode === 'slides'}
           <div class="w-6 h-6 rounded bg-orange-600 flex items-center justify-center text-white shadow-xs" title="Simple Office Suite Slides">
             <Presentation size={14} />
           </div>
           <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Slides</span>
-        {:else if activeMode === 'email'}
-          <div class="w-6 h-6 rounded bg-indigo-600 flex items-center justify-center text-white shadow-xs" title="Simple Office Suite Mail (simulated demo)">
-            <Mail size={14} />
-          </div>
-          <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Mail</span>
-        {:else}
-          <div class="w-6 h-6 rounded bg-cyan-600 flex items-center justify-center text-white shadow-xs" title="Simple Office Suite Communicator (simulated demo)">
-            <MessageSquare size={14} />
-          </div>
-          <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Chat</span>
         {/if}
       </div>
 
@@ -355,35 +307,6 @@
         <span class="text-[11px]">Slides</span>
       </button>
 
-      <button
-        class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
-          {activeMode === 'pdf' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}"
-        on:click={() => dispatch('changeMode', 'pdf')}
-        title="PDF & Form Editor ({modKey}+4)"
-      >
-        <FileCheck size={13} />
-        <span class="text-[11px]">PDF</span>
-      </button>
-
-      <button
-        class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
-          {activeMode === 'email' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}"
-        on:click={() => dispatch('changeMode', 'email')}
-        title="Mail demo ({modKey}+5)"
-      >
-        <Mail size={13} />
-        <span class="text-[11px]">Mail</span>
-      </button>
-
-      <button
-        class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
-          {activeMode === 'communicator' ? 'bg-cyan-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}"
-        on:click={() => dispatch('changeMode', 'communicator')}
-        title="Communicator demo ({modKey}+6)"
-      >
-        <MessageSquare size={13} />
-        <span class="text-[11px]">Chat</span>
-      </button>
     </nav>
 
     <!-- Right: Export & Shortcuts -->
@@ -454,11 +377,6 @@
                 <button class="w-full px-3 py-1 text-left hover:bg-orange-600 flex items-center justify-between" on:click={() => handleExport('pptx')}>
                   <span>Slide XML adapter (.pptx)</span>
                   <span class="text-[9px] text-slate-400 font-mono">PPTX</span>
-                </button>
-              {:else if activeMode === 'pdf'}
-                <button class="w-full px-3 py-1 text-left hover:bg-rose-600 flex items-center justify-between" on:click={() => dispatch('printPdf')}>
-                  <span>Save / Print PDF</span>
-                  <span class="text-[9px] text-slate-400 font-mono">PDF</span>
                 </button>
               {/if}
             </div>
@@ -592,55 +510,6 @@
             <Plus size={13} />
             <span>New Slide</span>
           </button>
-        {:else if activeMode === 'pdf'}
-          <div class="h-4 w-px bg-slate-700 mx-1"></div>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded bg-rose-600/40 hover:bg-rose-600 text-rose-200 hover:text-white" on:click={() => triggerAction('addTextField')} title="Add Text Field">
-            <Plus size={13} />
-            <span>Text Field</span>
-          </button>
-        {:else if activeMode === 'email'}
-          <div class="h-4 w-px bg-slate-700 mx-1"></div>
-          <button class="flex items-center space-x-1 px-2.5 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-xs" on:click={() => triggerAction('newMail')}>
-            <Plus size={13} />
-            <span>New Message</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('reply')}>
-            <Reply size={13} />
-            <span>Reply</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('archive')}>
-            <Archive size={13} />
-            <span>Archive</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('delete')}>
-            <Trash2 size={13} />
-            <span>Delete</span>
-          </button>
-        {:else if activeMode === 'communicator'}
-          <div class="h-4 w-px bg-slate-700 mx-1"></div>
-          <button class="flex items-center space-x-1 px-2.5 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-medium shadow-xs" on:click={() => triggerAction('meetNow')} title="Opens the simulated call screen">
-            <Video size={13} />
-            <span>Demo Call</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('addParticipant')}>
-            <UserPlus size={13} class="text-cyan-400" />
-            <span>Add Participant</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('createChannel')}>
-            <Hash size={13} class="text-cyan-400" />
-            <span>New Channel</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-rose-500/20 text-rose-300" on:click={() => triggerAction('deleteChat')} title="Delete current conversation">
-            <Trash2 size={13} />
-            <span>Delete Chat</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('detach')}>
-            <ExternalLink size={13} />
-            <span>Detach Window</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('switchAccount')}>
-            <span>Switch Account</span>
-          </button>
         {/if}
       </div>
 
@@ -664,11 +533,6 @@
           <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('insertFx')} title="Insert Formula">
             <FunctionSquare size={14} class="text-purple-400" />
             <span>Function (fx)</span>
-          </button>
-        {:else if activeMode === 'pdf'}
-          <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('addSignatureField')} title="Signature Field">
-            <CheckSquare size={14} class="text-rose-400" />
-            <span>Signature Line</span>
           </button>
         {:else if activeMode === 'slides'}
           <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('newSlide')} title="Insert Slide">
@@ -779,27 +643,7 @@
         </button>
       </div>
 
-    {:else if activeTab === 'Forms'}
-      <!-- FORMS TAB (PDF): Text Box, Checkbox, Signature, Form Tools -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-700 text-white font-medium" on:click={() => triggerAction('addTextField')}>
-          <Plus size={13} />
-          <span>Text Box</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('addCheckboxField')}>
-          <CheckSquare size={14} class="text-rose-400" />
-          <span>Checkbox</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('addSignatureField')}>
-          <PenTool size={14} class="text-rose-400" />
-          <span>Signature Line</span>
-        </button>
-        <div class="h-4 w-px bg-slate-700 mx-1"></div>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('exportFormData')}>
-          <Download size={14} />
-          <span>Export Form Data</span>
-        </button>
-      </div>
+    
 
     {:else if activeTab === 'Design'}
       <!-- DESIGN TAB (Slides): Themes, Colors, Aspect Ratio -->
@@ -887,77 +731,17 @@
         </button>
       </div>
 
-    {:else if activeTab === 'Channels'}
-      <div class="flex items-center space-x-3">
-        <span class="text-xs text-white font-medium">Sample channels:</span>
-        <button class="px-2 py-0.5 rounded bg-white/10 text-cyan-300 text-xs">#general</button>
-        <button class="px-2 py-0.5 rounded bg-white/10 text-slate-300 text-xs">#engineering</button>
-        <button class="px-2 py-0.5 rounded bg-white/10 text-slate-300 text-xs">#product-design</button>
-        <button class="px-2 py-0.5 rounded bg-white/10 text-slate-300 text-xs">#leadership-sync</button>
-      </div>
+    
 
-    {:else if activeTab === 'Calls'}
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-xs" on:click={() => triggerAction('meetNow')} title="Opens the simulated call screen">
-          <Video size={13} />
-          <span>Open Demo Call Screen</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('meetNow')} title="Opens the same simulated call screen">
-          <Phone size={13} />
-          <span>Simulated Audio Panel</span>
-        </button>
-        <div class="h-4 w-px bg-slate-700 mx-1"></div>
-        <span class="text-amber-300 text-xs flex items-center space-x-1">
-          <Info size={12} />
-          <span>Simulated call, no audio or video is used</span>
-        </span>
-      </div>
+    
 
-    {:else if activeTab === 'Security'}
-      <div class="flex items-center space-x-3">
-        <div class="flex items-center space-x-1.5 px-2 py-1 rounded bg-amber-950/50 border border-amber-500/30 text-amber-200 text-xs font-medium">
-          <Info size={14} class="text-amber-300" />
-          <span>No encryption in this demo: chat text is stored as plain text in the app profile</span>
-        </div>
-        <span class="text-slate-400 text-xs">No accounts, sessions, or encryption keys exist</span>
-      </div>
+    
 
-    {:else if activeTab === 'Folder'}
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-xs" on:click={() => triggerAction('newFolder')}>
-          <Plus size={13} />
-          <span>New Folder</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('markAllRead')}>
-          <CheckCircle2 size={13} class="text-emerald-400" />
-          <span>Mark All Read</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('cleanTrash')}>
-          <Trash2 size={13} class="text-rose-400" />
-          <span>Empty Trash</span>
-        </button>
-      </div>
+    
 
-    {:else if activeTab === 'Tools'}
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('exportMailbox')}>
-          <Download size={13} />
-          <span>Export Mailbox</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('filterRules')}>
-          <Filter size={13} />
-          <span>Filter Rules</span>
-        </button>
-      </div>
+    
 
-    {:else if activeTab === 'Accounts'}
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => dispatch('openSettings')}>
-          <Settings size={13} />
-          <span>Manage Accounts...</span>
-        </button>
-        <span class="text-slate-400 text-xs">Sample mailbox: no mail server is connected</span>
-      </div>
+    
 
     {:else if activeTab === 'View'}
       <!-- VIEW TAB: Zoom, Presentation Mode, Gridlines, Rulers -->
@@ -1028,12 +812,6 @@
     </div>
   </div>
 
-  {#if demoModeNotes[activeMode]}
-    <div class="px-4 py-1.5 bg-amber-950/50 border-b border-amber-700/40 text-[11px] text-amber-100 flex items-start space-x-2">
-      <Info size={12} class="text-amber-300 shrink-0 mt-0.5" />
-      <span>{demoModeNotes[activeMode]}</span>
-    </div>
-  {/if}
 </header>
 
 <!-- AI Assistant Modal Dialog -->

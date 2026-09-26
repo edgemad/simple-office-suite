@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { WorkspaceMode, DocumentMeta } from '../../types';
-  import { FileCode, Layers, Wifi, WifiOff, Info } from '@lucide/svelte';
+  import { FileCode, Layers, Wifi, WifiOff } from '@lucide/svelte';
   import { isNetworkOnline, subscribeNetworkStatus } from '../../lib/tauri';
 
   export let activeMode: WorkspaceMode;
@@ -12,13 +12,6 @@
   export let selectionSum: number | null = null;
   export let slideIndex: number = 0;
   export let totalSlides: number = 1;
-  export let pdfPage: number = 1;
-  export let pdfTotalPages: number = 1;
-  export let emailTotal: number = 5;
-  export let emailUnread: number = 1;
-  export let emailFolder: string = 'INBOX';
-  export let communicatorChannel: string = '#general';
-  export let communicatorOnline: number = 4;
 
   let isOnline: boolean = isNetworkOnline();
   let unsubscribe: (() => void) | null = null;
@@ -67,36 +60,6 @@
       <div class="flex items-center space-x-2">
         <Layers size={13} class="text-orange-500" />
         <span>Slide {slideIndex + 1} of {totalSlides}</span>
-      </div>
-    {:else if activeMode === 'pdf'}
-      <div class="flex items-center space-x-2">
-        <span class="text-rose-600 font-semibold font-sans">PDF / Forms</span>
-        <span class="text-slate-300">•</span>
-        <span>Page {pdfPage} of {pdfTotalPages}</span>
-      </div>
-    {:else if activeMode === 'email'}
-      <div class="flex items-center space-x-2">
-        <span class="text-indigo-600 font-semibold font-sans">Mail (demo): {emailFolder || 'INBOX'}</span>
-        <span class="text-slate-300">•</span>
-        <span class="text-indigo-700 font-medium">{emailUnread} unread</span>
-        <span class="text-slate-300">•</span>
-        <span>{emailTotal} sample messages</span>
-        <span class="text-slate-300">•</span>
-        <span class="text-amber-700 font-sans text-[10px] flex items-center space-x-1" title="No mail server is connected. Messages are sample data stored on this device.">
-          <Info size={10} />
-          <span>No mail server connected</span>
-        </span>
-      </div>
-    {:else if activeMode === 'communicator'}
-      <div class="flex items-center space-x-2">
-        <span class="text-cyan-600 font-semibold font-sans">Chat (demo): {communicatorChannel}</span>
-        <span class="text-slate-300">•</span>
-        <span class="text-emerald-600 font-medium">{communicatorOnline} sample members shown</span>
-        <span class="text-slate-300">•</span>
-        <span class="text-amber-700 font-sans text-[10px] flex items-center space-x-1" title="Simulated chat stored as plain text on this device. No messaging service or call is used.">
-          <Info size={10} />
-          <span>Simulated, not encrypted</span>
-        </span>
       </div>
     {/if}
 

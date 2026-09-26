@@ -41,7 +41,7 @@
     ],
     "category": "Productivity",
     "shortDescription": "Offline-capable word processor, spreadsheet, and presentation editor",
-    "longDescription": "Simple Office Suite is a Tauri 2 desktop app with a word processor, spreadsheet editor with a formula engine, presentation editor, PDF viewer, and local demo Mail and Communicator modules. Documents open and save as SOS, Markdown, HTML, RTF, CSV, and PDF sources; Microsoft Office formats are not supported yet. Cloud AI is optional and only contacted when you configure a provider.",
+    "longDescription": "Simple Office Suite is a Tauri 2 desktop app with three local workspaces: a word processor, a spreadsheet editor with a formula engine, and a presentation editor. Documents open and save as SOS, Markdown, HTML, RTF, CSV, and text sources, and any workspace can print to PDF through the host print dialog; Microsoft Office formats are not supported yet. Cloud AI is optional and only contacted when you configure a provider.",
     "macOS": {
       "frameworks": [],
       "minimumSystemVersion": "10.15",

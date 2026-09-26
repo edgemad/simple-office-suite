@@ -1,6 +1,6 @@
 # Simple Office Suite (SOS)
 
-> **Alpha status:** this repository is an experimental Tauri 2 and Svelte desktop prototype. It is not a production office suite, a complete Microsoft Office replacement, or a security-audited communications product.
+> **Alpha status:** this repository is an experimental Tauri 2 and Svelte desktop prototype. It is not a production office suite or a complete Microsoft Office replacement.
 
 Simple Office Suite combines a Svelte interface with a Rust/Tauri shell. The desktop shell provides local file dialogs, local autosave snapshots, and system information. The workspace modules are intentionally presented as functional prototypes with explicit format and networking limits.
 
@@ -18,29 +18,15 @@ Sheets provides a grid, formula bar, cell formatting, multiple sheet tabs, CSV a
 
 Slides provides a 16:9 deck organizer, slide duplication and reordering, text and shape elements, local images, speaker notes, and a presenter view with a timer. The canvas is an interactive prototype rather than a full PowerPoint editor.
 
-### PDF and forms
-
-The PDF workspace is a local viewer and form-layout prototype. It can display its own document state, add text, checkbox, and signature fields, and export field values as JSON. It does not parse or render arbitrary binary PDF files. The print action calls the operating system or browser print dialog; it is not a native PDF generation library.
-
-### Mail
-
-Mail is a local demo client. Seeded messages, folders, search, starring, archive, trash, compose, reply, and draft flows are stored in browser or Tauri webview local storage. Account fields are sample data. There is no IMAP, SMTP, OAuth, or real attachment transport in this repository.
-
-### Communicator
-
-Communicator is a local seeded team-chat demo with channels, direct messages, reactions, simulated presence, a call dialog, and a detachable Tauri window. Messages and profiles are stored locally. There is no chat server, protocol, key exchange, or implemented end-to-end encryption. The encryption labels in the interface must not be treated as a security guarantee or as Microsoft Teams compatibility.
-
 ## File formats and interoperability
 
 The file names below describe the current adapters, not guarantees of Office compatibility.
 
 | Workspace | Read or import | Save or export | Important limitation |
 | --- | --- | --- | --- |
-| Writer | Markdown, text, HTML, simplified RTF text, suite JSON, and a limited DOCX archive reader | Markdown, text, HTML, RTF, suite JSON, and a `.docx`-named HTML adapter | The DOCX export is not a binary WordprocessingML package and does not provide a full Office round trip |
+| Writer | Markdown, text, HTML, simplified RTF text, suite JSON, and a limited DOCX archive reader | Markdown, text, HTML, RTF, suite JSON, a `.docx`-named HTML adapter, and print to PDF through the host print dialog | The DOCX export is not a binary WordprocessingML package and does not provide a full Office round trip; print output is whatever the host print dialog produces |
 | Sheets | CSV, TSV, suite JSON, and a limited first-sheet XLSX archive reader | CSV, suite JSON, and a `.xlsx`-named XML adapter | The XLSX export is not a binary SpreadsheetML package; formatting and multi-sheet fidelity are limited |
 | Slides | Suite JSON and a text-extracting PPTX archive reader | Suite JSON and a `.pptx`-named custom XML adapter | The PPTX export is not a binary PresentationML package; layout fidelity is limited |
-| PDF and forms | Local demo state only | Form values as JSON and host print output | No general PDF parser or renderer is implemented |
-| Mail and Communicator | Local demo state | Local browser or webview storage | No network mail or chat service is implemented |
 
 The file dialog advertises legacy extensions such as `.doc`, `.xls`, `.odt`, and `.odp`, but those formats are not reliable inputs in this prototype. Binary files that are not DOCX, XLSX, or PPTX packages, including PDF files and images, are rejected with an explanation instead of being decoded into unreadable text. The `.sosw`, `.soss`, and `.sosp` names are suite-state conventions rather than published interchange standards.
 
@@ -136,7 +122,7 @@ On Windows, invoke the same verifier with the available Python 3 executable if `
 
 ## Privacy and data handling
 
-Writer, Sheets, Slides, mail, and communicator state can remain in browser or webview local storage. Native document operations use the operating system file dialogs and the Rust file commands. The default local AI helper does not make a remote request. Remote AI providers, if enabled, receive the prompt and context sent to that provider. Mail and communicator data are demo data and are not synchronized between users or devices.
+Writer, Sheets, and Slides state can remain in browser or webview local storage. Native document operations use the operating system file dialogs and the Rust file commands. Settings and API keys are stored in that local storage without encryption, so a shared or managed machine needs an appropriate secret-handling policy. The default local AI helper does not make a remote request. Remote AI providers are contacted only when they are explicitly configured, and they receive the prompt and context sent to that provider.
 
 ## Repository layout
 
@@ -158,7 +144,7 @@ cargo test --manifest-path src-tauri/Cargo.toml --locked
 cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --all-features -- -D warnings
 ```
 
-Do not treat generated bundles, browser output, seeded mail, or communicator fixtures as release artifacts.
+Do not treat generated bundles or browser output as release artifacts.
 
 ## License
 
