@@ -22,7 +22,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   aiApiKey: '',
   aiModel: 'gpt-4o',
   aiTemperature: 0.7,
-  emailSignature: '--\nSent from Simple Office Suite (Offline & Private)',
+  emailSignature: '--\nSent from Simple Office Suite (local demo app)',
   emailCheckIntervalMin: 5,
 };
 

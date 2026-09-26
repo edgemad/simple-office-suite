@@ -1,4 +1,5 @@
 import clsx, { type ClassValue } from 'clsx';
+import { sanitizeHtml } from './sanitize';
 
 export function cn(...inputs: ClassValue[]): string {
   return clsx(inputs);
@@ -25,7 +26,7 @@ export function triggerPrintToPdf(title: string) {
 
 export function htmlToMarkdown(html: string): string {
   const temp = document.createElement('div');
-  temp.innerHTML = html;
+  temp.innerHTML = sanitizeHtml(html);
 
   // Process headers
   temp.querySelectorAll('h1').forEach((el) => (el.textContent = `# ${el.textContent}\n\n`));

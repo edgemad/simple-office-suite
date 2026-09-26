@@ -1,278 +1,145 @@
 # Simple Office Suite (SOS)
 
-<p align="center">
-  <img src="public/logo.svg" alt="Simple Office Suite Logo" width="100" height="100" />
-</p>
+> **Alpha status:** this repository is an experimental Tauri 2 and Svelte desktop prototype. It is not a production office suite, a complete Microsoft Office replacement, or a security-audited communications product.
 
-<p align="center">
-  <strong>A lightweight, cross-platform, offline-first productivity suite built with Tauri 2.0 and Rust.</strong>
-</p>
+Simple Office Suite combines a Svelte interface with a Rust/Tauri shell. The desktop shell provides local file dialogs, local autosave snapshots, and system information. The workspace modules are intentionally presented as functional prototypes with explicit format and networking limits.
 
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
-  <a href="https://v2.tauri.app/"><img src="https://img.shields.io/badge/Tauri-2.0-orange.svg" alt="Tauri 2.0" /></a>
-  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Rust-Backend-black.svg" alt="Rust" /></a>
-  <a href="https://svelte.dev/"><img src="https://img.shields.io/badge/Frontend-Svelte%205-ff3e00.svg" alt="Svelte" /></a>
-  <img src="https://img.shields.io/badge/Memory-%3C150MB-emerald.svg" alt="Memory Under 150MB" />
-  <img src="https://img.shields.io/badge/Binary-%3C30MB-cyan.svg" alt="Binary Under 30MB" />
-  <img src="https://img.shields.io/badge/Cloud%20Telemetry-Zero-success.svg" alt="Zero Cloud" />
-</p>
+## Implemented modules
 
----
+### Writer
 
-## 📖 Executive Summary & Vision
+Writer is a contenteditable document editor with headings, paragraph styles, lists, tables, dividers, links, local images, find and replace, undo and redo, and word and character counts. It can edit the in-memory document and print through the host print dialog.
 
-Modern office productivity suites have grown into multi-gigabyte browser-wrapped runtimes consuming over 1GB of idle RAM, demanding constant cloud logins, and exposing document data to remote telemetry.
+### Sheets
 
-**Simple Office Suite (SOS)** re-architects the essential office workflow from first principles:
-- **Featherweight**: Native binary under **30MB**; active memory footprint under **150MB**.
-- **100% Offline-First**: Zero external cloud calls, no forced accounts, no background tracking.
-- **True Cross-Platform**: Native OS binaries for **macOS** (Universal Apple Silicon & Intel), **Linux** (Debian, Fedora, Arch, AppImage), and **Windows 10/11** (MSI/NSIS).
-- **Direct OS Integration**: Standardized local file storage (`.sosw`, `.soss`, `.sosp`) with seamless import/export to `.csv`, `.md`, `.txt`, and printable `.pdf`.
+Sheets provides a grid, formula bar, cell formatting, multiple sheet tabs, CSV and TSV import, and local workbook state. The formula engine includes arithmetic and functions such as `SUM`, `AVERAGE`, `COUNT`, `MIN`, `MAX`, `IF`, `COUNTIF`, `SUMIF`, and `VLOOKUP`. It is a small formula implementation, not a complete Excel calculation engine.
 
----
+### Slides
 
-## 🏛 System Architecture
+Slides provides a 16:9 deck organizer, slide duplication and reordering, text and shape elements, local images, speaker notes, and a presenter view with a timer. The canvas is an interactive prototype rather than a full PowerPoint editor.
 
-Simple Office Suite pairs **Tauri 2.0 (Rust)** with an ultra-responsive **Svelte 5 & TypeScript** interface, communicating via high-throughput binary IPC.
+### PDF and forms
 
-```
-+-------------------------------------------------------------------------+
-|                       Simple Office Suite (SOS)                         |
-+-------------------------------------------------------------------------+
-|                                                                         |
-|  +-------------------------------------------------------------------+  |
-|  |                       Svelte 5 Frontend Layer                     |  |
-|  |  +-------------------+  +-------------------+  +---------------+  |  |
-|  |  |    SOS Writer     |  |    SOS Sheets     |  |  SOS Slides   |  |  |
-|  |  |  (WYSIWYG A4 Canvas) | (Virtualized Grid)|  | (Deck Builder)|  |  |
-|  |  +-------------------+  +-------------------+  +---------------+  |  |
-|  |  +-------------------------------------------------------------+  |  |
-|  |  |   Workspace Shell (Header, Navigation Tabs, StatusBar, UX)   |  |  |
-|  |  +-------------------------------------------------------------+  |  |
-|  +-------------------------------------------------------------------+  |
-|                                   │                                     |
-|             Tauri 2.0 IPC Bridge (Commands & Events)                    |
-|                                   ▼                                     |
-|  +-------------------------------------------------------------------+  |
-|  |                        Rust Backend Core                          |  |
-|  |  • Native Dialogs (tauri-plugin-dialog: open/save/filter)         |  |
-|  |  • Direct File System I/O (tauri-plugin-fs: stream read/write)   |  |
-|  |  • Local Recovery & Snapshot Cache (AppData/autosaves)            |  |
-|  |  • System Metrics Engine (sysinfo: RAM, CPU, Platform state)      |  |
-|  +-------------------------------------------------------------------+  |
-|                                   │                                     |
-|                                   ▼                                     |
-|  +-------------------------------------------------------------------+  |
-|  |                       Host Operating System                       |  |
-|  |            macOS (Darwin)  •  Linux (X11/Wayland)  •  Windows     |  |
-|  +-------------------------------------------------------------------+  |
-+-------------------------------------------------------------------------+
-```
+The PDF workspace is a local viewer and form-layout prototype. It can display its own document state, add text, checkbox, and signature fields, and export field values as JSON. It does not parse or render arbitrary binary PDF files. The print action calls the operating system or browser print dialog; it is not a native PDF generation library.
 
----
+### Mail
 
-## 📦 Suite Modules
+Mail is a local demo client. Seeded messages, folders, search, starring, archive, trash, compose, reply, and draft flows are stored in browser or Tauri webview local storage. Account fields are sample data. There is no IMAP, SMTP, OAuth, or real attachment transport in this repository.
 
-### 1. SOS Writer (Word Processor)
-- **Document Canvas**: High-performance A4 paginated canvas with paper drop shadows, margin guides, and clean typography.
-- **Rich Formatting Toolbar**: Heading 1–3, paragraph style dropdown, bold, italics, underline, strikethrough, blockquotes, code blocks, bulleted and numbered lists.
-- **Tables & Dividers**: Dynamic 3×3 table insertion and horizontal rule dividers.
-- **Real-Time Word Count**: Word and character counts updated on every keystroke.
-- **Export Formats**: One-click export to **Markdown (`.md`)**, plain text, and printable **PDF**.
+### Communicator
 
-### 2. SOS Sheets (Spreadsheet Engine)
-- **Virtualized Grid**: High-performance table with sticky lettered columns (A–Z+) and numbered rows (1–100+).
-- **Core Formula Engine**: Real-time evaluation with cycle protection:
-  - `=SUM(A1:A10)`
-  - `=AVERAGE(B1:B5)`
-  - `=COUNT(C1:C20)`
-  - `=IF(A1>50, "Approved", "Pending")`
-  - `=MIN(...)` and `=MAX(...)`
-  - Arithmetic operations (`+`, `-`, `*`, `/`)
-- **Formula Bar**: Formula bar with active coordinate badge, `fx` trigger, in-place edit, and formula syntax helpers.
-- **Data Persistence**: Direct **CSV import and export** alongside native JSON workbook state (`.soss`).
+Communicator is a local seeded team-chat demo with channels, direct messages, reactions, simulated presence, a call dialog, and a detachable Tauri window. Messages and profiles are stored locally. There is no chat server, protocol, key exchange, or implemented end-to-end encryption. The encryption labels in the interface must not be treated as a security guarantee or as Microsoft Teams compatibility.
 
-### 3. SOS Slides (Presentation Engine)
-- **Deck Organizer**: Thumbnail sidebar to add, duplicate, reorder, and delete slides in 16:9 widescreen format.
-- **Block-Based Canvas**: Drag-and-drop element containers:
-  - Slide Titles and Subtitles
-  - Multiline Text & Bulleted Lists
-  - Highlight Cards & Shapes
-  - Formatted Monospace Code Blocks
-  - Image / Diagram Placeholders
-- **Fullscreen Presenter View (F5)**:
-  - Slide navigation with Left/Right arrows, Spacebar, or UI buttons.
-  - Active presentation stopwatch / timer (Start, Pause, Reset).
-  - Speaker notes panel toggle.
+## File formats and interoperability
 
----
+The file names below describe the current adapters, not guarantees of Office compatibility.
 
-## ⚡ Performance Benchmarks
+| Workspace | Read or import | Save or export | Important limitation |
+| --- | --- | --- | --- |
+| Writer | Markdown, text, HTML, simplified RTF text, suite JSON, and a limited DOCX archive reader | Markdown, text, HTML, RTF, suite JSON, and a `.docx`-named HTML adapter | The DOCX export is not a binary WordprocessingML package and does not provide a full Office round trip |
+| Sheets | CSV, TSV, suite JSON, and a limited first-sheet XLSX archive reader | CSV, suite JSON, and a `.xlsx`-named XML adapter | The XLSX export is not a binary SpreadsheetML package; formatting and multi-sheet fidelity are limited |
+| Slides | Suite JSON and a text-extracting PPTX archive reader | Suite JSON and a `.pptx`-named custom XML adapter | The PPTX export is not a binary PresentationML package; layout fidelity is limited |
+| PDF and forms | Local demo state only | Form values as JSON and host print output | No general PDF parser or renderer is implemented |
+| Mail and Communicator | Local demo state | Local browser or webview storage | No network mail or chat service is implemented |
 
-| Metric | Simple Office Suite (SOS) | Electron-Based Office Apps | Cloud Browser Suites |
-| :--- | :--- | :--- | :--- |
-| **Installed Binary Size** | **~18 MB - 25 MB** | 180 MB - 350 MB | N/A (Requires Browser) |
-| **Idle Memory Usage** | **~42 MB** | 450 MB - 900 MB | 800 MB - 1.5 GB |
-| **Cold Start Time** | **< 380 ms** | 2.5 s - 5.0 s | Network Dependent |
-| **Cloud Tracking** | **0 Telemetry Bytes** | Telemetry Enabled | Constant Sync |
-| **Full Offline Usability**| **100% Native** | Limited | Degraded / Cached |
+The file dialog advertises legacy extensions such as `.doc`, `.xls`, `.odt`, and `.odp`, but those formats are not reliable inputs in this prototype. Binary files that are not DOCX, XLSX, or PPTX packages, including PDF files and images, are rejected with an explanation instead of being decoded into unreadable text. The `.sosw`, `.soss`, and `.sosp` names are suite-state conventions rather than published interchange standards.
 
----
+## Optional AI
 
-## 📂 Project Directory Structure
+The AI assistant is optional. Its default `local` provider is a deterministic offline helper that returns templates and example text; it is not a local language model. Settings can select OpenAI, Anthropic, or an Ollama-compatible endpoint. Those providers make outbound requests only when explicitly configured. API keys are kept in web storage, so shared or managed machines require an appropriate secret-handling policy.
 
-```
-simple-office-suite/
-├── .github/
-│   └── workflows/
-│       └── release.yml          # Cross-platform CI/CD (macOS, Linux, Windows)
-├── public/
-│   └── logo.svg                 # Application brand vector logo
-├── src/
-│   ├── components/
-│   │   ├── layout/
-│   │   │   ├── Header.svelte    # Global shell, module switcher & file menu
-│   │   │   └── StatusBar.svelte # Document metrics, word counts & system status
-│   │   ├── writer/
-│   │   │   ├── Writer.svelte        # Writer container & keyboard shortcuts
-│   │   │   ├── WriterCanvas.svelte  # Paginated A4 canvas & DOM editor
-│   │   │   └── WriterToolbar.svelte # Rich text formatting toolbar
-│   │   ├── sheets/
-│   │   │   ├── Sheets.svelte        # Sheets container & CSV operations
-│   │   │   ├── FormulaBar.svelte    # Coordinate indicator & formula bar
-│   │   │   ├── Grid.svelte          # Responsive table & cell renderer
-│   │   │   └── formulaEngine.ts     # Formula parser (SUM, AVG, COUNT, IF, MIN, MAX)
-│   │   └── slides/
-│   │       ├── Slides.svelte        # Deck manager & canvas coordinator
-│   │       ├── SlideCanvas.svelte   # 16:9 stage & interactive block layout
-│   │       ├── SlideDeckSidebar.svelte # Thumbnail list & slide reordering
-│   │       ├── SlideToolbar.svelte  # Block insertion & color controls
-│   │       └── PresenterModal.svelte# Fullscreen presenter mode & timer
-│   ├── lib/
-│   │   ├── storage.ts           # Debounced auto-save & crash recovery engine
-│   │   ├── tauri.ts             # Rust IPC command bridge + web dev fallback
-│   │   └── utils.ts             # Markdown converter, PDF print & export utilities
-│   ├── types/
-│   │   └── index.ts             # Central TypeScript domain interfaces
-│   ├── app.css                  # Tailwind styles & print stylesheet
-│   ├── App.svelte               # Root component & state orchestrator
-│   └── main.ts                  # Frontend entry point
-├── src-tauri/
-│   ├── capabilities/
-│   │   └── default.json         # Tauri 2.0 system permission manifests
-│   ├── src/
-│   │   ├── lib.rs               # Rust native file dialogs, I/O & system info
-│   │   └── main.rs              # Tauri runtime bootstrap
-│   ├── build.rs                 # Cargo build hooks
-│   ├── Cargo.toml               # Rust dependencies (tauri 2.0, sysinfo, dirs)
-│   └── tauri.conf.json          # Window geometry, security CSP & bundle targets
-├── .gitignore                   # Multi-stack Git ignore rules
-├── index.html                   # HTML5 application shell
-├── package.json                 # Node dependencies & automation scripts
-├── postcss.config.js            # PostCSS pipeline
-├── tailwind.config.js           # Palette & layout extensions
-├── tsconfig.json                # TypeScript strict configuration
-└── LICENSE                      # MIT Open Source License
-```
+The project makes no zero-telemetry, zero-network, or encryption claim when a remote AI provider is selected.
 
----
+## Requirements
 
-## 🚀 Getting Started
+- Node.js 20.19 or newer, or Node.js 22.12 or newer, for the current Vite toolchain
+- npm
+- Rust stable toolchain and `rustfmt` and `clippy` components for Rust checks
+- macOS: Xcode Command Line Tools
+- Linux: the Tauri WebKit and build packages, including `libwebkit2gtk-4.1-dev`, `build-essential`, `libxdo-dev`, `libssl-dev`, `libayatana-appindicator3-dev`, and `librsvg2-dev`
+- Windows: Visual Studio C++ Build Tools, the Windows SDK, and WebView2
 
-### Prerequisites
+`package-lock.json` and `src-tauri/Cargo.lock` are intentionally not ignored. Commit both lockfiles so npm and Cargo resolve the same dependency graph in development and CI.
 
-1. **Node.js**: `v18.0+` or `v20.0+` (LTS recommended)
-2. **pnpm** (preferred) or `npm` / `yarn`:
-   ```bash
-   npm install -g pnpm
-   ```
-3. **Rust Toolchain**: `stable` (v1.75+)
-   ```bash
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   ```
-4. **Platform Build Dependencies**:
-   - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
-   - **Linux (Ubuntu/Debian)**:
-     ```bash
-     sudo apt update && sudo apt install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-     ```
-   - **Windows**: Microsoft Visual Studio C++ Build Tools & WebView2
+## Commands
 
----
+Install the exact JavaScript dependency graph:
 
-## 🛠 Development & Build Commands
-
-### 1. Install Dependencies
 ```bash
-pnpm install
+npm ci
 ```
 
-### 2. Run in Browser Development Mode (Vite)
-You can run and test the full suite in any modern web browser without compiling Rust. The native file I/O layer automatically uses simulated browser storage:
+Run the Vite browser harness:
+
 ```bash
-pnpm dev
+npm run dev
 ```
-Navigate to `http://localhost:1420`.
 
-### 3. Run Native Desktop App (Tauri Dev)
-Launches the full desktop application backed by the Rust Tauri 2.0 process with hot-module reloading:
+Open `http://127.0.0.1:1420` in a browser. This is a frontend and local-storage demo mode. It is not the Tauri desktop application, does not provide the native file backend, and uses simulated browser metrics where native metrics are unavailable.
+
+Run the native desktop development build:
+
 ```bash
-pnpm tauri dev
+npm run tauri dev
 ```
 
-### 4. Build Production Binaries
-Compiles the optimized release bundle for your current operating system:
+Build the frontend, run the Svelte type check, run the test command, and build the frontend bundle:
+
 ```bash
-pnpm tauri build
+npm run build
+npm run check
+npm test
+npm run validate
 ```
 
-Built artifacts will be placed in `src-tauri/target/release/bundle/`:
-- **macOS**: `.dmg` (Universal or target-specific) & `.app`
-- **Linux**: `.AppImage` & `.deb`
-- **Windows**: `.msi` & `.exe` (NSIS)
+Build a native bundle for the current operating system:
 
----
+```bash
+npm run build:desktop
+```
 
-## 🤖 Continuous Integration & Automated Releases
+The equivalent Tauri command is `npm run tauri build`.
 
-A GitHub Actions workflow is provided at `.github/workflows/release.yml`. When a Git tag is pushed (e.g., `git tag v1.0.0 && git push origin v1.0.0`), the workflow runs a cross-platform build matrix:
-- Compiles macOS Universal binary (Apple Silicon + Intel).
-- Compiles Linux `.AppImage` and `.deb` packages with webkit2gtk-4.1.
-- Compiles Windows `.msi` installers.
-- Automatically publishes a GitHub Release containing all installable binaries and checksums.
+The optional verifier only checks files emitted by Tauri. It does not build an installer and does not accept browser output as a native artifact:
 
----
+```bash
+npm run package:verify
+```
 
-## 🔒 Security & Privacy Model
+On Windows, invoke the same verifier with the available Python 3 executable if `python3` is not on `PATH`.
 
-- **No Remote Sockets**: The application does not instantiate outbound HTTP or WebSocket connections.
-- **Local File System Sandboxing**: File read and write operations are governed by user-initiated native dialog windows (`openFileDialogNative` / `saveFileDialogNative`).
-- **Data Ownership**: Document files use open formats:
-  - Plaintext Markdown (`.md`)
-  - Comma-Separated Values (`.csv`)
-  - Clean human-readable JSON (`.sosw`, `.soss`, `.sosp`)
-  - Standard PDF print output
+## CI and releases
 
----
+`.github/workflows/ci.yml` runs `npm ci`, the frontend check, the test command, the frontend build, and the Rust format, check, test, and Clippy commands. The Rust job requires the committed Cargo lockfile and uses locked Cargo commands.
 
-## 🤝 Contributing
+`.github/workflows/release.yml` runs the same checks before building a platform matrix with Tauri. It requests native bundles for macOS, Linux, and Windows, verifies that each expected bundle exists, uploads only the Tauri bundle directories, and publishes only recognized Tauri artifacts after every matrix job succeeds. A failed or empty build cannot create a release. The workflow does not use `scripts/package_all.py` to manufacture substitutes or browser wrappers.
 
-Contributions to Simple Office Suite are welcome!
+## Privacy and data handling
 
-1. Fork the repository on GitHub.
-2. Create a feature branch: `git checkout -b feature/amazing-feature`.
-3. Verify formatting and types:
-   ```bash
-   pnpm check
-   cargo check --manifest-path src-tauri/Cargo.toml
-   ```
-4. Commit your changes: `git commit -m "feat: add amazing feature"`.
-5. Push to the branch: `git push origin feature/amazing-feature`.
-6. Open a Pull Request.
+Writer, Sheets, Slides, mail, and communicator state can remain in browser or webview local storage. Native document operations use the operating system file dialogs and the Rust file commands. The default local AI helper does not make a remote request. Remote AI providers, if enabled, receive the prompt and context sent to that provider. Mail and communicator data are demo data and are not synchronized between users or devices.
 
----
+## Repository layout
 
-## 📄 License
+- `src/`: Svelte components, workspace state, format adapters, and the optional AI helper
+- `src-tauri/`: Tauri configuration, Rust commands, capabilities, and icons
+- `scripts/package_all.py`: read-only Tauri artifact verifier
+- `.github/workflows/`: CI and release definitions
 
-Simple Office Suite is distributed under the **MIT License**. See [LICENSE](LICENSE) for details.
+## Contributing
+
+Run the same checks used by CI before opening a pull request:
+
+```bash
+npm ci
+npm run validate
+cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+cargo check --manifest-path src-tauri/Cargo.toml --locked
+cargo test --manifest-path src-tauri/Cargo.toml --locked
+cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --all-features -- -D warnings
+```
+
+Do not treat generated bundles, browser output, seeded mail, or communicator fixtures as release artifacts.
+
+## License
+
+Simple Office Suite is distributed under the MIT License. See [LICENSE](LICENSE).

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { FunctionSquare, Check, X, Sparkles } from 'lucide-svelte';
+  import { FunctionSquare, Check, X } from '@lucide/svelte';
   import FormulaSuggestions from './FormulaSuggestions.svelte';
   import InsertFunctionModal from './InsertFunctionModal.svelte';
   import { getSmartFormulaSuggestion, type FormulaDefinition } from './formulaDefinitions';

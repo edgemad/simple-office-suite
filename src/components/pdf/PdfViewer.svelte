@@ -6,19 +6,13 @@
     ChevronRight,
     ZoomIn,
     ZoomOut,
-    Maximize2,
-    FileText,
-    CheckSquare,
     PenTool,
-    Plus,
     Trash2,
     Download,
     Printer,
-    Search,
     RotateCw,
-    Layers,
-    Sparkles
-  } from 'lucide-svelte';
+    Layers
+  } from '@lucide/svelte';
   import { triggerPrintToPdf, downloadFile } from '../../lib/utils';
 
   export let doc: PdfDocument;
@@ -31,7 +25,6 @@
   let zoomLevel = 100;
   let rotation = 0;
   let activeFieldId: string | null = null;
-  let searchQuery = '';
   let showThumbnailSidebar = true;
 
   $: dispatch('updateStats', {
@@ -248,10 +241,10 @@
 
           <div class="text-xs text-slate-700 leading-relaxed space-y-4">
             <p>
-              Welcome to the <strong>OnlyOffice-Style PDF & Form Editor</strong> in Simple Office Suite. You can view documents, complete interactive PDF form fields, insert signatures, and export form responses offline.
+              This is the <strong>PDF &amp; form layout prototype</strong> in Simple Office Suite. It stores its own document state, adds text, checkbox, dropdown, and signature fields, and exports the field values as JSON.
             </p>
             <p>
-              Use the <strong>Forms</strong> tab on the OnlyOffice ribbon above to insert interactive fillable Text Boxes, Checkboxes, Dropdown selections, and Signature lines anywhere on the page.
+              It does <strong>not</strong> parse or render arbitrary binary PDF files yet, and printing opens the host print dialog rather than generating a PDF directly. Use <strong>Forms</strong> in the ribbon to place fields on the page.
             </p>
 
             <div class="my-6 p-4 rounded-lg bg-slate-50 border border-slate-200">
@@ -309,7 +302,8 @@
                 <label class="flex items-center space-x-1.5 cursor-pointer">
                   <input
                     type="checkbox"
-                    bind:checked={field.value}
+                    checked={field.value === true}
+                    on:change={(e) => (field.value = (e.currentTarget as HTMLInputElement).checked)}
                     class="rounded text-rose-600 focus:ring-rose-500 w-3.5 h-3.5"
                   />
                   <span class="text-[11px] text-slate-700">Check to agree</span>

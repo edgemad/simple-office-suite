@@ -15,7 +15,6 @@ dist-ssr/
 
 # Rust & Tauri Builds
 src-tauri/target/
-src-tauri/Cargo.lock
 src-tauri/gen/
 
 # Environment Variables & Secrets
@@ -54,9 +53,7 @@ core.*
 # Test & Coverage Outputs
 coverage/
 .nyc_output/
--e 
 # Installers & Bundles
 dist-installer/
 *.app/
-package-lock.json
 

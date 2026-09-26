@@ -107,7 +107,8 @@ export function getCellValue(
     (result.startsWith('#NAME?') || result.startsWith('#ERROR!')) &&
     cell.computed !== undefined &&
     cell.computed !== '' &&
-    cell.computed !== result
+    cell.computed !== result &&
+    cell.computed !== raw
   ) {
     computedCache.set(normKey, cell.computed);
     return cell.computed;
@@ -174,6 +175,179 @@ function matchesCriteria(val: string | number, criteria: string | number): boole
 
   // Exact case-insensitive match
   return valStr.toLowerCase() === critStr.toLowerCase();
+}
+
+function toBoolean(value: any): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return !isNaN(value) && value !== 0;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'object') return true;
+
+  const str = String(value).trim();
+  if (str === '') return false;
+
+  const upper = str.toUpperCase();
+  if (upper === 'FALSE') return false;
+  if (upper === 'TRUE') return true;
+
+  const num = Number(str);
+  if (!isNaN(num)) return num !== 0;
+
+  return true;
+}
+
+function valueRank(value: any): number {
+  if (typeof value === 'number') return 0;
+  if (typeof value === 'boolean') return 2;
+  if (value === null || value === undefined) return 3;
+
+  const str = String(value).trim();
+  if (str === '') return 3;
+
+  const upper = str.toUpperCase();
+  if (upper === 'TRUE' || upper === 'FALSE') return 2;
+  if (!isNaN(Number(str))) return 0;
+  return 1;
+}
+
+function compareApprox(a: any, b: any): number | null {
+  const rankA = valueRank(a);
+  const rankB = valueRank(b);
+  if (rankA === 3 || rankB === 3) return null;
+  if (rankA !== rankB) return rankA < rankB ? -1 : 1;
+
+  if (rankA === 0) {
+    const numA = Number(a);
+    const numB = Number(b);
+    if (numA === numB) return 0;
+    return numA < numB ? -1 : 1;
+  }
+
+  if (rankA === 2) {
+    const boolA = toBoolean(a);
+    const boolB = toBoolean(b);
+    if (boolA === boolB) return 0;
+    return boolA ? 1 : -1;
+  }
+
+  const strA = String(a).trim().toLowerCase();
+  const strB = String(b).trim().toLowerCase();
+  if (strA === strB) return 0;
+  return strA < strB ? -1 : 1;
+}
+
+function roundToPrecision(value: number): number {
+  if (!isFinite(value)) return value;
+  return Number(value.toPrecision(12));
+}
+
+function quantizedQuotient(value: number, significance: number): number {
+  return roundToPrecision(value / significance);
+}
+
+function ceilingWithSignificance(value: any, significance: any): number | string {
+  const num = Number(value);
+  const sig =
+    significance === undefined || significance === null || significance === ''
+      ? 1
+      : Number(significance);
+
+  if (isNaN(num) || isNaN(sig)) return '#NUM!';
+  if (sig === 0) return 0;
+  if (num === 0) return 0;
+  if (num > 0 && sig < 0) return '#NUM!';
+  if (num < 0 && sig > 0) return Math.ceil(num);
+
+  const magnitude =
+    Math.ceil(quantizedQuotient(Math.abs(num), Math.abs(sig))) * Math.abs(sig);
+  return roundToPrecision(Math.sign(num) * magnitude);
+}
+
+function floorWithSignificance(value: any, significance: any): number | string {
+  const num = Number(value);
+  const sig =
+    significance === undefined || significance === null || significance === ''
+      ? 1
+      : Number(significance);
+
+  if (isNaN(num) || isNaN(sig)) return '#NUM!';
+  if (sig === 0) return '#DIV/0!';
+  if (num === 0) return 0;
+  if (num > 0 && sig < 0) return '#NUM!';
+  if (num < 0 && sig > 0) return Math.floor(num);
+
+  const magnitude =
+    Math.floor(quantizedQuotient(Math.abs(num), Math.abs(sig))) * Math.abs(sig);
+  return roundToPrecision(Math.sign(num) * magnitude);
+}
+
+function padNumber(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+function formatLocalDate(date: Date): string {
+  return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())}`;
+}
+
+interface ParsedDate {
+  date: Date;
+  utc: boolean;
+}
+
+function parseDateValue(value: any): ParsedDate | null {
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? null : { date: value, utc: false };
+  }
+
+  if (typeof value === 'number') {
+    if (isNaN(value)) return null;
+    const serialDate = new Date(Math.round((value - 25569) * 86400000));
+    return isNaN(serialDate.getTime()) ? null : { date: serialDate, utc: true };
+  }
+
+  if (typeof value !== 'string') return null;
+
+  const str = value.trim();
+  if (str === '') return null;
+
+  const iso = str.match(
+    /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/
+  );
+  if (iso) {
+    const year = Number(iso[1]);
+    const month = Number(iso[2]);
+    const day = Number(iso[3]);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    const date =
+      iso[4] !== undefined
+        ? new Date(year, month - 1, day, Number(iso[4]), Number(iso[5]), Number(iso[6] ?? 0))
+        : new Date(year, month - 1, day);
+    return isNaN(date.getTime()) ? null : { date, utc: false };
+  }
+
+  const us = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (us) {
+    const usDate = new Date(Number(us[3]), Number(us[1]) - 1, Number(us[2]));
+    return isNaN(usDate.getTime()) ? null : { date: usDate, utc: false };
+  }
+
+  const fallback = new Date(str);
+  return isNaN(fallback.getTime()) ? null : { date: fallback, utc: false };
+}
+
+function rangeBounds(rangeStr: string): { minCol: number; maxCol: number; minRow: number; maxRow: number } | null {
+  const parts = String(rangeStr ?? '').split(':');
+  const start = parseCoord(parts[0]);
+  const end = parseCoord(parts[1] ?? parts[0]);
+  if (!start || !end) return null;
+
+  return {
+    minCol: Math.min(start.col, end.col),
+    maxCol: Math.max(start.col, end.col),
+    minRow: Math.min(start.row, end.row),
+    maxRow: Math.max(start.row, end.row),
+  };
 }
 
 // --- Formula Tokenizer and Expression Parser ---
@@ -364,6 +538,10 @@ class FormulaParser {
   public parse(): string | number {
     if (this.current().type === 'EOF') return '';
     const res = this.parseComparison();
+    const trailing = this.current();
+    if (trailing.type !== 'EOF') {
+      throw new Error(`Unexpected token ${trailing.type} ${trailing.value}`);
+    }
     return res;
   }
 
@@ -483,6 +661,10 @@ class FormulaParser {
 
     if (cur.type === 'BOOLEAN') {
       this.pos++;
+      if (this.current().type === 'LPAREN') {
+        this.pos++;
+        this.expect('RPAREN');
+      }
       return cur.value;
     }
 
@@ -510,7 +692,7 @@ class FormulaParser {
       this.pos++;
       if (this.current().type === 'LPAREN') {
         this.pos++;
-        const args = this.parseArguments(fnName);
+        const args = this.parseArguments();
         this.expect('RPAREN');
         return this.executeFunction(fnName, args);
       }
@@ -521,7 +703,7 @@ class FormulaParser {
     return '';
   }
 
-  private parseArguments(fnName: string): any[] {
+  private parseArguments(): any[] {
     const args: any[] = [];
     if (this.current().type === 'RPAREN') {
       return args;
@@ -781,18 +963,18 @@ class FormulaParser {
       case 'INT':
         return Math.floor(Number(args[0]) || 0);
       case 'CEILING':
-        return Math.ceil(Number(args[0]) || 0);
+        return ceilingWithSignificance(args[0], args[1]);
       case 'FLOOR':
-        return Math.floor(Number(args[0]) || 0);
+        return floorWithSignificance(args[0], args[1]);
 
       // --- Logic ---
       case 'IF': {
-        const cond = Boolean(args[0]);
+        const cond = toBoolean(args[0]);
         return cond ? (args[1] ?? '') : (args[2] ?? '');
       }
       case 'IFS': {
         for (let i = 0; i < args.length; i += 2) {
-          if (Boolean(args[i])) return args[i + 1] ?? '';
+          if (toBoolean(args[i])) return args[i + 1] ?? '';
         }
         return '#N/A';
       }
@@ -807,17 +989,17 @@ class FormulaParser {
       }
       case 'AND': {
         const all = this.extractAllValues(args);
-        return all.every((v) => Boolean(v));
+        return all.every((v) => toBoolean(v));
       }
       case 'OR': {
         const all = this.extractAllValues(args);
-        return all.some((v) => Boolean(v));
+        return all.some((v) => toBoolean(v));
       }
       case 'NOT':
-        return !Boolean(args[0]);
+        return !toBoolean(args[0]);
       case 'XOR': {
         const all = this.extractAllValues(args);
-        const trues = all.filter((v) => Boolean(v)).length;
+        const trues = all.filter((v) => toBoolean(v)).length;
         return trues % 2 !== 0;
       }
       case 'TRUE':
@@ -833,10 +1015,12 @@ class FormulaParser {
       }
       case 'TEXTJOIN': {
         const delim = String(args[0] ?? '');
-        const ignoreEmpty = Boolean(args[1]);
+        const ignoreEmpty = toBoolean(args[1]);
         const items = this.extractAllValues(args.slice(2));
-        const filtered = ignoreEmpty ? items.filter((x) => x !== '' && x !== null && x !== undefined) : items;
-        return filtered.join(delim);
+        const filtered = ignoreEmpty
+          ? items.filter((x) => x !== '' && x !== null && x !== undefined)
+          : items;
+        return filtered.map((x) => (x === null || x === undefined ? '' : String(x))).join(delim);
       }
       case 'UPPER':
         return String(args[0] ?? '').toUpperCase();
@@ -898,11 +1082,13 @@ class FormulaParser {
 
       // --- Lookup & Reference ---
       case 'VLOOKUP': {
-        // VLOOKUP(lookup_value, table_range, col_index, [exact_match])
+        // VLOOKUP(lookup_value, table_range, col_index, [range_lookup])
         if (args.length < 3) return '#N/A';
         const lookup = args[0];
         const rangeStr = args[1]?.rangeStr || String(args[1]);
-        const colOffset = (parseInt(String(args[2]), 10) || 1) - 1;
+        const colIndex = parseInt(String(args[2]), 10);
+        if (isNaN(colIndex) || colIndex < 1) return '#VALUE!';
+        const approximate = args.length < 4 ? true : toBoolean(args[3]);
 
         const parts = rangeStr.split(':');
         const start = parseCoord(parts[0]);
@@ -912,24 +1098,48 @@ class FormulaParser {
         const minRow = Math.min(start.row, end.row);
         const maxRow = Math.max(start.row, end.row);
         const firstCol = start.col;
-        const targetCol = firstCol + colOffset;
+        const tableCols = Math.abs(end.col - start.col) + 1;
+        if (colIndex > tableCols) return '#REF!';
+        const targetCol = firstCol + colIndex - 1;
+
+        let bestRow: number | null = null;
+        let bestVal: any = null;
 
         for (let r = minRow; r <= maxRow; r++) {
           const firstKey = `${colToLetter(firstCol)}${r + 1}`;
           const val = getCellValue(firstKey, this.grid, this.evaluating, this.cache);
+
+          if (approximate) {
+            const cmp = compareApprox(val, lookup);
+            if (cmp === null || cmp > 0) continue;
+            if (bestRow === null || (compareApprox(val, bestVal) ?? 0) > 0) {
+              bestRow = r;
+              bestVal = val;
+            }
+            continue;
+          }
+
           if (matchesCriteria(val, lookup)) {
             const targetKey = `${colToLetter(targetCol)}${r + 1}`;
             return getCellValue(targetKey, this.grid, this.evaluating, this.cache);
           }
         }
+
+        if (approximate && bestRow !== null) {
+          const targetKey = `${colToLetter(targetCol)}${bestRow + 1}`;
+          return getCellValue(targetKey, this.grid, this.evaluating, this.cache);
+        }
+
         return '#N/A';
       }
       case 'HLOOKUP': {
-        // HLOOKUP(lookup_value, table_range, row_index, [exact_match])
+        // HLOOKUP(lookup_value, table_range, row_index, [range_lookup])
         if (args.length < 3) return '#N/A';
         const lookup = args[0];
         const rangeStr = args[1]?.rangeStr || String(args[1]);
-        const rowOffset = (parseInt(String(args[2]), 10) || 1) - 1;
+        const rowIndex = parseInt(String(args[2]), 10);
+        if (isNaN(rowIndex) || rowIndex < 1) return '#VALUE!';
+        const approximate = args.length < 4 ? true : toBoolean(args[3]);
 
         const parts = rangeStr.split(':');
         const start = parseCoord(parts[0]);
@@ -939,29 +1149,63 @@ class FormulaParser {
         const minCol = Math.min(start.col, end.col);
         const maxCol = Math.max(start.col, end.col);
         const firstRow = start.row;
-        const targetRow = firstRow + rowOffset;
+        const tableRows = Math.abs(end.row - start.row) + 1;
+        if (rowIndex > tableRows) return '#REF!';
+        const targetRow = firstRow + rowIndex - 1;
+
+        let bestCol: number | null = null;
+        let bestVal: any = null;
 
         for (let c = minCol; c <= maxCol; c++) {
           const firstKey = `${colToLetter(c)}${firstRow + 1}`;
           const val = getCellValue(firstKey, this.grid, this.evaluating, this.cache);
+
+          if (approximate) {
+            const cmp = compareApprox(val, lookup);
+            if (cmp === null || cmp > 0) continue;
+            if (bestCol === null || (compareApprox(val, bestVal) ?? 0) > 0) {
+              bestCol = c;
+              bestVal = val;
+            }
+            continue;
+          }
+
           if (matchesCriteria(val, lookup)) {
             const targetKey = `${colToLetter(c)}${targetRow + 1}`;
             return getCellValue(targetKey, this.grid, this.evaluating, this.cache);
           }
         }
+
+        if (approximate && bestCol !== null) {
+          const targetKey = `${colToLetter(bestCol)}${targetRow + 1}`;
+          return getCellValue(targetKey, this.grid, this.evaluating, this.cache);
+        }
+
         return '#N/A';
       }
       case 'INDEX': {
         // INDEX(range, row_num, [col_num])
         const rangeStr = args[0]?.rangeStr || String(args[0]);
-        const rowNum = parseInt(String(args[1]), 10) || 1;
-        const colNum = args[2] !== undefined ? parseInt(String(args[2]), 10) || 1 : 1;
+        const bounds = rangeBounds(rangeStr);
+        if (!bounds) return '#REF!';
 
-        const parts = rangeStr.split(':');
-        const start = parseCoord(parts[0]);
-        if (!start) return '#REF!';
+        const numRows = bounds.maxRow - bounds.minRow + 1;
+        const numCols = bounds.maxCol - bounds.minCol + 1;
 
-        const targetKey = `${colToLetter(start.col + colNum - 1)}${start.row + rowNum}`;
+        const hasRow = args[1] !== undefined && args[1] !== '';
+        const hasCol = args[2] !== undefined && args[2] !== '';
+        const rawRow = hasRow ? parseInt(String(args[1]), 10) : 1;
+        const rawCol = hasCol ? parseInt(String(args[2]), 10) : 1;
+        if (isNaN(rawRow) || isNaN(rawCol)) return '#VALUE!';
+
+        const indexesAcrossRow = !hasCol && numRows === 1;
+        const rowIndex = indexesAcrossRow ? 1 : rawRow;
+        const colIndex = indexesAcrossRow ? rawRow : hasCol ? rawCol : 1;
+
+        if (rowIndex < 1 || colIndex < 1) return '#VALUE!';
+        if (rowIndex > numRows || colIndex > numCols) return '#REF!';
+
+        const targetKey = `${colToLetter(bounds.minCol + colIndex - 1)}${bounds.minRow + rowIndex}`;
         return getCellValue(targetKey, this.grid, this.evaluating, this.cache);
       }
       case 'MATCH': {
@@ -1014,26 +1258,31 @@ class FormulaParser {
         return typeof v === 'string' && v.startsWith('#');
       }
       case 'TODAY':
-        return new Date().toISOString().split('T')[0];
+        return formatLocalDate(new Date());
       case 'NOW':
         return new Date().toLocaleString();
       case 'DATE': {
         const y = Number(args[0]) || 2026;
-        const m = (Number(args[1]) || 1) - 1;
+        const m = Number(args[1]) || 1;
         const d = Number(args[2]) || 1;
-        return new Date(y, m, d).toISOString().split('T')[0];
+        const date = new Date(y, m - 1, d);
+        if (isNaN(date.getTime())) return '#VALUE!';
+        return formatLocalDate(date);
       }
       case 'YEAR': {
-        const dt = new Date(args[0]);
-        return isNaN(dt.getTime()) ? '#VALUE!' : dt.getFullYear();
+        const parsed = parseDateValue(args[0]);
+        if (!parsed) return '#VALUE!';
+        return parsed.utc ? parsed.date.getUTCFullYear() : parsed.date.getFullYear();
       }
       case 'MONTH': {
-        const dt = new Date(args[0]);
-        return isNaN(dt.getTime()) ? '#VALUE!' : dt.getMonth() + 1;
+        const parsed = parseDateValue(args[0]);
+        if (!parsed) return '#VALUE!';
+        return (parsed.utc ? parsed.date.getUTCMonth() : parsed.date.getMonth()) + 1;
       }
       case 'DAY': {
-        const dt = new Date(args[0]);
-        return isNaN(dt.getTime()) ? '#VALUE!' : dt.getDate();
+        const parsed = parseDateValue(args[0]);
+        if (!parsed) return '#VALUE!';
+        return parsed.utc ? parsed.date.getUTCDate() : parsed.date.getDate();
       }
 
       default:

@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import type { WorkspaceMode, DocumentMeta } from '../../types';
-  import { FileCode, Layers, Info } from 'lucide-svelte';
+  import { FileCode, Layers, Wifi, WifiOff, Info } from '@lucide/svelte';
+  import { isNetworkOnline, subscribeNetworkStatus } from '../../lib/tauri';
 
   export let activeMode: WorkspaceMode;
   export let meta: DocumentMeta;
@@ -17,6 +19,17 @@
   export let emailFolder: string = 'INBOX';
   export let communicatorChannel: string = '#general';
   export let communicatorOnline: number = 4;
+
+  let isOnline: boolean = isNetworkOnline();
+  let unsubscribe: (() => void) | null = null;
+
+  onMount(() => {
+    isOnline = isNetworkOnline();
+    unsubscribe = subscribeNetworkStatus((value) => (isOnline = value));
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  });
 </script>
 
 <footer class="no-print h-7 bg-white border-t border-slate-200 px-4 flex items-center justify-between text-xs text-slate-500 select-none z-20 shadow-inner">
@@ -63,23 +76,41 @@
       </div>
     {:else if activeMode === 'email'}
       <div class="flex items-center space-x-2">
-        <span class="text-indigo-600 font-semibold font-sans">Mail: {emailFolder || 'INBOX'}</span>
+        <span class="text-indigo-600 font-semibold font-sans">Mail (demo): {emailFolder || 'INBOX'}</span>
         <span class="text-slate-300">•</span>
         <span class="text-indigo-700 font-medium">{emailUnread} unread</span>
         <span class="text-slate-300">•</span>
-        <span>{emailTotal} messages</span>
+        <span>{emailTotal} sample messages</span>
+        <span class="text-slate-300">•</span>
+        <span class="text-amber-700 font-sans text-[10px] flex items-center space-x-1" title="No mail server is connected. Messages are sample data stored on this device.">
+          <Info size={10} />
+          <span>No mail server connected</span>
+        </span>
       </div>
     {:else if activeMode === 'communicator'}
       <div class="flex items-center space-x-2">
-        <span class="text-cyan-600 font-semibold font-sans">Teams: {communicatorChannel}</span>
+        <span class="text-cyan-600 font-semibold font-sans">Chat (demo): {communicatorChannel}</span>
         <span class="text-slate-300">•</span>
-        <span class="text-emerald-600 font-medium">{communicatorOnline} team members online</span>
+        <span class="text-emerald-600 font-medium">{communicatorOnline} sample members shown</span>
         <span class="text-slate-300">•</span>
-        <span class="text-cyan-600 font-mono text-[10px]">E2EE AES-256</span>
+        <span class="text-amber-700 font-sans text-[10px] flex items-center space-x-1" title="Simulated chat stored as plain text on this device. No messaging service or call is used.">
+          <Info size={10} />
+          <span>Simulated, not encrypted</span>
+        </span>
       </div>
     {/if}
 
     <div class="flex items-center space-x-2 border-l border-slate-200 pl-3 text-slate-400">
+      <span class="flex items-center space-x-1 {isOnline ? 'text-emerald-600' : 'text-amber-600'}" title={isOnline ? 'Network is available. Cloud AI providers are only contacted when you configure and use them.' : 'No network connection detected. Local editing and the built-in template assistant keep working.'}>
+        {#if isOnline}
+          <Wifi size={12} />
+          <span class="font-sans">Online</span>
+        {:else}
+          <WifiOff size={12} />
+          <span class="font-sans">Offline</span>
+        {/if}
+      </span>
+      <span>•</span>
       <span>UTF-8</span>
       <span>•</span>
       <span>100% Zoom</span>

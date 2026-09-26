@@ -16,19 +16,17 @@
     ReplyAll,
     Forward,
     Sparkles,
-    Printer,
-    CheckCircle2,
-    Tag,
     ChevronDown,
     Mail,
     RefreshCw,
     Download,
     X,
     Loader2
-  } from 'lucide-svelte';
+  } from '@lucide/svelte';
   import type { EmailMessage, EmailFolder, EmailAccount, AppSettings } from '../../types';
   import { DEFAULT_ACCOUNTS, loadEmails, saveEmails } from '../../lib/emailStore';
   import { processAiRequest } from '../../lib/ai';
+  import { buildReplyQuoteHtml, htmlToPlainText, sanitizeHtml, textToSafeHtml } from '../../lib/sanitize';
   import EmailComposeModal from './EmailComposeModal.svelte';
 
   export let settings: AppSettings;
@@ -167,6 +165,10 @@
 
   function handleSendCompose(e: CustomEvent<{ to: string[]; cc: string[]; subject: string; bodyHtml: string; attachments: any[] }>) {
     const { to, cc, subject, bodyHtml, attachments } = e.detail;
+    const safeBody = sanitizeHtml(bodyHtml);
+    const signature = settings.emailSignature
+      ? `<span style="color:#64748b; font-size:11px;">${textToSafeHtml(settings.emailSignature)}</span>`
+      : '';
     const newMail: EmailMessage = {
       id: `mail_${Date.now()}`,
       fromName: activeAccount.name,
@@ -175,8 +177,8 @@
       cc,
       subject,
       date: 'Just now',
-      preview: bodyHtml.replace(/<[^>]+>/g, '').slice(0, 100),
-      bodyHtml: `${bodyHtml}<br><br><span style="color:#64748b; font-size:11px;">${settings.emailSignature?.replace(/\n/g, '<br>') || ''}</span>`,
+      preview: htmlToPlainText(safeBody).slice(0, 100),
+      bodyHtml: sanitizeHtml(`${safeBody}<br><br>${signature}`),
       folder: 'sent',
       isUnread: false,
       isStarred: false,
@@ -191,6 +193,7 @@
 
   function handleSaveDraftCompose(e: CustomEvent<{ to: string[]; subject: string; bodyHtml: string; attachments: any[] }>) {
     const { to, subject, bodyHtml, attachments } = e.detail;
+    const safeBody = sanitizeHtml(bodyHtml);
     const draft: EmailMessage = {
       id: `draft_${Date.now()}`,
       fromName: activeAccount.name,
@@ -198,8 +201,8 @@
       to,
       subject,
       date: 'Just now',
-      preview: bodyHtml.replace(/<[^>]+>/g, '').slice(0, 100),
-      bodyHtml,
+      preview: htmlToPlainText(safeBody).slice(0, 100),
+      bodyHtml: safeBody,
       folder: 'drafts',
       isUnread: false,
       isStarred: false,
@@ -219,7 +222,7 @@
     try {
       const summary = await processAiRequest(
         'Summarize email with key takeaways and bullet point action items',
-        `From: ${selectedEmail.fromName} (${selectedEmail.fromEmail})\nSubject: ${selectedEmail.subject}\nBody: ${selectedEmail.bodyHtml.replace(/<[^>]+>/g, ' ')}`,
+        `From: ${selectedEmail.fromName} (${selectedEmail.fromEmail})\nSubject: ${selectedEmail.subject}\nBody: ${htmlToPlainText(selectedEmail.bodyHtml)}`,
         settings
       );
       aiSummary = summary;
@@ -257,7 +260,7 @@
       subject: selectedEmail.subject.startsWith('Re:') ? selectedEmail.subject : `Re: ${selectedEmail.subject}`,
       date: 'Just now',
       preview: inlineReplyText.slice(0, 100),
-      bodyHtml: `<p>${inlineReplyText.replace(/\n/g, '<br>')}</p>`,
+      bodyHtml: sanitizeHtml(`<p>${textToSafeHtml(inlineReplyText)}</p>`),
       folder: 'sent',
       isUnread: false,
       isStarred: false,
@@ -270,8 +273,12 @@
     updateSuiteStats();
   }
 
+  function buildReplyQuote(email: EmailMessage): string {
+    return buildReplyQuoteHtml(email.fromName, email.bodyHtml);
+  }
+
   // Exposed for Header Ribbon triggers
-  export function triggerRibbonAction(action: string, payload?: any) {
+  export function triggerRibbonAction(action: string, _payload?: any) {
     if (action === 'newMail') handleOpenNewCompose();
     else if (action === 'reply' && selectedEmail) handleReply(selectedEmail);
     else if (action === 'archive' && selectedEmail) handleArchive(selectedEmail);
@@ -480,10 +487,19 @@
         {#each filteredEmails as email (email.id)}
           {@const isSelected = selectedEmailId === email.id}
           <div
+            role="button"
+            tabindex="0"
+            aria-current={isSelected ? 'true' : undefined}
             class="p-3 cursor-pointer transition-colors relative
               {isSelected ? 'bg-indigo-950/40 border-l-3 border-indigo-500' : 'hover:bg-white/5'}
               {email.isUnread ? 'font-semibold text-white' : 'text-slate-300'}"
             on:click={() => selectEmail(email)}
+            on:keydown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                selectEmail(email);
+              }
+            }}
           >
             <!-- Top row: Sender name, date, unread dot -->
             <div class="flex items-center justify-between mb-1 text-xs">
@@ -650,7 +666,7 @@
               </button>
             </div>
             <div class="text-slate-200 leading-relaxed space-y-1">
-              {@html aiSummary.replace(/\n/g, '<br>')}
+              {@html textToSafeHtml(aiSummary)}
             </div>
           </div>
         {/if}
@@ -678,7 +694,7 @@
 
         <!-- Email Body HTML -->
         <div class="prose prose-invert max-w-none text-slate-200 text-sm leading-relaxed font-sans pt-2">
-          {@html selectedEmail.bodyHtml}
+          {@html sanitizeHtml(selectedEmail.bodyHtml)}
         </div>
 
         <!-- Quick AI Smart Replies & Inline Response -->
@@ -747,7 +763,7 @@
     <EmailComposeModal
       initialTo={composeReplyEmail ? composeReplyEmail.fromEmail : ''}
       initialSubject={composeReplyEmail ? (composeReplyEmail.subject.startsWith('Re:') ? composeReplyEmail.subject : `Re: ${composeReplyEmail.subject}`) : ''}
-      initialBodyHtml={composeReplyEmail ? `<br><br><blockquote>--- Original Message from ${composeReplyEmail.fromName} ---<br>${composeReplyEmail.bodyHtml}</blockquote>` : '<p><br></p>'}
+      initialBodyHtml={composeReplyEmail ? buildReplyQuote(composeReplyEmail) : '<p><br></p>'}
       replyToEmail={composeReplyEmail}
       {settings}
       on:close={() => (showComposeModal = false)}

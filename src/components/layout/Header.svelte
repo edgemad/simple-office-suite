@@ -7,7 +7,6 @@
     Presentation,
     Save,
     Download,
-    Printer,
     ChevronDown,
     Cloud,
     Star,
@@ -43,31 +42,26 @@
     CheckCircle2,
     Shield,
     Lock,
-    Eye,
     ZoomIn,
     ZoomOut,
     Maximize,
-    Sliders,
     Palette,
     Play,
     Calculator,
     MessageSquare,
     Plus,
-    X,
     FileSpreadsheet,
     FileCheck,
     Settings,
     Mail,
     Reply,
-    ReplyAll,
-    Forward,
     Archive,
     Trash2,
     Video,
     Phone,
     ExternalLink,
-    ShieldCheck
-  } from 'lucide-svelte';
+    Info
+  } from '@lucide/svelte';
   import type { AppSettings } from '../../types';
   import AiAssistantModal from './AiAssistantModal.svelte';
 
@@ -97,11 +91,28 @@
   let activeTab: string = 'Home';
   let isStarred = false;
   let showFileMenu = false;
+  let aiContext = '';
+
+  const moduleLabels: Record<WorkspaceMode, string> = {
+    writer: 'Writer (document editor)',
+    sheets: 'Sheet (spreadsheet editor)',
+    slides: 'Slides (presentation editor)',
+    pdf: 'PDF & form editor',
+    email: 'Mail (simulated demo mailbox)',
+    communicator: 'Communicator (simulated demo chat)',
+  };
+
+  const demoModeNotes: Partial<Record<WorkspaceMode, string>> = {
+    email:
+      'Demo mailbox: messages, folders, accounts, and attachments are fictional sample data stored locally. No mail server is contacted, nothing is sent or received, and no account can sign in.',
+    communicator:
+      'Demo chat: people, presence, messages, attachments, and the call screen are simulated locally. No login, no messaging service, no audio or video, and no uploads.',
+  };
 
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
   const modKey = isMac ? '⌘' : 'Ctrl';
 
-  // Ribbon tabs configuration strictly matching OnlyOffice user images
+  // Ribbon tab layout per workspace module
   const tabsByMode: Record<WorkspaceMode, string[]> = {
     writer: ['File', 'Home', 'Insert', 'Draw', 'Layout', 'References', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
     sheets: ['File', 'Home', 'Insert', 'Draw', 'Layout', 'Formula', 'Data', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
@@ -113,7 +124,7 @@
 
   $: currentTabs = tabsByMode[activeMode] || tabsByMode.writer;
 
-  // Active theme accent color matching OnlyOffice brand guidelines
+  // Active theme accent color per workspace module
   $: accentColor =
     activeMode === 'writer'
       ? { text: 'text-blue-500', hex: '#3b82f6', bg: 'bg-blue-600', ring: 'ring-blue-500' }
@@ -135,8 +146,41 @@
     showFileMenu = false;
     activeTab = tab;
     if (tab === 'AI') {
-      showAiModal = true;
+      openAiModal();
     }
+  }
+
+  function openAiModal() {
+    aiContext = buildAiContext();
+    showAiModal = true;
+  }
+
+  function collectWorkspaceText(): string {
+    if (typeof document === 'undefined') return '';
+    const root = document.querySelector('main');
+    if (!root) return '';
+    const text = (root.textContent || '').replace(/\s+/g, ' ').trim();
+    return text.length > 1600 ? `${text.slice(0, 1600)}...` : text;
+  }
+
+  function buildAiContext(): string {
+    const selection =
+      typeof window !== 'undefined' ? (window.getSelection()?.toString() || '').trim() : '';
+    const parts = [
+      `Workspace module: ${moduleLabels[activeMode]}`,
+      `Document title: ${meta.title || 'Untitled'}`,
+      `File path: ${meta.filePath || 'not saved yet'}`,
+      `Last saved: ${meta.lastSaved || 'never'}`,
+      `Unsaved changes: ${meta.isDirty ? 'yes' : 'no'}`,
+    ];
+    if (selection) {
+      parts.push(`Selected text: ${selection.slice(0, 1200)}`);
+    }
+    const workspaceText = collectWorkspaceText();
+    if (workspaceText) {
+      parts.push(`Visible workspace text: ${workspaceText}`);
+    }
+    return parts.join('\n');
   }
 
   function commitRename() {
@@ -180,35 +224,35 @@
       <!-- App Mode Icon -->
       <div class="flex items-center space-x-1.5">
         {#if activeMode === 'writer'}
-          <div class="w-6 h-6 rounded bg-blue-600 flex items-center justify-center text-white shadow-xs" title="OnlyOffice Document Editor">
+          <div class="w-6 h-6 rounded bg-blue-600 flex items-center justify-center text-white shadow-xs" title="Simple Office Suite Writer">
             <FileText size={14} />
           </div>
           <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Word</span>
         {:else if activeMode === 'sheets'}
-          <div class="w-6 h-6 rounded bg-emerald-600 flex items-center justify-center text-white shadow-xs" title="OnlyOffice Spreadsheet Editor">
+          <div class="w-6 h-6 rounded bg-emerald-600 flex items-center justify-center text-white shadow-xs" title="Simple Office Suite Sheet">
             <Sheet size={14} />
           </div>
           <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Sheet</span>
         {:else if activeMode === 'pdf'}
-          <div class="w-6 h-6 rounded bg-rose-600 flex items-center justify-center text-white shadow-xs" title="OnlyOffice PDF & Form Editor">
+          <div class="w-6 h-6 rounded bg-rose-600 flex items-center justify-center text-white shadow-xs" title="Simple Office Suite PDF & Forms">
             <FileCheck size={14} />
           </div>
           <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">PDF</span>
         {:else if activeMode === 'slides'}
-          <div class="w-6 h-6 rounded bg-orange-600 flex items-center justify-center text-white shadow-xs" title="OnlyOffice Presentation Editor">
+          <div class="w-6 h-6 rounded bg-orange-600 flex items-center justify-center text-white shadow-xs" title="Simple Office Suite Slides">
             <Presentation size={14} />
           </div>
           <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Slides</span>
         {:else if activeMode === 'email'}
-          <div class="w-6 h-6 rounded bg-indigo-600 flex items-center justify-center text-white shadow-xs" title="OnlyOffice Mail Client">
+          <div class="w-6 h-6 rounded bg-indigo-600 flex items-center justify-center text-white shadow-xs" title="Simple Office Suite Mail (simulated demo)">
             <Mail size={14} />
           </div>
           <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Mail</span>
         {:else}
-          <div class="w-6 h-6 rounded bg-cyan-600 flex items-center justify-center text-white shadow-xs" title="Teams Communicator">
+          <div class="w-6 h-6 rounded bg-cyan-600 flex items-center justify-center text-white shadow-xs" title="Simple Office Suite Communicator (simulated demo)">
             <MessageSquare size={14} />
           </div>
-          <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Teams</span>
+          <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Chat</span>
         {/if}
       </div>
 
@@ -276,7 +320,7 @@
       </div>
     </div>
 
-    <!-- Center: OnlyOffice 4-Mode Workspace Switcher (Word, Sheet, Slides, PDF) -->
+    <!-- Center: Workspace Switcher -->
     <nav class="flex items-center space-x-1 bg-black/40 p-0.5 rounded-lg border border-white/10">
       <button
         class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
@@ -322,7 +366,7 @@
         class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
           {activeMode === 'email' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}"
         on:click={() => dispatch('changeMode', 'email')}
-        title="Mail Client ({modKey}+5)"
+        title="Mail demo ({modKey}+5)"
       >
         <Mail size={13} />
         <span class="text-[11px]">Mail</span>
@@ -332,10 +376,10 @@
         class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
           {activeMode === 'communicator' ? 'bg-cyan-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}"
         on:click={() => dispatch('changeMode', 'communicator')}
-        title="Teams Communicator ({modKey}+6)"
+        title="Communicator demo ({modKey}+6)"
       >
         <MessageSquare size={13} />
-        <span class="text-[11px]">Teams</span>
+        <span class="text-[11px]">Chat</span>
       </button>
     </nav>
 
@@ -375,7 +419,7 @@
             <div class="py-1">
               {#if activeMode === 'writer'}
                 <button class="w-full px-3 py-1 text-left hover:bg-blue-600 flex items-center justify-between" on:click={() => handleExport('docx')}>
-                  <span>Microsoft Word (.docx)</span>
+                  <span>Word HTML adapter (.docx)</span>
                   <span class="text-[9px] text-slate-400 font-mono">DOCX</span>
                 </button>
                 <button class="w-full px-3 py-1 text-left hover:bg-blue-600 flex items-center justify-between" on:click={() => handleExport('rtf')}>
@@ -392,7 +436,7 @@
                 </button>
               {:else if activeMode === 'sheets'}
                 <button class="w-full px-3 py-1 text-left hover:bg-emerald-600 flex items-center justify-between" on:click={() => handleExport('xlsx')}>
-                  <span>Microsoft Excel (.xlsx)</span>
+                  <span>Spreadsheet XML adapter (.xlsx)</span>
                   <span class="text-[9px] text-slate-400 font-mono">XLSX</span>
                 </button>
                 <button class="w-full px-3 py-1 text-left hover:bg-emerald-600 flex items-center justify-between" on:click={() => handleExport('csv')}>
@@ -405,7 +449,7 @@
                 </button>
               {:else if activeMode === 'slides'}
                 <button class="w-full px-3 py-1 text-left hover:bg-orange-600 flex items-center justify-between" on:click={() => handleExport('pptx')}>
-                  <span>PowerPoint Deck (.pptx)</span>
+                  <span>Slide XML adapter (.pptx)</span>
                   <span class="text-[9px] text-slate-400 font-mono">PPTX</span>
                 </button>
               {:else if activeMode === 'pdf'}
@@ -431,7 +475,7 @@
     </div>
   </div>
 
-  <!-- ONLYOFFICE EXACT RIBBON TAB STRIP (As shown in user screenshots) -->
+  <!-- RIBBON TAB STRIP -->
   <div class="h-9 px-3 bg-[#222428] border-b border-[#2d3135] flex items-center space-x-1 overflow-x-auto relative select-none">
     {#each currentTabs as tab}
       {@const isActive = activeTab === tab}
@@ -447,7 +491,7 @@
           <span>{tab}</span>
         </button>
 
-        <!-- OnlyOffice Underline Indicator -->
+        <!-- Active Tab Underline Indicator -->
         {#if isActive}
           <div
             class="absolute bottom-0 left-0 right-0 h-[3px] transition-all"
@@ -455,7 +499,7 @@
           ></div>
         {/if}
 
-        <!-- OnlyOffice File Dropdown Menu -->
+        <!-- File Dropdown Menu -->
         {#if tab === 'File' && showFileMenu}
           <div class="absolute left-0 top-9 w-60 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl py-1 z-50 text-xs text-slate-200">
             <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('newDoc'); }}>
@@ -491,7 +535,7 @@
     {/each}
   </div>
 
-  <!-- ONLYOFFICE INTERACTIVE RIBBON ACTION TOOLBAR -->
+  <!-- RIBBON ACTION TOOLBAR -->
   <div class="h-10 px-4 bg-[#2b2d31] border-b border-[#36393f] flex items-center justify-between text-xs text-slate-300 overflow-x-auto shadow-inner">
     {#if activeTab === 'Home'}
       <!-- HOME TAB: Universal Formatting, Fonts, Styles & Mode-Specific Essentials -->
@@ -571,9 +615,9 @@
           </button>
         {:else if activeMode === 'communicator'}
           <div class="h-4 w-px bg-slate-700 mx-1"></div>
-          <button class="flex items-center space-x-1 px-2.5 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-medium shadow-xs" on:click={() => triggerAction('meetNow')}>
+          <button class="flex items-center space-x-1 px-2.5 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-medium shadow-xs" on:click={() => triggerAction('meetNow')} title="Opens the simulated call screen">
             <Video size={13} />
-            <span>Meet Now</span>
+            <span>Demo Call</span>
           </button>
           <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('detach')}>
             <ExternalLink size={13} />
@@ -809,7 +853,7 @@
           <span>Track Changes</span>
         </button>
         <div class="h-4 w-px bg-slate-700 mx-1"></div>
-        <span class="text-[11px] text-slate-400 font-mono">100% Offline • Local Mac Storage</span>
+        <span class="text-[11px] text-slate-400">Comments and tracked edits stay on this device</span>
       </div>
 
     {:else if activeTab === 'Protection'}
@@ -830,7 +874,7 @@
 
     {:else if activeTab === 'Channels'}
       <div class="flex items-center space-x-3">
-        <span class="text-xs text-white font-medium">Teams Channels:</span>
+        <span class="text-xs text-white font-medium">Sample channels:</span>
         <button class="px-2 py-0.5 rounded bg-white/10 text-cyan-300 text-xs">#general</button>
         <button class="px-2 py-0.5 rounded bg-white/10 text-slate-300 text-xs">#engineering</button>
         <button class="px-2 py-0.5 rounded bg-white/10 text-slate-300 text-xs">#product-design</button>
@@ -839,28 +883,28 @@
 
     {:else if activeTab === 'Calls'}
       <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-xs" on:click={() => triggerAction('meetNow')}>
+        <button class="flex items-center space-x-1 px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-xs" on:click={() => triggerAction('meetNow')} title="Opens the simulated call screen">
           <Video size={13} />
-          <span>Start Video Meeting</span>
+          <span>Open Demo Call Screen</span>
         </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('meetNow')}>
+        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('meetNow')} title="Opens the same simulated call screen">
           <Phone size={13} />
-          <span>Audio Call</span>
+          <span>Simulated Audio Panel</span>
         </button>
         <div class="h-4 w-px bg-slate-700 mx-1"></div>
-        <span class="text-cyan-400 text-xs flex items-center space-x-1">
-          <ShieldCheck size={12} />
-          <span>End-to-End Encrypted</span>
+        <span class="text-amber-300 text-xs flex items-center space-x-1">
+          <Info size={12} />
+          <span>Simulated call, no audio or video is used</span>
         </span>
       </div>
 
     {:else if activeTab === 'Security'}
       <div class="flex items-center space-x-3">
-        <div class="flex items-center space-x-1.5 px-2 py-1 rounded bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 text-xs font-medium">
-          <ShieldCheck size={14} class="text-cyan-400" />
-          <span>AES-256-GCM + Ed25519 Local Session Guard: Active</span>
+        <div class="flex items-center space-x-1.5 px-2 py-1 rounded bg-amber-950/50 border border-amber-500/30 text-amber-200 text-xs font-medium">
+          <Info size={14} class="text-amber-300" />
+          <span>No encryption in this demo: chat text is stored as plain text in the app profile</span>
         </div>
-        <span class="text-slate-400 text-xs">100% Zero-Cloud Storage</span>
+        <span class="text-slate-400 text-xs">No accounts, sessions, or encryption keys exist</span>
       </div>
 
     {:else if activeTab === 'Folder'}
@@ -897,7 +941,7 @@
           <Settings size={13} />
           <span>Manage Accounts...</span>
         </button>
-        <span class="text-slate-400 text-xs">Local Mailstore: 100% Offline</span>
+        <span class="text-slate-400 text-xs">Sample mailbox: no mail server is connected</span>
       </div>
 
     {:else if activeTab === 'View'}
@@ -944,20 +988,19 @@
       </div>
 
     {:else if activeTab === 'AI'}
-      <!-- AI TAB: OnlyOffice AI Assistant Shortcuts -->
       <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1.5 px-3 py-1 rounded bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-xs" on:click={() => (showAiModal = true)}>
+        <button class="flex items-center space-x-1.5 px-3 py-1 rounded bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-xs" on:click={openAiModal}>
           <Sparkles size={13} />
           <span>Open AI Assistant</span>
         </button>
-        <button class="px-2 py-1 rounded hover:bg-white/10 text-purple-300" on:click={() => { showAiModal = true; }}>
+        <button class="px-2 py-1 rounded hover:bg-white/10 text-purple-300" on:click={openAiModal}>
           <span>Summarize Document</span>
         </button>
-        <button class="px-2 py-1 rounded hover:bg-white/10 text-purple-300" on:click={() => { showAiModal = true; }}>
+        <button class="px-2 py-1 rounded hover:bg-white/10 text-purple-300" on:click={openAiModal}>
           <span>Rewrite & Polish</span>
         </button>
         {#if activeMode === 'sheets'}
-          <button class="px-2 py-1 rounded hover:bg-white/10 text-emerald-300" on:click={() => { showAiModal = true; }}>
+          <button class="px-2 py-1 rounded hover:bg-white/10 text-emerald-300" on:click={openAiModal}>
             <span>Build Formula</span>
           </button>
         {/if}
@@ -966,15 +1009,24 @@
 
     <!-- Right Side Indicator -->
     <div class="flex items-center space-x-2 text-[11px] text-slate-400 font-mono">
-      <span class="capitalize">{activeMode === 'writer' ? 'Word Document' : activeMode === 'sheets' ? 'Spreadsheet' : activeMode === 'pdf' ? 'PDF Form' : 'Slide Deck'}</span>
+      <span>{moduleLabels[activeMode]}</span>
     </div>
   </div>
+
+  {#if demoModeNotes[activeMode]}
+    <div class="px-4 py-1.5 bg-amber-950/50 border-b border-amber-700/40 text-[11px] text-amber-100 flex items-start space-x-2">
+      <Info size={12} class="text-amber-300 shrink-0 mt-0.5" />
+      <span>{demoModeNotes[activeMode]}</span>
+    </div>
+  {/if}
 </header>
 
 <!-- AI Assistant Modal Dialog -->
 {#if showAiModal}
   <AiAssistantModal
     {activeMode}
+    {settings}
+    currentContext={aiContext}
     on:apply={handleAiApply}
     on:close={() => (showAiModal = false)}
   />

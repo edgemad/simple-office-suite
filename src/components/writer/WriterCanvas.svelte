@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, createEventDispatcher } from 'svelte';
   import { countWordsAndChars } from '../../lib/utils';
+  import { escapeHtml, sanitizeHtml, sanitizeImageUrl, sanitizeLinkUrl } from '../../lib/sanitize';
 
   export let contentHtml: string = '';
   export let pageSize: 'a4' | 'letter' = 'a4';
@@ -11,6 +12,14 @@
 
   let editorElement: HTMLDivElement;
 
+  $: safeContentHtml = sanitizeHtml(contentHtml);
+
+  function setEditorHtml(html: string) {
+    if (!editorElement) return;
+    editorElement.innerHTML = sanitizeHtml(html);
+    handleInput();
+  }
+
   export function execCommand(command: string, value: string = '') {
     if (!editorElement) return;
     editorElement.focus();
@@ -20,16 +29,20 @@
 
   export function insertImage(src: string, alt: string = 'Image') {
     if (!editorElement) return;
+    const safeSrc = sanitizeImageUrl(src);
+    if (!safeSrc) return;
     editorElement.focus();
-    const imgHtml = `<p><img src="${src}" alt="${alt}" style="max-width: 100%; height: auto; border-radius: 6px; margin: 12px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" /></p><p><br></p>`;
-    document.execCommand('insertHTML', false, imgHtml);
+    const imgHtml = `<p><img src="${escapeHtml(safeSrc)}" alt="${escapeHtml(alt)}" style="max-width: 100%; height: auto; border-radius: 6px; margin: 12px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" /></p><p><br></p>`;
+    document.execCommand('insertHTML', false, sanitizeHtml(imgHtml));
     handleInput();
   }
 
   export function insertLink(url: string) {
     if (!editorElement) return;
+    const safeUrl = sanitizeLinkUrl(url);
+    if (!safeUrl) return;
     editorElement.focus();
-    document.execCommand('createLink', false, url);
+    document.execCommand('createLink', false, safeUrl);
     handleInput();
   }
 
@@ -60,7 +73,7 @@
       </table>
       <p><br></p>
     `;
-    document.execCommand('insertHTML', false, tableHtml);
+    document.execCommand('insertHTML', false, sanitizeHtml(tableHtml));
     handleInput();
   }
 
@@ -69,16 +82,15 @@
     const html = editorElement.innerHTML;
     if (all) {
       const regex = new RegExp(findStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-      editorElement.innerHTML = html.replace(regex, replaceStr);
+      setEditorHtml(html.replace(regex, replaceStr));
     } else {
-      editorElement.innerHTML = html.replace(findStr, replaceStr);
+      setEditorHtml(html.replace(findStr, replaceStr));
     }
-    handleInput();
   }
 
   function handleInput() {
     if (!editorElement) return;
-    const html = editorElement.innerHTML;
+    const html = sanitizeHtml(editorElement.innerHTML);
     const text = editorElement.innerText || '';
     const { words, chars } = countWordsAndChars(text);
 
@@ -91,14 +103,13 @@
   }
 
   onMount(() => {
-    if (editorElement && contentHtml) {
-      editorElement.innerHTML = contentHtml;
-      handleInput();
+    if (editorElement) {
+      setEditorHtml(contentHtml);
     }
   });
 
-  $: if (editorElement && contentHtml !== editorElement.innerHTML) {
-    editorElement.innerHTML = contentHtml;
+  $: if (editorElement && safeContentHtml !== editorElement.innerHTML) {
+    editorElement.innerHTML = safeContentHtml;
     handleInput();
   }
 </script>
@@ -110,6 +121,7 @@
     contenteditable="true"
     spellcheck="true"
     role="textbox"
+    tabindex="0"
     aria-multiline="true"
     class="document-page shadow-md hover:shadow-lg transition-all cursor-text {pageSize === 'letter' ? 'w-[8.5in] min-h-[11in]' : 'w-[210mm] min-h-[297mm]'}"
     on:input={handleInput}

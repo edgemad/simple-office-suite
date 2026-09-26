@@ -2,32 +2,19 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import {
     Hash,
-    Lock,
-    Users,
+    Info,
     Video,
-    Phone,
     ExternalLink,
-    Search,
     Send,
-    Smile,
-    Paperclip,
     Sparkles,
     FileText,
     FileSpreadsheet,
     Presentation,
     FileCheck,
-    Plus,
-    X,
-    ShieldCheck,
-    Check,
     ChevronDown,
     Building2,
-    Settings,
-    LogIn,
-    Maximize2,
-    Minimize2,
-    MessageSquare
-  } from 'lucide-svelte';
+    LogIn
+  } from '@lucide/svelte';
   import type {
     CommunicatorUser,
     ChatChannel,
@@ -36,8 +23,8 @@
     AppSettings
   } from '../../types';
   import {
-    TEAM_USERS,
     INITIAL_CHANNELS,
+    COMMUNICATOR_DEMO_NOTICE,
     loadCurrentCommunicatorUser,
     loadCommunicatorMessages,
     saveCommunicatorMessages
@@ -64,7 +51,6 @@
   let showLoginModal: boolean = false;
   let showCallModal: boolean = false;
   let isAiDrafting: boolean = false;
-  let searchQuery: string = '';
 
   let chatScrollContainer: HTMLDivElement;
 
@@ -76,13 +62,9 @@
   $: userOrgName = getOrgName(currentUser.email);
 
   function getOrgName(email: string): string {
-    if (!email || !email.includes('@')) return 'Local Team Workspace';
+    if (!email || !email.includes('@')) return 'Demo workspace';
     const domain = email.split('@')[1].toLowerCase();
-    if (['gmail.com', 'outlook.com', 'yahoo.com', 'icloud.com'].includes(domain)) {
-      return 'Personal Secure Workspace';
-    }
-    const org = domain.split('.')[0];
-    return `${org.charAt(0).toUpperCase() + org.slice(1)} Enterprise`;
+    return `Demo workspace • ${domain}`;
   }
 
   onMount(() => {
@@ -124,7 +106,7 @@
       senderRole: currentUser.role,
       content: chatInputText.trim(),
       timestamp: 'Just now',
-      isEncrypted: true,
+      isEncrypted: false,
       reactions: {},
     };
 
@@ -137,23 +119,22 @@
     chatInputText = '';
     scrollToBottom();
 
-    // Auto-respond if talking to AI Bot
     if (activeChannelId === 'dm_ai') {
       setTimeout(async () => {
         const aiResponse = await processAiRequest(
-          'Provide helpful team communicator response',
+          'Provide a helpful reply for this demo chat',
           newMsg.content,
           settings
         );
         const botMsg: ChatMessage = {
           id: `msg_ai_${Date.now()}`,
           senderId: 'user_ai',
-          senderName: 'OnlyOffice AI Copilot',
+          senderName: 'Suite AI Assistant',
           senderAvatar: 'AI',
-          senderRole: 'Intelligent Office Bot',
+          senderRole: 'Built-in Assistant',
           content: aiResponse,
           timestamp: 'Just now',
-          isEncrypted: true,
+          isEncrypted: false,
         };
         messagesByChannel[activeChannelId] = [...messagesByChannel[activeChannelId], botMsg];
         saveCommunicatorMessages(messagesByChannel);
@@ -178,10 +159,10 @@
 
   function attachSuiteFile(type: 'docx' | 'xlsx' | 'pptx' | 'pdf') {
     const names = {
-      docx: 'Project_Specification.docx',
-      xlsx: 'Financial_Projections.xlsx',
-      pptx: 'Executive_Deck.pptx',
-      pdf: 'Service_Agreement.pdf',
+      docx: 'Sample_Document.docx',
+      xlsx: 'Sample_Budget.xlsx',
+      pptx: 'Sample_Deck.pptx',
+      pdf: 'Sample_Agreement.pdf',
     };
     const sizes = { docx: '34 KB', xlsx: '28 KB', pptx: '2.4 MB', pdf: '410 KB' };
 
@@ -198,9 +179,9 @@
       senderName: currentUser.name,
       senderAvatar: currentUser.avatar,
       senderRole: currentUser.role,
-      content: `Shared an office document with the team: **${names[type]}**`,
+      content: `Added a demo document entry to this channel: **${names[type]}** (placeholder only, no file was uploaded)`,
       timestamp: 'Just now',
-      isEncrypted: true,
+      isEncrypted: false,
       attachments: [att],
     };
 
@@ -212,9 +193,13 @@
   async function handleAiAssist() {
     isAiDrafting = true;
     try {
+      const transcript = currentMessages
+        .slice(-6)
+        .map(m => `${m.senderName}: ${m.content}`)
+        .join('\n');
       const generated = await processAiRequest(
-        `Draft team standup and progress update for channel #${activeChannel.name}`,
-        'Context: Simple Office Suite v1.0.0 packaging complete across platforms.',
+        `Draft a short team update for the demo channel #${activeChannel.name}`,
+        transcript || 'Local demo workspace for the Simple Office Suite sample build.',
         settings
       );
       chatInputText = generated;
@@ -244,7 +229,7 @@
     dispatch('detachWindow');
   }
 
-  export function triggerRibbonAction(action: string, payload?: any) {
+  export function triggerRibbonAction(action: string, _payload?: any) {
     if (action === 'meetNow') showCallModal = true;
     else if (action === 'detach') handleDetach();
     else if (action === 'switchAccount') showLoginModal = true;
@@ -254,7 +239,7 @@
 
 <div class="flex-1 flex overflow-hidden bg-[#18191c] text-slate-200 select-none font-sans">
   
-  <!-- LEFT: Teams Channels & DMs Sidebar -->
+  <!-- LEFT: Sample Channels & Direct Messages Sidebar -->
   <aside class="w-64 bg-[#141517] border-r border-[#26282b] flex flex-col shrink-0">
     
     <!-- Workspace / Organization Banner -->
@@ -266,9 +251,9 @@
           </div>
           <div class="truncate">
             <span class="font-bold text-white text-xs block truncate">{userOrgName}</span>
-            <div class="flex items-center space-x-1 text-[10px] text-cyan-400 font-medium">
-              <ShieldCheck size={11} />
-              <span>E2EE Active</span>
+            <div class="flex items-center space-x-1 text-[10px] text-amber-300 font-medium">
+              <Info size={11} />
+              <span>Local demo chat • not encrypted</span>
             </div>
           </div>
         </div>
@@ -283,8 +268,9 @@
       </div>
 
       <!-- Current User Profile Card -->
-      <div
-        class="mt-2.5 p-2 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/10 transition-colors"
+      <button
+        type="button"
+        class="mt-2.5 p-2 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/10 transition-colors w-full text-left"
         on:click={() => (showLoginModal = true)}
         title="Edit Profile & Email"
       >
@@ -306,7 +292,7 @@
         </div>
 
         <ChevronDown size={13} class="text-slate-400" />
-      </div>
+      </button>
     </div>
 
     <!-- Navigation List: Channels & DMs -->
@@ -382,14 +368,17 @@
 
     <!-- Bottom Quick Action: Detach Standalone Button -->
     <div class="p-3 bg-[#101113] border-t border-[#26282b] flex items-center justify-between text-xs">
-      <button
-        class="flex items-center space-x-1.5 text-cyan-400 hover:text-cyan-300 font-medium text-[11px]"
-        on:click={handleDetach}
-        title="Open Communicator in an independent standalone window"
-      >
-        <ExternalLink size={13} />
-        <span>Detach Standalone App</span>
-      </button>
+      {#if !isStandaloneWindow}
+        <button
+          type="button"
+          class="flex items-center space-x-1.5 text-cyan-400 hover:text-cyan-300 font-medium text-[11px]"
+          on:click={handleDetach}
+          title="Open Communicator in an independent standalone window"
+        >
+          <ExternalLink size={13} />
+          <span>Detach Standalone App</span>
+        </button>
+      {/if}
 
       <span class="text-[10px] text-slate-500 font-mono">v1.0.0</span>
     </div>
@@ -422,32 +411,38 @@
       <!-- Action Buttons -->
       <div class="flex items-center space-x-2">
         
-        <!-- E2EE Badge -->
-        <div class="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 text-[10px] font-medium">
-          <ShieldCheck size={11} class="text-cyan-400" />
-          <span>E2EE AES-256</span>
+        <div class="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-950/50 border border-amber-500/30 text-amber-200 text-[10px] font-medium">
+          <Info size={11} class="text-amber-300" />
+          <span>Local demo data</span>
         </div>
 
-        <!-- Meet Now / Call Button -->
         <button
           class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-all shadow-xs"
           on:click={() => (showCallModal = true)}
-          title="Start or Join Team Video Call"
+          title="Open the simulated call screen (no audio, video, or network)"
         >
           <Video size={13} />
           <span>Meet Now</span>
         </button>
 
         <!-- Detach Button -->
-        <button
-          class="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-          on:click={handleDetach}
-          title="Detach into Standalone Window"
-        >
-          <ExternalLink size={15} />
-        </button>
+        {#if !isStandaloneWindow}
+          <button
+            type="button"
+            class="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+            on:click={handleDetach}
+            title="Detach into Standalone Window"
+          >
+            <ExternalLink size={15} />
+          </button>
+        {/if}
       </div>
     </header>
+
+    <div class="px-5 py-2 bg-amber-950/40 border-b border-amber-700/40 text-[11px] text-amber-100 flex items-start space-x-2 shrink-0">
+      <Info size={13} class="text-amber-300 shrink-0 mt-0.5" />
+      <span>{COMMUNICATOR_DEMO_NOTICE} Messages and attachments are stored as plain text in the app profile.</span>
+    </div>
 
     <!-- Messages Feed -->
     <div
@@ -455,7 +450,6 @@
       class="flex-1 p-5 overflow-y-auto space-y-4"
     >
       {#each currentMessages as msg (msg.id)}
-        {@const isMe = msg.senderId === currentUser.id}
         <div class="flex items-start space-x-3 group">
           <!-- Avatar -->
           <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-slate-700 to-slate-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
@@ -470,9 +464,6 @@
                 <span class="text-[10px] text-cyan-400/90 font-medium">[{msg.senderRole}]</span>
               {/if}
               <span class="text-[10px] text-slate-500">{msg.timestamp}</span>
-              {#if msg.isEncrypted}
-                <Lock size={10} class="text-slate-500" title="End-to-End Encrypted" />
-              {/if}
             </div>
 
             <!-- Text Body -->
@@ -503,12 +494,16 @@
                     <button
                       class="px-2 py-1 rounded bg-white/10 hover:bg-cyan-600 hover:text-white text-[11px] font-medium text-slate-200 transition-colors"
                       on:click={() => dispatch('openOfficeDoc', { type: att.type, name: att.name })}
+                      title="Switches to the matching workspace. The demo attachment has no stored file."
                     >
                       Open
                     </button>
                   </div>
                 {/each}
               </div>
+              <p class="mt-1.5 text-[10px] text-amber-200/70">
+                Demo attachment: no file data is stored or transferred. "Open" only switches workspaces.
+              </p>
             {/if}
 
             <!-- Reactions Bar -->
@@ -599,7 +594,7 @@
               class="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-semibold transition-all shadow-xs"
               on:click={handleAiAssist}
               disabled={isAiDrafting}
-              title="Draft team update with OnlyOffice AI"
+              title="Draft an update with the built-in template assistant or the model configured in Settings"
             >
               <Sparkles size={12} class="text-purple-300" />
               <span>{isAiDrafting ? 'Drafting...' : 'AI Assist'}</span>

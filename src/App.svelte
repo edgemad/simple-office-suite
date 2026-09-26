@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { WorkspaceMode, WriterDocument, SpreadsheetWorkbook, SlideDeck, PdfDocument } from './types';
+  import type { WorkspaceMode, DocumentMeta, WriterDocument, SpreadsheetWorkbook, SlideDeck, PdfDocument } from './types';
   import Header from './components/layout/Header.svelte';
   import StatusBar from './components/layout/StatusBar.svelte';
   import ShortcutsModal from './components/layout/ShortcutsModal.svelte';
   import SettingsModal from './components/layout/SettingsModal.svelte';
   import type { AppSettings } from './types';
-  import { loadSettings, saveSettings, DEFAULT_SETTINGS } from './lib/settings';
+  import { loadSettings, DEFAULT_SETTINGS } from './lib/settings';
   import Writer from './components/writer/Writer.svelte';
   import Sheets from './components/sheets/Sheets.svelte';
   import Slides from './components/slides/Slides.svelte';
@@ -22,13 +22,16 @@
   } from './lib/tauri';
   import { autoSaver } from './lib/storage';
   import { downloadFile, triggerPrintToPdf, htmlToMarkdown } from './lib/utils';
+  import { htmlToPlainText, sanitizeHtml } from './lib/sanitize';
   import {
     exportToDocx,
     exportToRtf,
     exportToXlsx,
     exportToPptxXml,
     parseDocumentContent,
-    parseSpreadsheetContent
+    parseSpreadsheetContent,
+    sanitizeImportedSlideDeck,
+    sanitizeImportedWriterDocument
   } from './lib/fileFormats';
   import { recalculateGrid } from './components/sheets/formulaEngine';
 
@@ -54,8 +57,7 @@
   let communicatorRef: Communicator;
 
   let communicatorChannel = '#general';
-  let communicatorUnread = 3;
-  let communicatorMeta = {
+  let communicatorMeta: DocumentMeta = {
     id: 'doc_comm_1',
     title: 'Teams — Simple Communicator',
     isDirty: false,
@@ -66,7 +68,7 @@
   let emailTotal = 5;
   let emailUnread = 1;
   let emailFolder = 'INBOX';
-  let emailMeta = {
+  let emailMeta: DocumentMeta = {
     id: 'doc_email_1',
     title: 'Inbox — Simple Office Mail',
     isDirty: false,
@@ -93,16 +95,16 @@
     },
     contentHtml: `
       <h1>Simple Office Suite (SOS) Project Brief</h1>
-      <p>Welcome to <strong>SOS Word</strong> — your lightweight, high-performance, full-featured office word processor.</p>
-      <h2>Comprehensive Features Included</h2>
+      <p>Welcome to <strong>SOS Writer</strong>, a local document editor built with Svelte and Tauri. This is an alpha build, so a few things are still prototypes.</p>
+      <h2>What works today</h2>
       <ul>
-        <li><strong>Full Font Selections</strong>: Inter, Arial, Times New Roman, Georgia, Merriweather, JetBrains Mono, Courier New, Trebuchet MS.</li>
-        <li><strong>Rich Typography</strong>: Font sizes, bold, italic, underline, strike, colors, highlights, subscript, superscript, line spacing.</li>
-        <li><strong>Universal File Formats</strong>: Open & Export <strong>.docx, .rtf, .md, .txt, .html, and PDF</strong>.</li>
-        <li><strong>Document Elements</strong>: Insert tables, embed local images, create hyperlinks, dividers, and real-time Find & Replace.</li>
+        <li><strong>Typography</strong>: Inter, Arial, Times New Roman, Georgia, Merriweather, JetBrains Mono, Courier New, Trebuchet MS, with sizes, bold, italic, underline, strike, colors, highlights, sub/superscript, and line spacing.</li>
+        <li><strong>File formats</strong>: import <strong>.docx (text and basic bold/italic), .md, .txt, .html, .rtf, and suite .sosw</strong>; export Markdown, plain text, HTML, RTF, suite JSON, and a <strong>.docx-named HTML adapter</strong> that is not a binary Word file.</li>
+        <li><strong>Document elements</strong>: tables, embedded local images, hyperlinks, dividers, and find &amp; replace.</li>
+        <li><strong>Local by default</strong>: your documents stay on this machine. Cloud AI is optional and only used if you configure a provider in Settings.</li>
       </ul>
-      <blockquote>\"Simplicity is the soul of efficiency.\" — Austin Freeman</blockquote>
-      <p>Draft your thoughts with zero bloat and complete privacy.</p>
+      <blockquote>&quot;Simplicity is the soul of efficiency.&quot; — Austin Freeman</blockquote>
+      <p>Mail and Communicator are local demo modules with no mail or chat server behind them.</p>
     `,
     contentMarkdown: '',
     wordCount: 65,
@@ -186,7 +188,7 @@
             y: 42,
             width: 80,
             height: 25,
-            content: 'Full-Featured, Powerhouse Productivity with Sub-30MB Footprint',
+            content: 'A local-first alpha suite with a small footprint',
             fontColor: '#94a3b8',
             fontSize: 20,
           },
@@ -197,7 +199,7 @@
             y: 65,
             width: 45,
             height: 18,
-            content: '⚡ Cross-Platform • Offline-First • Multi-Format',
+            content: 'Local-First • Optional Cloud AI • Honest Limits',
             bgColor: '#1e293b',
             fontColor: '#38bdf8',
           },
@@ -226,7 +228,7 @@
             y: 26,
             width: 44,
             height: 55,
-            content: '• Comprehensive Font & Typography selections\\n• Full MS Office format compatibility (.docx, .xlsx, .pptx)\\n• Math & Logic formula engine (SUM, AVG, COUNT, IF, VLOOKUP)\\n• Interactive Slide Layouts & Presenter Stopwatch',
+            content: '• Font & typography selections\\n• Local file adapters: .docx text, .md, .html, .rtf, .csv, .tsv\\n• Formula engine (SUM, AVERAGE, IF, COUNTIF, VLOOKUP, …)\\n• Slide organizer with presenter timer',
             fontSize: 16,
           },
           {
@@ -236,7 +238,7 @@
             y: 26,
             width: 38,
             height: 55,
-            content: '// Multi-Format Universal Engine\\nexport function exportToDocx(doc) {\\n  return generateWordXml(doc);\\n}',
+            content: '// Sanitized document HTML\\nexport function toSafeHtml(input) {\\n  return DOMPurify.sanitize(input, CONFIG);\\n}',
           },
         ],
         notes: 'Walk through technical stack and modularity.',
@@ -454,9 +456,15 @@
         sheetsWorkbook.meta.lastSaved = new Date().toISOString();
       } else if (['pptx', 'odp', 'sosp'].includes(ext || '')) {
         activeMode = 'slides';
+        let importedDeck: SlideDeck | null = null;
         try {
-          slidesDeck = JSON.parse(content);
+          importedDeck = sanitizeImportedSlideDeck(JSON.parse(content), slidesDeck.meta);
         } catch {
+          importedDeck = null;
+        }
+        if (importedDeck) {
+          slidesDeck = importedDeck;
+        } else {
           slidesDeck.meta.title = selectedPath.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Presentation';
         }
         slidesDeck.meta.filePath = selectedPath;
@@ -475,13 +483,14 @@
         activeMode = 'writer';
         if (selectedPath.endsWith('.sosw') || (selectedPath.endsWith('.json') && content.includes('contentHtml'))) {
           try {
-            writerDoc = JSON.parse(content);
+            writerDoc = sanitizeImportedWriterDocument(JSON.parse(content), writerDoc.meta);
           } catch {
-            writerDoc.contentHtml = content;
+            writerDoc.contentHtml = sanitizeHtml(content);
           }
         } else {
           writerDoc.contentHtml = parseDocumentContent(content, selectedPath);
         }
+        writerDoc.contentHtml = sanitizeHtml(writerDoc.contentHtml);
         writerDoc.meta.filePath = selectedPath;
         writerDoc.meta.title = selectedPath.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Document';
         writerDoc.meta.isDirty = false;
@@ -537,7 +546,7 @@
       } else if (ext === 'md') {
         payload = htmlToMarkdown(writerDoc.contentHtml);
       } else if (ext === 'txt') {
-        payload = writerDoc.contentHtml.replace(/<[^>]+>/g, '');
+        payload = htmlToPlainText(writerDoc.contentHtml);
       } else {
         payload = JSON.stringify(writerDoc, null, 2);
       }
@@ -594,10 +603,10 @@
       const data = htmlToMarkdown(writerDoc.contentHtml);
       downloadFile(`${baseName}.md`, data, 'text/markdown');
     } else if (fmt === 'txt') {
-      const data = writerDoc.contentHtml.replace(/<[^>]+>/g, '');
+      const data = htmlToPlainText(writerDoc.contentHtml);
       downloadFile(`${baseName}.txt`, data, 'text/plain');
     } else if (fmt === 'html') {
-      downloadFile(`${baseName}.html`, writerDoc.contentHtml, 'text/html');
+      downloadFile(`${baseName}.html`, sanitizeHtml(writerDoc.contentHtml), 'text/html');
     } else if (fmt === 'xlsx') {
       const data = exportToXlsx(sheetsWorkbook);
       downloadFile(`${baseName}.xlsx`, data, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -840,7 +849,6 @@
         settings={appSettings}
         isStandaloneWindow={false}
         on:updateStats={(e) => {
-          communicatorUnread = e.detail.unread;
           communicatorChannel = e.detail.activeChannel;
         }}
         on:detachWindow={openDetachedCommunicatorNative}

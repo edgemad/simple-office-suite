@@ -123,21 +123,49 @@ export async function readAutoSaveSnapshotNative(
 export async function getSystemMetricsNative(): Promise<SystemMetrics> {
   if (isTauri()) {
     try {
-      return await invokeCommand<SystemMetrics>('get_system_metrics');
+      const metrics = await invokeCommand<SystemMetrics>('get_system_metrics');
+      return { ...metrics, is_offline: !isNetworkOnline() };
     } catch {
       // fallback
     }
   }
 
-  // Simulated metrics for browser testing
+  // Simulated metrics for the browser preview build
   return {
-    platform: navigator.platform.includes('Mac') ? 'macOS' : 'Linux/Windows',
+    platform: detectPlatform(),
     arch: 'arm64/x64',
     memory_used_mb: 48.6,
     total_memory_mb: 16384.0,
     cpu_count: navigator.hardwareConcurrency || 8,
-    is_offline: !navigator.onLine || true,
+    is_offline: !isNetworkOnline(),
   };
+}
+
+export function isNetworkOnline(): boolean {
+  if (typeof navigator === 'undefined') return true;
+  return navigator.onLine !== false;
+}
+
+export function subscribeNetworkStatus(callback: (isOnline: boolean) => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  const handleOnline = () => callback(true);
+  const handleOffline = () => callback(false);
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
+  return () => {
+    window.removeEventListener('online', handleOnline);
+    window.removeEventListener('offline', handleOffline);
+  };
+}
+
+function detectPlatform(): string {
+  if (typeof navigator === 'undefined') return 'Unknown';
+  const source = `${navigator.userAgent} ${(navigator as any).platform || ''}`.toLowerCase();
+  if (source.includes('mac')) return 'macOS';
+  if (source.includes('win')) return 'Windows';
+  if (source.includes('android')) return 'Android';
+  if (source.includes('linux') || source.includes('x11')) return 'Linux';
+  return 'Unknown';
 }
 
 export async function openDetachedCommunicatorNative(): Promise<void> {

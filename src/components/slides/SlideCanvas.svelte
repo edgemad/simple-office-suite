@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import type { Slide, SlideElement } from '../../types';
-  import { Code, Image as ImageIcon, TrendingUp } from 'lucide-svelte';
+  import { Code, Image as ImageIcon } from '@lucide/svelte';
 
   export let slide: Slide;
   export let selectedElementId: string | null = null;
@@ -16,7 +16,7 @@
   let dragOffset = { x: 0, y: 0 };
   let canvasContainer: HTMLDivElement;
 
-  function handleSelect(id: string, e: MouseEvent) {
+  function handleSelect(id: string, e: Event) {
     e.stopPropagation();
     selectedElementId = id;
     dispatch('selectElement', id);
@@ -97,8 +97,14 @@
 <svelte:window on:mousemove={handleMouseMove} on:mouseup={handleMouseUp} />
 
 <div
+  role="button"
+  tabindex="0"
+  aria-label="Slide canvas"
   class="flex-1 bg-slate-200 overflow-auto p-8 flex items-center justify-center select-none"
   on:click={handleCanvasClick}
+  on:keydown={(event) => {
+    if (event.key === 'Escape') handleCanvasClick();
+  }}
 >
   <!-- 16:9 Presentation Stage -->
   <div
@@ -109,6 +115,9 @@
     {#each slide.elements as elem (elem.id)}
       {@const isSelected = selectedElementId === elem.id}
       <div
+        role="button"
+        tabindex="0"
+        aria-label={`Slide ${elem.type} element`}
         class="absolute cursor-move transition-shadow rounded-lg p-2 group
           {isSelected ? 'ring-2 ring-orange-500 shadow-lg' : 'hover:ring-1 hover:ring-slate-300'}"
         style="
@@ -122,6 +131,12 @@
         "
         on:mousedown={(e) => handleMouseDown(elem, e)}
         on:click={(e) => handleSelect(elem.id, e)}
+        on:keydown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            handleSelect(elem.id, event);
+          }
+        }}
       >
         {#if elem.type === 'title'}
           <input
@@ -189,13 +204,14 @@
               </button>
             </div>
           {:else}
-            <div
+            <button
+              type="button"
               class="w-full h-36 bg-slate-100/10 border-2 border-dashed border-slate-400/50 rounded-lg flex flex-col items-center justify-center p-4 cursor-pointer hover:bg-slate-100/20 transition-colors"
               on:click={() => handleImageUpload(elem.id)}
             >
               <ImageIcon size={32} class="opacity-40 mb-1" />
               <span class="text-xs opacity-75 font-medium">Click to Upload Local Image</span>
-            </div>
+            </button>
           {/if}
         {/if}
       </div>

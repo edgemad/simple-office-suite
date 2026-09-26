@@ -23,10 +23,9 @@
     Subscript,
     Superscript,
     Search,
-    Type,
     Baseline,
     Highlighter
-  } from 'lucide-svelte';
+  } from '@lucide/svelte';
 
   const dispatch = createEventDispatcher<{
     format: { command: string; value?: string };

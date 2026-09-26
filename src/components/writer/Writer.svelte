@@ -3,7 +3,7 @@
   import WriterToolbar from './WriterToolbar.svelte';
   import WriterCanvas from './WriterCanvas.svelte';
   import type { DocumentMeta } from '../../types';
-  import { Search, X, Replace, FileText } from 'lucide-svelte';
+  import { Search, X, Replace, FileText } from '@lucide/svelte';
 
   export let meta: DocumentMeta;
   export let contentHtml: string = `
@@ -95,7 +95,7 @@
 
   function handleFindNext() {
     if (findQuery && canvasRef) {
-      window.find(findQuery, false, false, true);
+      (window as unknown as Window & { find: (text: string, caseSensitive?: boolean, backward?: boolean, wrapAround?: boolean) => boolean }).find(findQuery, false, false, true);
     }
   }
 

@@ -5,7 +5,7 @@
     detectActiveFormula,
     type FormulaDefinition,
   } from './formulaDefinitions';
-  import { FunctionSquare, Sparkles, CornerDownLeft, Info } from 'lucide-svelte';
+  import { FunctionSquare, Sparkles, CornerDownLeft, Info } from '@lucide/svelte';
 
   export let inputValue: string = '';
   export let smartSuggestion: string | null = null;

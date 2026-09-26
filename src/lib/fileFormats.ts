@@ -1,17 +1,44 @@
-import type { WriterDocument, SpreadsheetWorkbook, SlideDeck } from '../types';
-import { htmlToMarkdown } from './utils';
+import type { WriterDocument, SpreadsheetWorkbook, SlideDeck, DocumentMeta, Slide, SlideElement } from '../types';
 import { colToLetter, recalculateGrid } from '../components/sheets/formulaEngine';
+import { escapeHtml, extractHtmlBody, sanitizeHtml } from './sanitize';
 
 /**
  * Universal File Format Engine for Simple Office Suite (SOS)
  * Supports opening and exporting .docx, .doc, .xlsx, .xls, .pptx, .csv, .tsv, .md, .txt, .html, .rtf, .json
  */
 
+function escapeXmlText(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function escapeXmlAttribute(value: unknown): string {
+  return escapeXmlText(value)
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function escapeCdata(value: unknown): string {
+  return String(value ?? '').replace(/]]>/g, ']]]]><![CDATA[>');
+}
+
+const RTF_BOLD_ON = '\uE000';
+const RTF_BOLD_OFF = '\uE001';
+const RTF_ITALIC_ON = '\uE002';
+const RTF_ITALIC_OFF = '\uE003';
+const RTF_SIZE_OPEN = '\uE004';
+const RTF_SIZE_CLOSE = '\uE005';
+const RTF_BULLET = '\uE006';
+const RTF_PARAGRAPH = '\uE007';
+
 // ---------------------- DOCUMENT FORMATS (WRITER) ----------------------
 
 export function exportToDocx(doc: WriterDocument): string {
   // Generates an HTML-based Word Document with Microsoft Office namespace markup
-  const title = doc.meta.title || 'Document';
+  const title = escapeHtml(doc?.meta?.title || 'Document');
+  const body = sanitizeHtml(doc?.contentHtml ?? '');
   return `<!DOCTYPE html>
 <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head>
@@ -51,21 +78,32 @@ export function exportToDocx(doc: WriterDocument): string {
 </head>
 <body>
   <div class="Section1">
-    ${doc.contentHtml}
+    ${body}
   </div>
 </body>
 </html>`;
 }
 
 export function exportToRtf(doc: WriterDocument): string {
-  const plainText = doc.contentHtml
-    .replace(/<h[1-3][^>]*>(.*?)<\/h[1-3]>/gi, '\n\\b\\fs28 $1\\b0\\fs22\n\n')
-    .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
-    .replace(/<strong[^>]*>(.*?)<\/strong>|<b[^>]*>(.*?)<\/b>/gi, '\\b $1$2\\b0 ')
-    .replace(/<em[^>]*>(.*?)<\/em>|<i[^>]*>(.*?)<\/i>/gi, '\\i $1$2\\i0 ')
-    .replace(/<li[^>]*>(.*?)<\/li>/gi, '  \\bullet  $1\n')
-    .replace(/<br\s*[\/]?>/gi, '\n')
+  const plainText = sanitizeHtml(doc?.contentHtml ?? '')
+    .replace(/<h([1-3])[^>]*>([\s\S]*?)<\/h[1-3]>/gi, (_match, level: string, inner: string) => {
+      const size = 28 - (Number(level) - 1) * 6;
+      return `\n${RTF_SIZE_OPEN}${size}${RTF_SIZE_CLOSE}${inner}${RTF_SIZE_OPEN}22${RTF_SIZE_CLOSE}${RTF_PARAGRAPH}`;
+    })
+    .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1' + RTF_PARAGRAPH)
+    .replace(/<(strong|b)[^>]*>([\s\S]*?)<\/\1>/gi, `${RTF_BOLD_ON}$2${RTF_BOLD_OFF}`)
+    .replace(/<(em|i)[^>]*>([\s\S]*?)<\/\1>/gi, `${RTF_ITALIC_ON}$2${RTF_ITALIC_OFF}`)
+    .replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, `${RTF_PARAGRAPH}  ${RTF_BULLET}$1`)
+    .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, '')
+    .replace(/[\\{}]/g, (char) => `\\${char}`)
+    .replace(/\uE000/g, '\\b ')
+    .replace(/\uE001/g, '\\b0 ')
+    .replace(/\uE002/g, '\\i ')
+    .replace(/\uE003/g, '\\i0 ')
+    .replace(/\uE004(\d+)\uE005/g, (_match, size: string) => `\\fs${size} `)
+    .replace(/\uE006/g, '\\bullet ')
+    .replace(/\uE007/g, '\\par\n')
     .trim();
 
   return `{\\rtf1\\ansi\\deff0 {\\fonttbl {\\f0 Calibri;}{\\f1 Times New Roman;}}
@@ -74,16 +112,18 @@ ${plainText.replace(/\n/g, '\\par\n')}
 }`;
 }
 
+const HTML_MARKUP_PATTERN = /<\/?[a-z][^>]*>|<!--[\s\S]*?-->/i;
+
 export function parseDocumentContent(raw: string, filename: string): string {
-  const ext = filename.split('.').pop()?.toLowerCase();
-  
+  const ext = String(filename || '').split('.').pop()?.toLowerCase();
+  const source = typeof raw === 'string' ? raw : '';
+
   if (ext === 'docx' || ext === 'doc' || ext === 'html' || ext === 'htm') {
-    if (raw.includes('<body') || raw.includes('<div') || raw.includes('<p>')) {
-      const bodyMatch = raw.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-      return bodyMatch ? bodyMatch[1] : raw;
+    if (HTML_MARKUP_PATTERN.test(source)) {
+      return sanitizeHtml(extractHtmlBody(source));
     }
   } else if (ext === 'md') {
-    let html = raw
+    let html = source
       .replace(/^### (.*$)/gim, '<h3>$1</h3>')
       .replace(/^## (.*$)/gim, '<h2>$1</h2>')
       .replace(/^# (.*$)/gim, '<h1>$1</h1>')
@@ -93,21 +133,93 @@ export function parseDocumentContent(raw: string, filename: string): string {
       .replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>')
       .replace(/^\s*\-\s+(.*$)/gim, '<ul><li>$1</li></ul>')
       .replace(/<\/ul>\s*<ul>/gim, '');
-    
+
     const paragraphs = html.split(/\n{2,}/).map(p => {
       p = p.trim();
       if (!p) return '';
       if (p.startsWith('<h') || p.startsWith('<blockquote') || p.startsWith('<ul')) return p;
       return `<p>${p.replace(/\n/g, '<br>')}</p>`;
     }).join('\n');
-    return paragraphs || `<p>${raw}</p>`;
+    return sanitizeHtml(paragraphs || `<p>${escapeHtml(source)}</p>`);
   } else if (ext === 'rtf') {
-    const clean = raw.replace(/\\[a-z]+(-?\d+)? ?|[{}]/gi, '').trim();
-    return `<p>${clean.replace(/\n/g, '<br>')}</p>`;
+    const clean = source.replace(/\\[a-z]+(-?\d+)? ?|[{}]/gi, '').trim();
+    return sanitizeHtml(`<p>${escapeHtml(clean).replace(/\n/g, '<br>')}</p>`);
   }
 
-  const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  return lines.map(l => `<p>${l}</p>`).join('\n') || `<p>${raw}</p>`;
+  const lines = source.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  return sanitizeHtml(lines.map(l => `<p>${escapeHtml(l)}</p>`).join('\n') || `<p>${escapeHtml(source)}</p>`);
+}
+
+export function sanitizeImportedWriterDocument(parsed: unknown, fallbackMeta: DocumentMeta): WriterDocument {
+  const source = (parsed && typeof parsed === 'object' ? parsed : {}) as Partial<WriterDocument>;
+  const meta = source.meta && typeof source.meta === 'object' ? source.meta : {} as Partial<DocumentMeta>;
+
+  return {
+    meta: {
+      ...fallbackMeta,
+      id: typeof meta.id === 'string' && meta.id ? meta.id : fallbackMeta.id,
+      title: typeof meta.title === 'string' && meta.title ? meta.title : fallbackMeta.title,
+      filePath: typeof meta.filePath === 'string' ? meta.filePath : fallbackMeta.filePath,
+      lastSaved: typeof meta.lastSaved === 'string' ? meta.lastSaved : fallbackMeta.lastSaved,
+      isDirty: false,
+      mode: 'writer',
+    },
+    contentHtml: sanitizeHtml(typeof source.contentHtml === 'string' ? source.contentHtml : ''),
+    contentMarkdown: typeof source.contentMarkdown === 'string' ? source.contentMarkdown : '',
+    wordCount: typeof source.wordCount === 'number' ? source.wordCount : 0,
+    charCount: typeof source.charCount === 'number' ? source.charCount : 0,
+    pageCount: typeof source.pageCount === 'number' ? source.pageCount : 1,
+    pageSize: source.pageSize === 'letter' ? 'letter' : 'a4',
+  };
+}
+
+export function sanitizeImportedSlideDeck(parsed: unknown, fallbackMeta: DocumentMeta): SlideDeck | null {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const source = parsed as { slides?: unknown; aspectRatio?: unknown; theme?: unknown };
+  if (!Array.isArray(source.slides)) return null;
+
+  const slides: Slide[] = source.slides
+    .map((entry, index) => ({ entry, index }))
+    .filter(candidate => candidate.entry && typeof candidate.entry === 'object')
+    .map(({ entry, index }) => {
+      const slide = entry as Record<string, unknown>;
+      const elements = Array.isArray(slide.elements) ? slide.elements : [];
+      return {
+        id: typeof slide.id === 'string' && slide.id ? slide.id : `slide_${index + 1}`,
+        title: typeof slide.title === 'string' ? slide.title : `Slide ${index + 1}`,
+        bgColor: typeof slide.bgColor === 'string' ? slide.bgColor : '#ffffff',
+        notes: typeof slide.notes === 'string' ? slide.notes : '',
+        elements: elements
+          .filter(elementEntry => elementEntry && typeof elementEntry === 'object')
+          .map((elementEntry, elementIndex) => {
+            const element = elementEntry as Record<string, unknown>;
+            return {
+              id: typeof element.id === 'string' && element.id ? element.id : `e_${index + 1}_${elementIndex + 1}`,
+              type: typeof element.type === 'string' ? (element.type as SlideElement['type']) : 'text',
+              content: typeof element.content === 'string' ? element.content : '',
+              x: typeof element.x === 'number' ? element.x : 0,
+              y: typeof element.y === 'number' ? element.y : 0,
+              width: typeof element.width === 'number' ? element.width : 40,
+              height: typeof element.height === 'number' ? element.height : 20,
+              fontFamily: typeof element.fontFamily === 'string' ? element.fontFamily : undefined,
+              fontSize: typeof element.fontSize === 'number' ? element.fontSize : undefined,
+              fontWeight: typeof element.fontWeight === 'string' ? element.fontWeight : undefined,
+              fontColor: typeof element.fontColor === 'string' ? element.fontColor : undefined,
+              bgColor: typeof element.bgColor === 'string' ? element.bgColor : undefined,
+              borderRadius: typeof element.borderRadius === 'number' ? element.borderRadius : undefined,
+              shapeVariant: typeof element.shapeVariant === 'string' ? (element.shapeVariant as SlideElement['shapeVariant']) : undefined,
+              language: typeof element.language === 'string' ? element.language : undefined,
+            };
+          }),
+      };
+    });
+
+  return {
+    meta: { ...fallbackMeta, isDirty: false, mode: 'slides' },
+    slides,
+    aspectRatio: source.aspectRatio === '4:3' ? '4:3' : '16:9',
+    theme: typeof source.theme === 'string' ? source.theme : undefined,
+  };
 }
 
 // ---------------------- SPREADSHEET FORMATS (SHEETS) ----------------------
@@ -126,8 +238,8 @@ export function exportToXlsx(workbook: SpreadsheetWorkbook): string {
         rowHasData = true;
         const isNum = typeof cell.computed === 'number';
         const dataType = isNum ? 'Number' : 'String';
-        const val = String(cell.computed).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const formulaAttr = cell.raw.startsWith('=') ? ` ss:Formula="${cell.raw.replace(/"/g, '&quot;')}"` : '';
+        const val = escapeXmlText(cell.computed);
+        const formulaAttr = String(cell.raw).startsWith('=') ? ` ss:Formula="${escapeXmlAttribute(cell.raw)}"` : '';
         rowCells += `    <Cell ss:Index="${c + 1}"${formulaAttr}><Data ss:Type="${dataType}">${val}</Data></Cell>\n`;
       }
     }
@@ -149,11 +261,11 @@ export function exportToXlsx(workbook: SpreadsheetWorkbook): string {
    <Font ss:FontName="Calibri" x:Family="Swiss" ss:Size="11" ss:Color="#000000"/>
   </Style>
  </Styles>
- <Worksheet ss:Name="${activeSheet.name}">
-  <Table ss:ExpandedColumnCount="${activeSheet.colCount}" ss:ExpandedRowCount="${activeSheet.rowCount}" x:FullColumns="1" x:FullRows="1" ss:DefaultRowHeight="15">
+  <Worksheet ss:Name="${escapeXmlAttribute(activeSheet.name)}">
+   <Table ss:ExpandedColumnCount="${Number(activeSheet.colCount) || 0}" ss:ExpandedRowCount="${Number(activeSheet.rowCount) || 0}" x:FullColumns="1" x:FullRows="1" ss:DefaultRowHeight="15">
 ${xmlRows}
-  </Table>
- </Worksheet>
+   </Table>
+  </Worksheet>
 </Workbook>`;
 }
 
@@ -238,24 +350,24 @@ export function parseSpreadsheetContent(raw: string, filename: string): Record<s
 // ---------------------- PRESENTATION FORMATS (SLIDES) ----------------------
 
 export function exportToPptxXml(deck: SlideDeck): string {
-  const slidesXml = deck.slides.map((s, idx) => {
-    const elementsXml = s.elements.map(e => `
-      <element id="${e.id}" type="${e.type}" x="${e.x}" y="${e.y}" width="${e.width}" height="${e.height}">
-        <content><![CDATA[${e.content}]]></content>
+  const slidesXml = (deck?.slides ?? []).map((s, idx) => {
+    const elementsXml = (s.elements ?? []).map(e => `
+      <element id="${escapeXmlAttribute(e.id)}" type="${escapeXmlAttribute(e.type)}" x="${escapeXmlAttribute(e.x)}" y="${escapeXmlAttribute(e.y)}" width="${escapeXmlAttribute(e.width)}" height="${escapeXmlAttribute(e.height)}">
+        <content><![CDATA[${escapeCdata(e.content)}]]></content>
       </element>
     `).join('\n');
 
     return `
-    <slide index="${idx + 1}" title="${s.title}" bgColor="${s.bgColor}">
+    <slide index="${idx + 1}" title="${escapeXmlAttribute(s.title)}" bgColor="${escapeXmlAttribute(s.bgColor)}">
       <elements>
         ${elementsXml}
       </elements>
-      <notes><![CDATA[${s.notes || ''}]]></notes>
+      <notes><![CDATA[${escapeCdata(s.notes || '')}]]></notes>
     </slide>`;
   }).join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<Presentation title="${deck.meta.title}" ratio="${deck.aspectRatio}">
+<Presentation title="${escapeXmlAttribute(deck?.meta?.title)}" ratio="${escapeXmlAttribute(deck?.aspectRatio)}">
   <slides>
     ${slidesXml}
   </slides>

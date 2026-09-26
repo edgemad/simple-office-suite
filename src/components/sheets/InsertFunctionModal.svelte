@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { FORMULA_CATALOG, type FormulaDefinition } from './formulaDefinitions';
-  import { X, Search, FunctionSquare, Check, Sparkles } from 'lucide-svelte';
+  import { X, Search, FunctionSquare, Check, Sparkles } from '@lucide/svelte';
 
   const dispatch = createEventDispatcher<{
     insert: string;

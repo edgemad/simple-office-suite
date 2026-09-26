@@ -10,7 +10,7 @@
     Pause,
     RotateCcw,
     FileText
-  } from 'lucide-svelte';
+  } from '@lucide/svelte';
 
   export let slides: Slide[];
   export let currentIndex: number = 0;

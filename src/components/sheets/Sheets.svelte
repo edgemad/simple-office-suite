@@ -3,7 +3,7 @@
   import FormulaBar from './FormulaBar.svelte';
   import Grid from './Grid.svelte';
   import { recalculateGrid, colToLetter } from './formulaEngine';
-  import type { SpreadsheetWorkbook, SheetGrid, CellFormatting, SheetTab } from '../../types';
+  import type { SpreadsheetWorkbook, CellFormatting, SheetTab } from '../../types';
   import {
     Plus,
     Bold,
@@ -21,8 +21,9 @@
     X,
     Undo2,
     Redo2
-  } from 'lucide-svelte';
+  } from '@lucide/svelte';
   import { downloadFile } from '../../lib/utils';
+  import { toCsv } from '../../lib/csv';
   import { exportToXlsx, parseSpreadsheetContent } from '../../lib/fileFormats';
   import { openFileDialogNative, readTextFileNative } from '../../lib/tauri';
 
@@ -397,13 +398,12 @@
       for (let c = 0; c < activeSheet.colCount; c++) {
         const key = `${colToLetter(c)}${r + 1}`;
         const val = activeSheet.cells[key]?.computed ?? '';
-        const escaped = String(val).includes(',') ? `"${val}"` : String(val);
         if (val !== '') hasData = true;
-        rowData.push(escaped);
+        rowData.push(String(val));
       }
       if (hasData) rows.push(rowData);
     }
-    const csvContent = rows.map((r) => r.join(',')).join('\n');
+    const csvContent = toCsv(rows);
     downloadFile(`${workbook.meta.title || 'spreadsheet'}.csv`, csvContent, 'text/csv');
     return csvContent;
   }
@@ -749,10 +749,19 @@
       {#each workbook.sheets as sheet}
         {@const isActive = sheet.id === workbook.activeSheetId}
         <div
+          role="tab"
+          tabindex="0"
+          aria-selected={isActive}
           class="flex items-center space-x-1.5 px-3 py-1 rounded-t border-t-2 font-medium cursor-pointer transition-all
             {isActive ? 'bg-white text-emerald-700 border-emerald-600 shadow-sm font-semibold' : 'bg-slate-200 text-slate-600 border-transparent hover:bg-slate-300/80'}"
           on:click={() => selectSheet(sheet.id)}
           on:dblclick={() => renameSheet(sheet)}
+          on:keydown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              selectSheet(sheet.id);
+            }
+          }}
           title="Double click to rename"
         >
           <span>{sheet.name}</span>

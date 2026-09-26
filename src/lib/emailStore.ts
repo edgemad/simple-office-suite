@@ -1,143 +1,143 @@
-import type { EmailMessage, EmailFolder, EmailAccount } from '../types';
+import type { EmailMessage, EmailAccount } from '../types';
+
+export const EMAIL_DEMO_NOTICE =
+  'Demo mailbox: these messages are fictional sample data stored locally. No mail server is contacted and nothing is sent or received.';
 
 export const DEFAULT_ACCOUNTS: EmailAccount[] = [
   {
     id: 'acc_1',
-    name: 'Edgar Madeja',
-    email: 'edgar.madeja@simpleoffice.local',
-    avatar: 'EM',
-    incomingServer: 'imap.simpleoffice.local:993',
-    outgoingServer: 'smtp.simpleoffice.local:587',
+    name: 'Riley Adams',
+    email: 'riley.adams@demo.example',
+    avatar: 'RA',
+    incomingServer: 'not connected (local demo mailbox)',
+    outgoingServer: 'not connected (local demo mailbox)',
   },
   {
     id: 'acc_2',
-    name: 'Work Workspace',
-    email: 'edgar@workspace.company.com',
-    avatar: 'WW',
-    incomingServer: 'imap.company.com:993',
-    outgoingServer: 'smtp.company.com:587',
+    name: 'Demo Project Group',
+    email: 'riley.adams@project-demo.example',
+    avatar: 'DP',
+    incomingServer: 'not connected (local demo mailbox)',
+    outgoingServer: 'not connected (local demo mailbox)',
   },
 ];
 
 export const INITIAL_EMAILS: EmailMessage[] = [
   {
     id: 'mail_1',
-    fromName: 'Sarah Jenkins',
-    fromEmail: 'sarah.jenkins@acme-corp.com',
-    to: ['edgar.madeja@simpleoffice.local'],
-    cc: ['finance-team@acme-corp.com'],
-    subject: 'Q3 Financial Review & Model Finalization',
+    fromName: 'Casey Morgan',
+    fromEmail: 'casey.morgan@northgate-demo.example',
+    to: ['riley.adams@demo.example'],
+    cc: ['demo-finance@project-demo.example'],
+    subject: 'Quarterly Budget Review & Model Finalization',
     date: 'Today, 2:45 PM',
-    preview: 'Hi Edgar, please review the finalized Q3 expenditure and revenue projections before our executive meeting tomorrow...',
+    preview: 'Hi Riley, please review the finalized budget and revenue projections before our review session tomorrow...',
     bodyHtml: `
-      <p>Hi Edgar,</p>
-      <p>I hope you are having a productive week. Attached you will find the updated <strong>Q3 Financial Review spreadsheet</strong> with our consolidated numbers across all regional divisions.</p>
-      <p>Key highlights from this quarter:</p>
+      <p>Hi Riley,</p>
+      <p>Hope your week is going well. Attached is the updated <strong>quarterly budget workbook</strong> with the consolidated numbers for each demo division.</p>
+      <p>Highlights from this quarter:</p>
       <ul>
-        <li><strong>Hardware & Devices</strong>: Maintained under budget by 6.2%.</li>
-        <li><strong>Research & Prototyping</strong>: Delivered accelerated outcomes with zero cloud overhead.</li>
-        <li><strong>Total Net Profit Margin</strong>: Tracking at an exceptional 34.8%.</li>
+        <li><strong>Equipment</strong>: came in 6.2% under the sample budget.</li>
+        <li><strong>Prototyping</strong>: demo milestones delivered on schedule.</li>
+        <li><strong>Sample margin</strong>: 34.8% in the sample dataset.</li>
       </ul>
-      <p>Please double-check the formula models in Tab 2 before our final review tomorrow morning.</p>
-      <p>Best regards,<br><strong>Sarah Jenkins</strong><br><span style="color:#64748b; font-size:12px;">Chief Financial Officer • Acme Corp</span></p>
+      <p>Please double-check the formulas on the second tab before the review tomorrow morning.</p>
+      <p>Best regards,<br><strong>Casey Morgan</strong><br><span style="color:#64748b; font-size:12px;">Sample Finance Lead • Northgate Demo Co.</span></p>
     `,
     folder: 'inbox',
     isUnread: true,
     isStarred: true,
     labels: ['Finance', 'High Priority'],
     attachments: [
-      { id: 'att_1', name: 'Q3_Financial_Model.xlsx', size: '24.5 KB', type: 'spreadsheet' },
-      { id: 'att_2', name: 'Executive_Summary.pdf', size: '1.2 MB', type: 'pdf' },
+      { id: 'att_1', name: 'Sample_Budget_Model.xlsx', size: '24.5 KB', type: 'spreadsheet' },
+      { id: 'att_2', name: 'Sample_Executive_Summary.pdf', size: '1.2 MB', type: 'pdf' },
     ],
   },
   {
     id: 'mail_2',
-    fromName: 'Alex Chen',
-    fromEmail: 'alex.chen@innovate.tech',
-    to: ['edgar.madeja@simpleoffice.local'],
-    subject: 'Simple Office Suite - Release 1.0 Milestone',
+    fromName: 'Devon Patel',
+    fromEmail: 'devon.patel@bluepeak-demo.example',
+    to: ['riley.adams@demo.example'],
+    subject: 'Simple Office Suite 1.0 Demo Release Notes',
     date: 'Yesterday, 5:12 PM',
-    preview: 'Team, congratulations on successfully packaging the release builds across macOS, Windows, and Linux. Here is the release roadmap...',
+    preview: 'Team, the demo release builds for macOS, Windows, and Linux are packaged. Here is the sample release roadmap...',
     bodyHtml: `
-      <p>Hey Edgar,</p>
-      <p>Incredible work on reaching the Release 1.0 Milestone for <strong>Simple Office Suite (SOS)</strong>!</p>
-      <p>All 5 office modules (Word, Sheet, Slides, PDF, and Mail) are now fully functional and verified across platforms. The lightweight memory footprint (~28 MB) completely outclasses legacy web-based suites.</p>
-      <p>Let's coordinate on drafting the changelog announcement later this afternoon.</p>
-      <p>Cheers,<br><strong>Alex Chen</strong><br><span style="color:#64748b; font-size:12px;">Lead Software Architect</span></p>
+      <p>Hey Riley,</p>
+      <p>Nice work putting the <strong>Simple Office Suite</strong> demo release together.</p>
+      <p>All six demo modules (Writer, Sheet, Slides, PDF, Mail, and Communicator) are wired up and run locally on the device. Mail and Communicator are simulated demos with sample data, not real services.</p>
+      <p>Let's coordinate on the demo changelog this afternoon.</p>
+      <p>Cheers,<br><strong>Devon Patel</strong><br><span style="color:#64748b; font-size:12px;">Sample Software Architect • Bluepeak Demo Studio</span></p>
     `,
     folder: 'inbox',
     isUnread: false,
     isStarred: true,
     labels: ['Milestones'],
     attachments: [
-      { id: 'att_3', name: 'Release_Notes_v1.0.docx', size: '18.2 KB', type: 'document' },
+      { id: 'att_3', name: 'Sample_Release_Notes.docx', size: '18.2 KB', type: 'document' },
     ],
   },
   {
     id: 'mail_3',
-    fromName: 'Elena Rostova',
-    fromEmail: 'elena@privacytrust.org',
-    to: ['edgar.madeja@simpleoffice.local'],
-    subject: 'Zero-Cloud Offline Privacy Verification & Certificate',
+    fromName: 'Jordan Blake',
+    fromEmail: 'jordan.blake@safedata-demo.example',
+    to: ['riley.adams@demo.example'],
+    subject: 'Documentation Review: Where Your Data Is Stored',
     date: 'Sep 24, 11:30 AM',
-    preview: 'We have concluded our static code and runtime packet analysis for Simple Office Suite. Your offline-first architecture complies with all privacy standards...',
+    preview: 'We reviewed the sample documentation for the demo app and drafted clearer wording about local storage...',
     bodyHtml: `
-      <p>Dear Edgar,</p>
-      <p>We are pleased to inform you that our audit team has finalized the privacy and telemetry evaluation of Simple Office Suite.</p>
-      <p><strong>Audit Result: PASSED (100% Zero-Cloud Telemetry)</strong></p>
-      <p>No unexpected outbound socket connections or third-party tracking scripts were detected during document editing, formula evaluation, presentation playback, or offline email archiving.</p>
-      <p>Thank you for championing user sovereignty and local-first software.</p>
-      <p>Warm regards,<br><strong>Elena Rostova</strong><br><span style="color:#64748b; font-size:12px;">Director of Digital Sovereignty • PrivacyTrust Foundation</span></p>
+      <p>Dear Riley,</p>
+      <p>We reviewed the sample documentation for the Simple Office Suite demo app and drafted clearer wording about how data is handled.</p>
+      <p><strong>Documentation Result: Updated (sample findings)</strong></p>
+      <p>Documents, spreadsheets, and chats are stored unencrypted in the app profile on this device. Cloud requests only happen when a user configures an AI provider and triggers an AI action.</p>
+      <p>Thanks for clarifying the demo scope.</p>
+      <p>Warm regards,<br><strong>Jordan Blake</strong><br><span style="color:#64748b; font-size:12px;">Sample Documentation Reviewer • SafeData Demo Group</span></p>
     `,
     folder: 'inbox',
     isUnread: false,
     isStarred: false,
-    labels: ['Compliance'],
+    labels: ['Documentation'],
     attachments: [
-      { id: 'att_4', name: 'Privacy_Audit_Certificate.pdf', size: '340 KB', type: 'pdf' },
+      { id: 'att_4', name: 'Sample_Review_Notes.pdf', size: '340 KB', type: 'pdf' },
     ],
   },
   {
     id: 'mail_4',
-    fromName: 'Marcus Vance',
-    fromEmail: 'marcus.vance@company.com',
-    to: ['edgar.madeja@simpleoffice.local'],
-    subject: 'Presentation Deck for All-Hands Strategy Call',
+    fromName: 'Sasha Nguyen',
+    fromEmail: 'sasha.nguyen@studiolab-demo.example',
+    to: ['riley.adams@demo.example'],
+    subject: 'Sample Deck for the All-Hands Review',
     date: 'Sep 23, 9:15 AM',
-    preview: 'Attached is the slide deck for next Wednesday’s all-hands meeting. Take a look at the slide transitions and let me know your thoughts...',
+    preview: 'Attached is a sample slide deck for the next all-hands review. Take a look at the layout and let me know your thoughts...',
     bodyHtml: `
-      <p>Hi Edgar,</p>
-      <p>Please check out the attached slide deck for our quarterly strategy sync. I’ve incorporated the 16:9 widescreen layout and midnight dark theme.</p>
-      <p>Feel free to edit the speaker notes on slide 3 directly.</p>
-      <p>Thanks,<br>Marcus</p>
+      <p>Hi Riley,</p>
+      <p>Please check the attached sample deck for the quarterly review. I used the 16:9 layout and the dark theme.</p>
+      <p>Feel free to edit the speaker notes on slide 3.</p>
+      <p>Thanks,<br>Sasha</p>
     `,
     folder: 'archive',
     isUnread: false,
     isStarred: false,
     labels: ['Presentations'],
     attachments: [
-      { id: 'att_5', name: 'Strategy_All_Hands.pptx', size: '3.4 MB', type: 'presentation' },
+      { id: 'att_5', name: 'Sample_All_Hands_Deck.pptx', size: '3.4 MB', type: 'presentation' },
     ],
   },
   {
     id: 'mail_5',
-    fromName: 'Simple Office Suite Team',
-    fromEmail: 'welcome@simpleoffice.local',
-    to: ['edgar.madeja@simpleoffice.local'],
-    subject: 'Welcome to your Offline-First Office Suite & Mail Client',
+    fromName: 'Simple Office Suite Demo',
+    fromEmail: 'welcome@demo.example',
+    to: ['riley.adams@demo.example'],
+    subject: 'Welcome to the Simple Office Suite Demo App',
     date: 'Sep 20, 8:00 AM',
-    preview: 'Welcome to your complete suite! Explore Word documents, Excel spreadsheets, PowerPoint presentations, PDF forms, and integrated Email...',
+    preview: 'Welcome to the demo suite: explore Writer documents, Sheet workbooks, Slides decks, PDF forms, Mail, and Communicator...',
     bodyHtml: `
-      <p>Welcome to <strong>Simple Office Suite (SOS)</strong>!</p>
-      <p>You now have a unified, high-performance office suite that works 100% on your device:</p>
+      <p>Welcome to the <strong>Simple Office Suite</strong> demo app!</p>
+      <p>Everything here runs on this device. Two modules are simulated demos with sample data:</p>
       <ul>
-        <li><strong>Word</strong>: Full typography, tables, images, and .docx export.</li>
-        <li><strong>Sheet</strong>: 50+ calculation formulas (SUM, AVERAGE, COUNT, VLOOKUP, IF) with grid formatting and .xlsx support.</li>
-        <li><strong>Slides</strong>: Rich layouts, interactive components, presenter stopwatch, and .pptx export.</li>
-        <li><strong>PDF & Forms</strong>: Fillable text boxes, signatures, and document printing.</li>
-        <li><strong>Email</strong>: Fast local mail organization, folder management, rich HTML composer, and built-in OnlyOffice AI Assistant.</li>
+        <li><strong>Mail</strong>: a local sample mailbox, folders, composer, and simulated attachments. It does not connect to any mail server.</li>
+        <li><strong>Communicator</strong>: a local sample chat with channels, direct messages, and a simulated call screen. There is no real messaging service or call.</li>
       </ul>
-      <p>Enjoy productivity with zero telemetry and total data control.</p>
+      <p>Your documents, settings, and API keys are stored unencrypted in the app profile on this device. A cloud AI provider only receives the text you send when you configure one and run an AI action.</p>
     `,
     folder: 'inbox',
     isUnread: false,

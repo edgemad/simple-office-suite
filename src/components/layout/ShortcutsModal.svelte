@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { X, Keyboard, FileText, Sheet, Presentation, Globe } from 'lucide-svelte';
+  import { X, Keyboard, FileText, Sheet, Presentation, Globe } from '@lucide/svelte';
 
   const dispatch = createEventDispatcher<{
     close: void;
@@ -11,7 +11,6 @@
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
   const modKey = isMac ? '⌘' : 'Ctrl';
   const altKey = isMac ? '⌥' : 'Alt';
-  const shiftKey = '⇧';
 
   const globalShortcuts = [
     { key: `${modKey} + S`, desc: 'Save active document locally' },
@@ -19,9 +18,12 @@
     { key: `${modKey} + O`, desc: 'Open file (.docx, .xlsx, .pptx, .csv, etc.)' },
     { key: `${modKey} + N`, desc: 'Create new document / sheet / slide' },
     { key: `${modKey} + P`, desc: 'Print / Export to PDF' },
-    { key: `${modKey} + 1`, desc: 'Switch to Google Docs (Writer)' },
-    { key: `${modKey} + 2`, desc: 'Switch to Google Sheets' },
-    { key: `${modKey} + 3`, desc: 'Switch to Google Slides' },
+    { key: `${modKey} + 1`, desc: 'Switch to the Word document editor' },
+    { key: `${modKey} + 2`, desc: 'Switch to the Sheet spreadsheet editor' },
+    { key: `${modKey} + 3`, desc: 'Switch to the Slides presentation editor' },
+    { key: `${modKey} + 4`, desc: 'Switch to the PDF and form viewer' },
+    { key: `${modKey} + 5`, desc: 'Switch to the Mail demo mailbox' },
+    { key: `${modKey} + 6`, desc: 'Switch to the Chat demo workspace' },
     { key: `${modKey} + /`, desc: 'Open Keyboard Shortcuts cheat sheet' },
   ];
 
@@ -85,7 +87,7 @@
         </div>
         <div>
           <h2 class="text-base font-bold text-slate-800">Keyboard Shortcuts</h2>
-          <p class="text-xs text-slate-500">Google Workspace compatible offline shortcuts</p>
+          <p class="text-xs text-slate-500">Simple Office Suite keyboard shortcuts (keys differ per operating system)</p>
         </div>
       </div>
       <button
@@ -110,7 +112,7 @@
         on:click={() => (activeTab = 'writer')}
       >
         <FileText size={14} />
-        <span>Docs (Writer)</span>
+        <span>Word (Writer)</span>
       </button>
       <button
         class="flex items-center space-x-1.5 px-3 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-all {activeTab === 'sheets' ? 'border-emerald-600 text-emerald-600 bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'}"

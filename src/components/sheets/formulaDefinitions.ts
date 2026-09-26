@@ -1,5 +1,5 @@
 import type { SheetGrid } from '../../types';
-import { colToLetter, letterToCol, parseCoord } from './formulaEngine';
+import { colToLetter, parseCoord } from './formulaEngine';
 
 export interface FormulaDefinition {
   name: string;
@@ -95,18 +95,18 @@ export const FORMULA_CATALOG: FormulaDefinition[] = [
   {
     name: 'CEILING',
     category: 'Math',
-    syntax: 'CEILING(number)',
-    args: ['number'],
-    description: 'Rounds a number up to the nearest integer or significance.',
-    example: '=CEILING(4.2)',
+    syntax: 'CEILING(number, [significance])',
+    args: ['number', '[significance]'],
+    description: 'Rounds a number up to the nearest integer multiple of significance.',
+    example: '=CEILING(4.2, 0.5)',
   },
   {
     name: 'FLOOR',
     category: 'Math',
-    syntax: 'FLOOR(number)',
-    args: ['number'],
-    description: 'Rounds a number down to the nearest integer or significance.',
-    example: '=FLOOR(4.8)',
+    syntax: 'FLOOR(number, [significance])',
+    args: ['number', '[significance]'],
+    description: 'Rounds a number down to the nearest integer multiple of significance.',
+    example: '=FLOOR(4.7, 0.5)',
   },
 
   // --- Statistical ---
@@ -303,7 +303,7 @@ export const FORMULA_CATALOG: FormulaDefinition[] = [
     category: 'Lookup',
     syntax: 'VLOOKUP(lookup_value, table_array, col_index, [range_lookup])',
     args: ['lookup_value', 'table_array', 'col_index', '[range_lookup]'],
-    description: 'Searches for a value in the first column and returns a value in the same row from a specified column.',
+    description: 'Searches for a value in the first column and returns a value in the same row from a specified column. Omit range_lookup (or pass TRUE) for approximate match on a sorted first column.',
     example: '=VLOOKUP("Apple", A1:C10, 2, FALSE)',
   },
   {
@@ -311,7 +311,7 @@ export const FORMULA_CATALOG: FormulaDefinition[] = [
     category: 'Lookup',
     syntax: 'HLOOKUP(lookup_value, table_array, row_index, [range_lookup])',
     args: ['lookup_value', 'table_array', 'row_index', '[range_lookup]'],
-    description: 'Searches for a value in the top row and returns a value in the same column from a specified row.',
+    description: 'Searches for a value in the top row and returns a value in the same column from a specified row. Omit range_lookup (or pass TRUE) for approximate match on a sorted top row.',
     example: '=HLOOKUP("Q1", A1:Z5, 2, FALSE)',
   },
   {
@@ -319,7 +319,7 @@ export const FORMULA_CATALOG: FormulaDefinition[] = [
     category: 'Lookup',
     syntax: 'INDEX(array, row_num, [col_num])',
     args: ['array', 'row_num', '[col_num]'],
-    description: 'Returns the value of a cell at the intersection of a particular row and column.',
+    description: 'Returns the value of a cell at the intersection of a particular row and column. For a single column or single row array, row_num indexes along that array.',
     example: '=INDEX(A1:C10, 3, 2)',
   },
   {

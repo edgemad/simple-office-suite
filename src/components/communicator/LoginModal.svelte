@@ -2,14 +2,13 @@
   import { createEventDispatcher } from 'svelte';
   import {
     X,
-    ShieldCheck,
+    Info,
     Mail,
     User,
     Check,
     Lock,
-    Building2,
-    Sparkles
-  } from 'lucide-svelte';
+    Building2
+  } from '@lucide/svelte';
   import type { CommunicatorUser, UserPresence } from '../../types';
   import { saveCurrentCommunicatorUser } from '../../lib/communicatorStore';
 
@@ -29,18 +28,14 @@
   $: detectedOrg = getOrgFromEmail(emailInput);
 
   function getOrgFromEmail(email: string): string {
-    if (!email || !email.includes('@')) return 'Local Team Workspace';
+    if (!email || !email.includes('@')) return 'Demo workspace';
     const domain = email.split('@')[1].toLowerCase();
-    if (['gmail.com', 'outlook.com', 'yahoo.com', 'icloud.com', 'hotmail.com'].includes(domain)) {
-      return 'Personal Secure Workspace';
-    }
-    const orgName = domain.split('.')[0];
-    return `${orgName.charAt(0).toUpperCase() + orgName.slice(1)} Enterprise Workspace`;
+    return `Demo workspace • ${domain}`;
   }
 
   function handleLogin() {
     if (!emailInput.trim() || !emailInput.includes('@')) {
-      alert('Please enter a valid company or personal email address.');
+      alert('Enter a display email address for the demo identity, for example demo.user@example.com');
       return;
     }
 
@@ -74,11 +69,11 @@
     <div class="px-5 py-4 bg-[#18191c] border-b border-[#2d3136] flex items-center justify-between">
       <div class="flex items-center space-x-2.5">
         <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-600 to-indigo-600 flex items-center justify-center text-white shadow-md">
-          <Lock size={16} />
+          <Lock size={16} title="No login, password, or session exists" />
         </div>
         <div>
-          <h3 class="font-bold text-sm text-white">Communicator Secure Login</h3>
-          <span class="text-[11px] text-cyan-400 font-medium">MS Teams & Slack Compatible</span>
+          <h3 class="font-bold text-sm text-white">Demo Profile</h3>
+          <span class="text-[11px] text-cyan-400 font-medium">Local display identity only</span>
         </div>
       </div>
 
@@ -96,7 +91,7 @@
       <!-- Email Address Input -->
       <div class="space-y-1.5">
         <label for="comm-email" class="block font-semibold text-slate-300">
-          Company or Personal Email Address
+          Display Email Address (not sign-in)
         </label>
         <div class="relative">
           <Mail size={14} class="absolute left-3 top-2.5 text-slate-400" />
@@ -104,15 +99,14 @@
             id="comm-email"
             type="email"
             bind:value={emailInput}
-            placeholder="e.g. alex@company.com or edgar@gmail.com"
+            placeholder="e.g. demo.user@example.com"
             class="w-full bg-[#24272c] border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-sans"
           />
         </div>
         
-        <!-- Detected Organization / Domain Badge -->
         <div class="flex items-center space-x-1.5 text-[11px] text-slate-400 pt-0.5">
           <Building2 size={12} class="text-cyan-400" />
-          <span>Workspace:</span>
+          <span>Label:</span>
           <span class="font-semibold text-cyan-300">{detectedOrg}</span>
         </div>
       </div>
@@ -128,7 +122,7 @@
             id="comm-name"
             type="text"
             bind:value={nameInput}
-            placeholder="Edgar Madeja"
+            placeholder="Demo User"
             class="w-full bg-[#24272c] border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-sans"
           />
         </div>
@@ -176,12 +170,14 @@
         </div>
       </div>
 
-      <!-- Security Guarantee Banner -->
-      <div class="p-3 bg-cyan-950/40 border border-cyan-500/30 rounded-xl flex items-center space-x-2.5 text-cyan-200">
-        <ShieldCheck size={20} class="text-cyan-400 shrink-0" />
+      <div class="p-3 bg-amber-950/40 border border-amber-600/40 rounded-xl flex items-center space-x-2.5 text-amber-100">
+        <Info size={20} class="text-amber-300 shrink-0" />
         <div class="text-[11px] leading-relaxed">
-          <span class="font-bold text-cyan-300 block">End-to-End Encryption Verified</span>
-          <span>AES-256-GCM + Ed25519 session keys generated locally. Zero-cloud storage.</span>
+          <span class="font-bold text-amber-200 block">Demo login: no account and no network request</span>
+          <span>
+            The values below only rename the local demo identity. They are stored as plain text in the app profile and
+            are never transmitted.
+          </span>
         </div>
       </div>
 
@@ -197,13 +193,14 @@
         Cancel
       </button>
 
+
       <button
         type="button"
         class="flex items-center space-x-2 px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg transition-all"
         on:click={handleLogin}
       >
         <Check size={14} />
-        <span>Join Workspace</span>
+        <span>Save Demo Profile</span>
       </button>
     </div>
 

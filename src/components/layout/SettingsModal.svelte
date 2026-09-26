@@ -14,15 +14,17 @@
     Info,
     RotateCcw,
     Check,
-    ShieldCheck,
     Laptop,
     Moon,
     Sun,
     ExternalLink,
     HardDrive
-  } from 'lucide-svelte';
+  } from '@lucide/svelte';
   import type { AppSettings } from '../../types';
   import { DEFAULT_SETTINGS, saveSettings } from '../../lib/settings';
+  import { EMAIL_DEMO_NOTICE } from '../../lib/emailStore';
+  import { COMMUNICATOR_DEMO_NOTICE } from '../../lib/communicatorStore';
+  import { TEMPLATE_ASSISTANT_LABEL } from '../../lib/ai';
 
   export let settings: AppSettings;
 
@@ -163,7 +165,7 @@
           on:click={() => (activeCategory = 'communicator')}
         >
           <MessageSquare size={15} class={activeCategory === 'communicator' ? 'text-white' : 'text-cyan-400'} />
-          <span>Teams & Communicator</span>
+          <span>Communicator (Demo Chat)</span>
         </button>
 
         <button
@@ -206,12 +208,12 @@
           <div class="space-y-5">
             <div>
               <h3 class="text-sm font-semibold text-white">General Preferences</h3>
-              <p class="text-slate-400 text-[11px]">Configure appearance, startup behavior, and automated saving.</p>
+              <p class="text-slate-400 text-[11px]">Configure appearance, startup behavior, and automated saving. Settings are stored unencrypted in this app profile.</p>
             </div>
 
             <!-- Theme Selection -->
             <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-3">
-              <label class="block font-medium text-slate-200">Application Theme</label>
+              <span class="block font-medium text-slate-200">Application Theme</span>
               <div class="grid grid-cols-3 gap-3">
                 <button
                   type="button"
@@ -220,7 +222,7 @@
                   on:click={() => (tempSettings.theme = 'dark')}
                 >
                   <Moon size={20} class="mb-1.5 text-blue-400" />
-                  <span class="font-semibold text-xs">OnlyOffice Dark</span>
+                  <span class="font-semibold text-xs">Suite Dark</span>
                   <span class="text-[10px] text-slate-500">Dark background</span>
                 </button>
 
@@ -262,8 +264,8 @@
                 <option value="sheets">Sheet / Spreadsheet Editor</option>
                 <option value="slides">Slides / Presentation Editor</option>
                 <option value="pdf">PDF & Forms Editor</option>
-                <option value="email">Mail / Email Client</option>
-                <option value="communicator">Teams / Secure Communicator</option>
+                <option value="email">Mail (simulated demo mailbox)</option>
+                <option value="communicator">Communicator (simulated demo chat)</option>
               </select>
             </div>
 
@@ -523,22 +525,28 @@
         {:else if activeCategory === 'email'}
           <div class="space-y-5">
             <div>
-              <h3 class="text-sm font-semibold text-white">Email & Messaging Preferences</h3>
-              <p class="text-slate-400 text-[11px]">Configure mail signature, IMAP/SMTP accounts, and polling interval.</p>
+              <h3 class="text-sm font-semibold text-white">Mail (Demo) Preferences</h3>
+              <p class="text-slate-400 text-[11px]">Configure the sample mailbox signature and the sample refresh interval.</p>
+            </div>
+
+            <div class="p-3 bg-amber-950/40 border border-amber-600/40 rounded-lg text-amber-100 text-[11px] leading-relaxed flex items-start space-x-2">
+              <Info size={15} class="text-amber-300 shrink-0 mt-0.5" />
+              <span>{EMAIL_DEMO_NOTICE} Account fields below are placeholders: no IMAP or SMTP connection is opened, and "send" only appends a message to the local sample Sent folder.</span>
             </div>
 
             <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
               <div class="flex items-center justify-between">
                 <div>
-                  <span class="font-medium text-slate-200 block">Default Email Account</span>
-                  <span class="text-[11px] text-slate-400">Primary sender identity for new messages.</span>
+                  <span class="font-medium text-slate-200 block">Sample Sender Identity</span>
+                  <span class="text-[11px] text-slate-400">Fictional demo address used on sample messages.</span>
                 </div>
-                <span class="text-xs text-indigo-400 font-medium font-mono">edgar.madeja@simpleoffice.local</span>
+                <span class="text-xs text-indigo-400 font-medium font-mono">riley.adams@demo.example</span>
               </div>
 
               <div class="space-y-1.5 border-t border-slate-800 pt-3">
-                <label class="block font-medium text-slate-200">Email Signature</label>
+                <label class="block font-medium text-slate-200" for="email-signature">Email Signature</label>
                 <textarea
+                  id="email-signature"
                   bind:value={tempSettings.emailSignature}
                   rows="3"
                   class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-sans"
@@ -549,8 +557,8 @@
 
               <div class="flex items-center justify-between border-t border-slate-800 pt-3">
                 <div>
-                  <span class="font-medium text-slate-200 block">Check for New Messages</span>
-                  <span class="text-[11px] text-slate-400">Automatic background sync interval for local inbox.</span>
+                  <span class="font-medium text-slate-200 block">Sample Refresh Interval</span>
+                  <span class="text-[11px] text-slate-400">Display-only interval for the local sample mailbox. No network sync happens.</span>
                 </div>
                 <select
                   bind:value={tempSettings.emailCheckIntervalMin}
@@ -565,10 +573,10 @@
 
               <div class="flex items-center justify-between border-t border-slate-800 pt-3">
                 <div>
-                  <span class="font-medium text-slate-200 block">Zero-Cloud Offline Encryption</span>
-                  <span class="text-[11px] text-slate-400">All messages cached and stored on local disk only.</span>
+                  <span class="font-medium text-slate-200 block">Message Storage</span>
+                  <span class="text-[11px] text-slate-400">Sample messages are stored as plain text in the app profile. They are not encrypted.</span>
                 </div>
-                <span class="text-xs text-emerald-400 font-semibold">Enabled (Local Storage)</span>
+                <span class="text-xs text-amber-300 font-semibold">Plain text, local only</span>
               </div>
             </div>
           </div>
@@ -577,26 +585,31 @@
         {:else if activeCategory === 'communicator'}
           <div class="space-y-5">
             <div>
-              <h3 class="text-sm font-semibold text-white">Teams & Communicator Preferences</h3>
-              <p class="text-slate-400 text-[11px]">Configure end-to-end encryption, workspace identity, and standalone window detachment.</p>
+              <h3 class="text-sm font-semibold text-white">Communicator (Demo Chat) Preferences</h3>
+              <p class="text-slate-400 text-[11px]">Review how the simulated chat behaves and detach it into its own window.</p>
+            </div>
+
+            <div class="p-3 bg-amber-950/40 border border-amber-600/40 rounded-lg text-amber-100 text-[11px] leading-relaxed flex items-start space-x-2">
+              <Info size={15} class="text-amber-300 shrink-0 mt-0.5" />
+              <span>{COMMUNICATOR_DEMO_NOTICE} The profile form only renames the local demo identity, and presence indicators are sample values, not real availability.</span>
             </div>
 
             <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
               <div class="flex items-center justify-between">
                 <div>
-                  <span class="font-medium text-slate-200 block">Workspace Security Mode</span>
-                  <span class="text-[11px] text-slate-400">Cryptographic protection for channel and direct messages.</span>
+                  <span class="font-medium text-slate-200 block">Message Protection</span>
+                  <span class="text-[11px] text-slate-400">No encryption is implemented. Chat text is stored as plain text in the app profile on this device.</span>
                 </div>
-                <span class="text-xs text-cyan-400 font-semibold flex items-center space-x-1">
-                  <ShieldCheck size={14} />
-                  <span>AES-256-GCM + Ed25519 (Enforced)</span>
+                <span class="text-xs text-amber-300 font-semibold flex items-center space-x-1">
+                  <Info size={14} />
+                  <span>None (local demo storage)</span>
                 </span>
               </div>
 
               <div class="flex items-center justify-between border-t border-slate-800 pt-3">
                 <div>
                   <span class="font-medium text-slate-200 block">Window Detachment</span>
-                  <span class="text-[11px] text-slate-400">Launch Communicator as an independent, floating application window.</span>
+                  <span class="text-[11px] text-slate-400">Open the demo chat in a separate browser window of this same local app.</span>
                 </div>
                 <button
                   type="button"
@@ -614,10 +627,10 @@
 
               <div class="flex items-center justify-between border-t border-slate-800 pt-3">
                 <div>
-                  <span class="font-medium text-slate-200 block">Universal Email Login</span>
-                  <span class="text-[11px] text-slate-400">Log in with company domain or personal address without cloud tracking.</span>
+                  <span class="font-medium text-slate-200 block">Profile Address Field</span>
+                  <span class="text-[11px] text-slate-400">Accepts any address to label the demo identity. No sign-in happens and nothing is transmitted.</span>
                 </div>
-                <span class="text-xs text-emerald-400 font-medium">Any Email Supported</span>
+                <span class="text-xs text-amber-300 font-medium">Display label only</span>
               </div>
             </div>
           </div>
@@ -626,46 +639,57 @@
         {:else if activeCategory === 'ai'}
           <div class="space-y-5">
             <div>
-              <h3 class="text-sm font-semibold text-white">OnlyOffice AI Assistant Configuration</h3>
-              <p class="text-slate-400 text-[11px]">Configure local or cloud AI models for writing, summarizing, and formulas.</p>
+              <h3 class="text-sm font-semibold text-white">AI Assistant Configuration</h3>
+              <p class="text-slate-400 text-[11px]">Use the built-in template assistant offline, or connect a model provider you control.</p>
             </div>
 
             <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
               <div class="flex items-center justify-between">
                 <div>
-                  <span class="font-medium text-slate-200 block">AI Engine Provider</span>
-                  <span class="text-[11px] text-slate-400">Built-in local engine works 100% offline without API keys.</span>
+                  <span class="font-medium text-slate-200 block">AI Engine</span>
+                  <span class="text-[11px] text-slate-400">The built-in template assistant runs offline with no API key. A provider sends the text you pass in to that service.</span>
                 </div>
                 <select
                   bind:value={tempSettings.aiProvider}
                   class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
                 >
-                  <option value="local">Built-in Offline Engine (Default)</option>
-                  <option value="openai">OpenAI (ChatGPT 4o / mini)</option>
-                  <option value="anthropic">Anthropic (Claude 3.5)</option>
-                  <option value="ollama">Ollama (Local LLM server)</option>
+                  <option value="local">{TEMPLATE_ASSISTANT_LABEL} (Default)</option>
+                  <option value="openai">OpenAI (cloud API)</option>
+                  <option value="anthropic">Anthropic (cloud API)</option>
+                  <option value="ollama">Ollama (model server you run)</option>
                 </select>
               </div>
 
               {#if tempSettings.aiProvider !== 'local'}
+                <div class="p-3 bg-amber-950/40 border border-amber-600/40 rounded-lg text-amber-100 text-[11px] leading-relaxed flex items-start space-x-2">
+                  <Info size={15} class="text-amber-300 shrink-0 mt-0.5" />
+                  <span>
+                    This key or server URL is saved as plain text in the app profile on this device. It is not encrypted.
+                    While a provider is selected, the prompt and the document context you send in the AI Assistant go to
+                    that provider over the network.
+                  </span>
+                </div>
+
                 <div class="space-y-1.5 border-t border-slate-800 pt-3">
-                  <label class="block font-medium text-slate-200">
-                    {tempSettings.aiProvider === 'ollama' ? 'Ollama Server URL' : 'API Key'}
+                  <label class="block font-medium text-slate-200" for="ai-api-key">
+                    {tempSettings.aiProvider === 'ollama' ? 'Model Server URL' : 'Provider API Key'}
                   </label>
                   <input
+                    id="ai-api-key"
                     type="password"
                     bind:value={tempSettings.aiApiKey}
-                    placeholder={tempSettings.aiProvider === 'ollama' ? 'http://localhost:11434' : 'sk-...'}
+                    placeholder={tempSettings.aiProvider === 'ollama' ? 'http://localhost:11434' : 'paste your provider API key'}
                     class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
                   />
                 </div>
 
                 <div class="space-y-1.5">
-                  <label class="block font-medium text-slate-200">Model Name</label>
+                  <label class="block font-medium text-slate-200" for="ai-model">Model Name</label>
                   <input
+                    id="ai-model"
                     type="text"
                     bind:value={tempSettings.aiModel}
-                    placeholder="gpt-4o or claude-3-5-sonnet"
+                    placeholder="Model id, for example gpt-4o-mini"
                     class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
                   />
                 </div>
@@ -808,7 +832,7 @@
           <div class="space-y-5">
             <div>
               <h3 class="text-sm font-semibold text-white">About Simple Office Suite</h3>
-              <p class="text-slate-400 text-[11px]">System information, offline guarantees, and license.</p>
+              <p class="text-slate-400 text-[11px]">System information, data handling, and license.</p>
             </div>
 
             <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
@@ -821,7 +845,7 @@
                   <div class="flex items-center space-x-2 text-slate-400 text-xs mt-0.5">
                     <span>Version 1.0.0 (Release)</span>
                     <span>•</span>
-                    <span class="text-emerald-400 font-medium">Production Build</span>
+                    <span class="text-amber-300 font-medium">Demo Release</span>
                   </div>
                 </div>
               </div>
@@ -836,8 +860,8 @@
                   <span class="text-slate-200 font-mono text-[11px]">Svelte 4 + Tailwind CSS</span>
                 </div>
                 <div class="bg-black/20 p-2.5 rounded-lg">
-                  <span class="text-slate-500 text-[10px] uppercase font-bold block">Memory Footprint</span>
-                  <span class="text-emerald-400 font-mono text-[11px]">~28 MB (90% lighter than Electron)</span>
+                  <span class="text-slate-500 text-[10px] uppercase font-bold block">Data Location</span>
+                  <span class="text-amber-300 font-mono text-[11px]">App profile, unencrypted</span>
                 </div>
                 <div class="bg-black/20 p-2.5 rounded-lg">
                   <span class="text-slate-500 text-[10px] uppercase font-bold block">License</span>
@@ -845,13 +869,25 @@
                 </div>
               </div>
 
-              <!-- Offline & Zero Telemetry Badge -->
-              <div class="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-lg flex items-center space-x-3">
-                <ShieldCheck size={24} class="text-emerald-400 shrink-0" />
+              <div class="p-3 bg-amber-950/40 border border-amber-600/40 rounded-lg flex items-start space-x-3">
+                <Info size={22} class="text-amber-300 shrink-0" />
                 <div>
-                  <span class="font-semibold text-emerald-300 text-xs block">100% Offline-First & Zero Telemetry</span>
-                  <span class="text-[11px] text-emerald-200/70">
-                    Your documents, spreadsheets, and presentations never touch any external server without your explicit command.
+                  <span class="font-semibold text-amber-200 text-xs block">Local app with clear limits</span>
+                  <span class="text-[11px] text-amber-100/80 block">
+                    Documents, settings, API keys, sample mail, and sample chat are stored as plain text in the app profile
+                    on this device. They are not encrypted. The only network requests this app can make are the AI provider
+                    calls you enable in Settings, plus opening a file you export yourself.
+                  </span>
+                </div>
+              </div>
+
+              <div class="p-3 bg-slate-800/40 border border-slate-700/60 rounded-lg flex items-start space-x-3">
+                <Info size={22} class="text-slate-300 shrink-0" />
+                <div>
+                  <span class="font-semibold text-slate-200 text-xs block">Simulated modules</span>
+                  <span class="text-[11px] text-slate-400 block">
+                    Mail, the demo chat login, presence, attachments, and the call screen are scripted local demos with
+                    sample data. They do not connect to a mail, chat, or conferencing service.
                   </span>
                 </div>
               </div>

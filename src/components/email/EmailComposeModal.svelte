@@ -17,11 +17,11 @@
     FileSpreadsheet,
     Presentation,
     FileCheck,
-    Check,
     Loader2
-  } from 'lucide-svelte';
+  } from '@lucide/svelte';
   import type { EmailMessage, EmailAttachment, AppSettings } from '../../types';
   import { processAiRequest } from '../../lib/ai';
+  import { escapeHtml, sanitizeHtml } from '../../lib/sanitize';
 
   export let initialSubject: string = '';
   export let initialTo: string = '';
@@ -50,7 +50,7 @@
   let ccInput: string = '';
   let showCc: boolean = false;
   let subject: string = initialSubject;
-  let bodyHtml: string = initialBodyHtml;
+  let bodyHtml: string = sanitizeHtml(initialBodyHtml);
   let attachments: EmailAttachment[] = [];
   let isAiGenerating = false;
   let showAiDropdown = false;
@@ -58,6 +58,10 @@
   let showCustomAiInput = false;
 
   let bodyEditorEl: HTMLDivElement;
+
+  function collectBody(): string {
+    return sanitizeHtml(bodyEditorEl ? bodyEditorEl.innerHTML : bodyHtml);
+  }
 
   function handleSend() {
     const toRecipients = toInput
@@ -75,7 +79,7 @@
       .map(s => s.trim())
       .filter(Boolean);
 
-    const fullBody = bodyEditorEl ? bodyEditorEl.innerHTML : bodyHtml;
+    const fullBody = collectBody();
 
     dispatch('send', {
       to: toRecipients,
@@ -92,7 +96,7 @@
       .map(s => s.trim())
       .filter(Boolean);
 
-    const fullBody = bodyEditorEl ? bodyEditorEl.innerHTML : bodyHtml;
+    const fullBody = collectBody();
 
     dispatch('saveDraft', {
       to: toRecipients,
@@ -123,15 +127,17 @@
         settings
       );
 
-      const htmlFormatted = generated
-        .split('\n\n')
-        .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
-        .join('');
+      const htmlFormatted = sanitizeHtml(
+        generated
+          .split('\n\n')
+          .map(p => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`)
+          .join('')
+      );
 
       if (bodyEditorEl) {
         bodyEditorEl.innerHTML = htmlFormatted;
-        bodyHtml = htmlFormatted;
       }
+      bodyHtml = htmlFormatted;
     } catch (err) {
       console.error('AI Draft failed:', err);
     } finally {
@@ -421,7 +427,7 @@
       tabindex="0"
       class="flex-1 p-5 bg-[#1e2024] text-slate-100 text-sm overflow-y-auto focus:outline-none font-sans leading-relaxed selection:bg-indigo-600 selection:text-white"
     >
-      {@html bodyHtml}
+      {@html sanitizeHtml(bodyHtml)}
     </div>
 
     <!-- Modal Footer -->

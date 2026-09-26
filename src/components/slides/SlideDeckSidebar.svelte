@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import type { Slide } from '../../types';
-  import { Plus, Copy, Trash2, ArrowUp, ArrowDown } from 'lucide-svelte';
+  import { Plus, Copy, Trash2, ArrowUp, ArrowDown } from '@lucide/svelte';
 
   export let slides: Slide[];
   export let activeSlideIndex: number = 0;
@@ -40,9 +40,19 @@
     {#each slides as slide, idx}
       {@const isActive = idx === activeSlideIndex}
       <div
+        role="button"
+        tabindex="0"
+        aria-label={`Slide ${idx + 1}${slide.title ? `: ${slide.title}` : ''}`}
+        aria-pressed={isActive}
         class="group relative rounded-lg border-2 p-1.5 transition-all cursor-pointer bg-white shadow-sm hover:shadow
           {isActive ? 'border-orange-500 ring-2 ring-orange-200' : 'border-slate-200 hover:border-slate-300'}"
         on:click={() => dispatch('selectSlide', idx)}
+        on:keydown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            dispatch('selectSlide', idx);
+          }
+        }}
       >
         <!-- Slide Mini Thumbnail (16:9) -->
         <div

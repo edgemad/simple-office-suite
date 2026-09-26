@@ -10,11 +10,9 @@
     Palette,
     Trash2,
     Plus,
-    LayoutTemplate,
-    Sparkles,
     Baseline,
     TrendingUp
-  } from 'lucide-svelte';
+  } from '@lucide/svelte';
   import type { SlideElementType } from '../../types';
 
   export let selectedElementId: string | null = null;
