@@ -84,7 +84,7 @@
         </div>
         <div>
           <h2 class="text-base font-bold text-slate-800">Keyboard Shortcuts</h2>
-          <p class="text-xs text-slate-500">Simple Office Suite keyboard shortcuts (keys differ per operating system)</p>
+          <p class="text-xs text-slate-500">SOS keyboard shortcuts (keys differ per operating system)</p>
         </div>
       </div>
       <button

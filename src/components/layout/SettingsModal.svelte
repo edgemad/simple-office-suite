@@ -83,7 +83,7 @@
           <Sliders size={14} />
         </div>
         <h2 class="text-sm font-semibold text-white tracking-wide">Application Settings</h2>
-        <span class="text-[11px] text-slate-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">Simple Office Suite</span>
+        <span class="text-[11px] text-slate-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">SOS</span>
       </div>
 
       <button
@@ -557,15 +557,15 @@
               </div>
               <div class="mt-2 p-2.5 bg-black/30 rounded-lg font-mono text-[11px] text-slate-300 space-y-1">
                 <div class="flex items-center justify-between">
-                  <span>📦 Simple-Office-Suite-1.0.0-macOS-arm64.dmg</span>
+                  <span>📦 SOS-1.0.0-macOS-arm64.dmg</span>
                   <span class="text-slate-500">Apple Disk Image (Drag & Drop)</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span>📦 Simple-Office-Suite-1.0.0-macOS-arm64.zip</span>
+                  <span>📦 SOS-1.0.0-macOS-arm64.zip</span>
                   <span class="text-slate-500">Portable Release Archive</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span>📁 Simple Office Suite.app</span>
+                  <span>📁 SOS.app</span>
                   <span class="text-slate-500">Native macOS Application Bundle</span>
                 </div>
               </div>
@@ -589,7 +589,7 @@
               </div>
               <div class="mt-2 p-2.5 bg-black/30 rounded-lg font-mono text-[11px] text-slate-300 space-y-1">
                 <div class="flex items-center justify-between">
-                  <span>📦 Simple-Office-Suite-1.0.0-Windows-x64-Portable.zip</span>
+                  <span>📦 SOS-1.0.0-Windows-x64-Portable.zip</span>
                   <span class="text-slate-500">Windows Portable Suite + Shell Launchers</span>
                 </div>
                 <div class="flex items-center justify-between">
@@ -597,7 +597,7 @@
                   <span class="text-slate-500">One-click Desktop & Start Menu installer</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span>📜 Simple-Office-Suite.nsi</span>
+                  <span>📜 SOS.nsi</span>
                   <span class="text-slate-500">Nullsoft Scriptable Installer source</span>
                 </div>
               </div>
@@ -645,7 +645,7 @@
         {:else if activeCategory === 'about'}
           <div class="space-y-5">
             <div>
-              <h3 class="text-sm font-semibold text-white">About Simple Office Suite</h3>
+              <h3 class="text-sm font-semibold text-white">About SOS</h3>
               <p class="text-slate-400 text-[11px]">System information, data handling, and license.</p>
             </div>
 
@@ -655,7 +655,7 @@
                   SOS
                 </div>
                 <div>
-                  <h4 class="text-base font-bold text-white">Simple Office Suite</h4>
+                  <h4 class="text-base font-bold text-white">SOS</h4>
                   <div class="flex items-center space-x-2 text-slate-400 text-xs mt-0.5">
                     <span>Version 1.0.0 (Release)</span>
                     <span>•</span>

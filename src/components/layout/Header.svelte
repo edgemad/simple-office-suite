@@ -235,17 +235,17 @@
       <!-- App Mode Icon -->
       <div class="flex items-center space-x-1.5">
         {#if activeMode === 'writer'}
-          <div class="w-6 h-6 rounded bg-blue-600 flex items-center justify-center text-white shadow-xs" title="Simple Office Suite Writer">
+          <div class="w-6 h-6 rounded bg-blue-600 flex items-center justify-center text-white shadow-xs" title="SOS Writer">
             <FileText size={14} />
           </div>
           <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Word</span>
         {:else if activeMode === 'sheets'}
-          <div class="w-6 h-6 rounded bg-emerald-600 flex items-center justify-center text-white shadow-xs" title="Simple Office Suite Sheet">
+          <div class="w-6 h-6 rounded bg-emerald-600 flex items-center justify-center text-white shadow-xs" title="SOS Sheet">
             <Sheet size={14} />
           </div>
           <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Sheet</span>
         {:else if activeMode === 'slides'}
-          <div class="w-6 h-6 rounded bg-orange-600 flex items-center justify-center text-white shadow-xs" title="Simple Office Suite Slides">
+          <div class="w-6 h-6 rounded bg-orange-600 flex items-center justify-center text-white shadow-xs" title="SOS Slides">
             <Presentation size={14} />
           </div>
           <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Slides</span>

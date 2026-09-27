@@ -1,8 +1,8 @@
-# Simple Office Suite (SOS)
+# SOS
 
 > **Alpha status:** this repository is an experimental Tauri 2 and Svelte desktop prototype. It is not a production office suite or a complete Microsoft Office replacement.
 
-Simple Office Suite combines a Svelte interface with a Rust/Tauri shell. The desktop shell provides local file dialogs, local autosave snapshots, and system information. The workspace modules are intentionally presented as functional prototypes with explicit format and networking limits.
+SOS combines a Svelte interface with a Rust/Tauri shell. The desktop shell provides local file dialogs, local autosave snapshots, and system information. The workspace modules are intentionally presented as functional prototypes with explicit format and networking limits.
 
 ## Implemented modules
 
@@ -114,6 +114,22 @@ npm run package:verify
 
 On Windows, invoke the same verifier with the available Python 3 executable if `python3` is not on `PATH`.
 
+## App icon
+
+`assets/icon/sos-icon.svg` is the editable master. `assets/icon/sos-icon.png` is the 1024×1024
+render used as the Tauri input; it is the same artwork with the rounded corners knocked out to
+alpha, which is what macOS expects. `public/logo.svg` and `public/logo.png` are copies used for
+the in-app favicon.
+
+After editing the master, re-export the 1024×1024 PNG and regenerate every platform asset:
+
+```bash
+npx tauri icon assets/icon/sos-icon.png
+```
+
+Do not hand-edit anything in `src-tauri/icons/`, `src-tauri/icons/icon.iconset`, or the generated
+`ios/` and `android/` trees; they are all overwritten by that command.
+
 ## CI and releases
 
 `.github/workflows/ci.yml` runs `npm ci`, the frontend check, the test command, the frontend build, and the Rust format, check, test, and Clippy commands. The Rust job requires the committed Cargo lockfile and uses locked Cargo commands.
@@ -148,4 +164,4 @@ Do not treat generated bundles or browser output as release artifacts.
 
 ## License
 
-Simple Office Suite is distributed under the MIT License. See [LICENSE](LICENSE).
+SOS is distributed under the MIT License. See [LICENSE](LICENSE).

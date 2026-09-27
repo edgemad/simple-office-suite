@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default permission set for Simple Office Suite desktop app",
+  "description": "Default permission set for SOS desktop app",
   "windows": [
     "main"
   ],

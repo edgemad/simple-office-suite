@@ -150,7 +150,7 @@
       mode: 'writer',
     },
     contentHtml: `
-      <h1>Simple Office Suite (SOS) Project Brief</h1>
+      <h1>SOS Project Brief</h1>
       <p>Welcome to <strong>SOS Writer</strong>, a local document editor built with Svelte and Tauri. This is an alpha build, so a few things are still prototypes.</p>
       <h2>What works today</h2>
       <ul>
@@ -223,7 +223,7 @@
     slides: [
       {
         id: 's1',
-        title: 'Simple Office Suite (SOS)',
+        title: 'SOS',
         bgColor: '#0f172a',
         elements: [
           {
@@ -233,7 +233,7 @@
             y: 20,
             width: 80,
             height: 15,
-            content: 'Simple Office Suite (SOS)',
+            content: 'SOS',
             fontColor: '#ffffff',
             fontSize: 44,
           },

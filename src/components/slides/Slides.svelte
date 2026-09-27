@@ -399,7 +399,7 @@
     } else if (type === 'shape') {
       newElem = { id, type, x: 25, y: 40, width: 50, height: 25, content: 'Highlight Card', fontSize: 18 };
     } else if (type === 'code') {
-      newElem = { id, type, x: 15, y: 35, width: 70, height: 40, content: 'fn main() {\n    println!("Simple Office Suite");\n}', fontSize: 13 };
+      newElem = { id, type, x: 15, y: 35, width: 70, height: 40, content: 'fn main() {\n    println!("SOS");\n}', fontSize: 13 };
     } else {
       newElem = { id, type: 'image' as const, x: 20, y: 25, width: 60, height: 45, content: '' };
     }

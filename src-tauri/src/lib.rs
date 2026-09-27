@@ -663,7 +663,7 @@ fn parse_pptx_archive(path: &Path) -> Result<String, String> {
 fn reject_binary_input(bytes: &[u8]) -> Result<(), String> {
     if bytes.starts_with(b"%PDF") {
         return Err(
-            "Opening PDF files is not supported. Simple Office Suite opens text documents, Markdown, HTML, RTF, CSV/TSV, suite JSON, and DOCX/XLSX/PPTX packages. Use print to PDF from a document to produce a PDF."
+            "Opening PDF files is not supported. SOS opens text documents, Markdown, HTML, RTF, CSV/TSV, suite JSON, and DOCX/XLSX/PPTX packages. Use print to PDF from a document to produce a PDF."
                 .to_string(),
         );
     }
@@ -672,7 +672,7 @@ fn reject_binary_input(bytes: &[u8]) -> Result<(), String> {
     let head = String::from_utf8_lossy(&bytes[..head_len]);
     if head.contains('\u{FFFD}') {
         return Err(
-            "This file looks like a binary or non-text format that Simple Office Suite cannot import. Supported inputs are text documents, Markdown, HTML, RTF, CSV/TSV, suite JSON, and DOCX/XLSX/PPTX packages."
+            "This file looks like a binary or non-text format that SOS cannot import. Supported inputs are text documents, Markdown, HTML, RTF, CSV/TSV, suite JSON, and DOCX/XLSX/PPTX packages."
                 .to_string(),
         );
     }
@@ -1125,7 +1125,7 @@ pub fn run() {
             save_native_file_dialog
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Simple Office Suite application");
+        .expect("error while running SOS application");
 }
 
 #[cfg(test)]

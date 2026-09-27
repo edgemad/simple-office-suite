@@ -162,7 +162,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: Simple Office Suite ${{ env.RELEASE_TAG }}
+          name: SOS ${{ env.RELEASE_TAG }}
           files: |
             release-assets/**/*.dmg
             release-assets/**/*.msi

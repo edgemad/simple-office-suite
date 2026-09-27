@@ -121,7 +121,7 @@
         </div>
         <div>
           <h3 id="ai-modal-title" class="font-bold text-sm text-white">
-            Simple Office Suite AI Assistant
+            SOS AI Assistant
           </h3>
           <p class="text-[11px] text-purple-300">
             Drafting, formulas, summaries, and email help for {moduleLabel}

@@ -21,7 +21,7 @@ import { normalizeAnimation } from './animation';
 import { normalizeTransition } from './slideLayout';
 
 /**
- * Universal File Format Engine for Simple Office Suite (SOS)
+ * Universal File Format Engine for SOS
  * Supports opening and exporting .docx, .doc, .xlsx, .xls, .pptx, .csv, .tsv, .md, .txt, .html, .rtf, .json
  */
 

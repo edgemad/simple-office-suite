@@ -32,7 +32,7 @@ export async function processAiRequest(
             {
               role: 'system',
               content:
-                'You are the AI assistant embedded in Simple Office Suite, a local office suite. Provide concise, professional office content in clean markdown or plain text as requested. Only the task and the content the user selected are sent to you.',
+                'You are the AI assistant embedded in SOS, a local office suite. Provide concise, professional office content in clean markdown or plain text as requested. Only the task and the content the user selected are sent to you.',
             },
             {
               role: 'user',

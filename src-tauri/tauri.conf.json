@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
-  "productName": "Simple Office Suite",
+  "productName": "SOS",
   "version": "1.0.0",
   "identifier": "com.simpleoffice.suite",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Simple Office Suite",
+        "title": "SOS",
         "width": 1280,
         "height": 850,
         "minWidth": 960,
@@ -41,7 +41,7 @@
     ],
     "category": "Productivity",
     "shortDescription": "Offline-capable word processor, spreadsheet, and presentation editor",
-    "longDescription": "Simple Office Suite is a Tauri 2 desktop app with three local workspaces: a word processor, a spreadsheet editor with a formula engine, and a presentation editor. Documents open and save as SOS, Markdown, HTML, RTF, CSV, and text sources, and any workspace can print to PDF through the host print dialog; Microsoft Office formats are not supported yet. Cloud AI is optional and only contacted when you configure a provider.",
+    "longDescription": "SOS is a Tauri 2 desktop app with three local workspaces: a word processor, a spreadsheet editor with a formula engine, and a presentation editor. Documents open and save as SOS, Markdown, HTML, RTF, CSV, and text sources, and any workspace can print to PDF through the host print dialog; Microsoft Office formats are not supported yet. Cloud AI is optional and only contacted when you configure a provider.",
     "macOS": {
       "frameworks": [],
       "minimumSystemVersion": "10.15",

@@ -11,7 +11,7 @@
 
   export let meta: DocumentMeta;
   export let contentHtml: string = `
-    <h1>Simple Office Suite (SOS) Project Brief</h1>
+    <h1>SOS Project Brief</h1>
     <p>Welcome to <strong>SOS Writer</strong> — your full-featured, lightweight, and offline-first word processor inspired by Google Docs and OnlyOffice.</p>
     <h2>Comprehensive Capabilities</h2>
     <ul>
