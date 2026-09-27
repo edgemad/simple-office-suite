@@ -423,3 +423,37 @@ describe('email and ai output sinks', () => {
     expect(preview).not.toMatch(/alert/i);
   });
 });
+
+describe('review markup survives sanitization', () => {
+  it('keeps tracked insertions, deletions and comment anchors', () => {
+    const html = sanitizeHtml(
+      '<p><ins class="tracked-insertion">new</ins> and <del class="tracked-deletion">old</del>' +
+        '<span class="comment-anchor" title="Comment 1">text</span></p>'
+    );
+    expect(html).toContain('<ins');
+    expect(html).toContain('tracked-insertion');
+    expect(html).toContain('<del');
+    expect(html).toContain('comment-anchor');
+    expect(html).toContain('title="Comment 1"');
+  });
+
+  it('keeps a footnote section and its markers', () => {
+    const html = sanitizeHtml(
+      '<section class="document-footnotes"><h2>Footnotes</h2>' +
+        '<p class="footnote-entry"><strong>1. </strong>note text</p></section><p><sup class="footnote-ref">1</sup></p>'
+    );
+    expect(html).toContain('document-footnotes');
+    expect(html).toContain('footnote-ref');
+    expect(html).toContain('footnote-entry');
+  });
+
+  it('drops the id attribute so anchors cannot be clobbered', () => {
+    const html = sanitizeHtml('<p id="fn-1">note</p>');
+    expect(html).not.toContain('id=');
+  });
+
+  it('still strips scripts inside review markup', () => {
+    const html = sanitizeHtml('<ins class="tracked-insertion"><script>alert(1)</script></ins>');
+    expect(html).not.toMatch(/<script/i);
+  });
+});

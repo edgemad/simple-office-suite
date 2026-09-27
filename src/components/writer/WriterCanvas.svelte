@@ -214,11 +214,14 @@
   }
 
   export function suggestDelete() {
+    // Keep the text and mark it as a suggested deletion, which is what a
+    // reviewer can accept or reject. Strike-through alone is just formatting
+    // and disappears on reload.
+    markSelectionDeleted();
     if (!editorElement) return;
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
     editorElement.focus();
-    document.execCommand('strikeThrough', false);
     wrapSelection('del', 'tracked-deletion');
     handleInput();
   }
@@ -251,26 +254,88 @@
     insertInlineNode('<div class="doc-page-break"></div><p><br></p>');
   }
 
+  /**
+   * Inserts a footnote marker where the caret is and files the note body in the
+   * document's footnote section. The previous version appended the note text
+   * inline, so the note landed in the middle of the paragraph it referred to.
+   */
   export function insertFootnoteRef(id: number) {
+    if (!editorElement) return;
     footnoteTotal = Math.max(footnoteTotal, id);
-    insertInlineNode(
-      `<sup class="footnote-ref"><a href="#fn-${id}">${id}</a></sup> ` +
-        `<span class="footnote-entry" id="fn-${id}">Footnote ${id}: </span>`
-    );
+    editorElement.focus();
+    // `id` is a forbidden attribute under the sanitizer, so an anchor to a note
+    // would link to a target that is stripped on the next save. The marker is
+    // therefore a plain number matched to the trailing note list.
+    document.execCommand('insertHTML', false, `<sup class="footnote-ref">${id}</sup>`);
+    appendFootnote(id);
+    handleInput();
   }
 
-  export function markComment(quote: string, id: number) {
+  /** Appends a note to the trailing footnote section, creating it if needed. */
+  function appendFootnote(id: number) {
     if (!editorElement) return;
-    const html = editorElement.innerHTML;
-    const idx = html.indexOf(quote);
-    if (idx === -1) return;
-    const wrapped =
-      html.slice(0, idx) +
-      `<span class="comment-anchor" title="Comment ${id}">` +
-      quote +
-      '</span>' +
-      html.slice(idx + quote.length);
-    setEditorHtml(wrapped);
+    let section = editorElement.querySelector('.document-footnotes');
+    if (!section) {
+      section = document.createElement('section');
+      section.className = 'document-footnotes';
+      const heading = document.createElement('hr');
+      const title = document.createElement('h2');
+      title.textContent = 'Footnotes';
+      section.append(heading, title);
+      editorElement.appendChild(section);
+    }
+    const entry = document.createElement('p');
+    entry.className = 'footnote-entry';
+    const label = document.createElement('strong');
+    label.textContent = `${id}. `;
+    entry.append(label, document.createTextNode(''));
+    section.appendChild(entry);
+  }
+
+  /**
+   * Anchors a comment to the live selection. The previous implementation
+   * searched the raw HTML for the quoted text, which matched the first
+   * textual occurrence anywhere in the document, including inside tags, and
+   * could slice the markup mid-tag and corrupt it.
+   */
+  export function markComment(_quote: string, id: number) {
+    if (!editorElement) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    if (!editorElement.contains(range.commonAncestorContainer)) return;
+
+    const anchor = document.createElement('span');
+    anchor.className = 'comment-anchor';
+    anchor.setAttribute('title', `Comment ${id}`);
+    try {
+      range.surroundContents(anchor);
+    } catch {
+      anchor.appendChild(range.extractContents());
+      range.insertNode(anchor);
+    }
+    sel.removeAllRanges();
+    handleInput();
+  }
+
+  /** Wraps the current selection as a tracked deletion instead of removing it. */
+  export function markSelectionDeleted() {
+    if (!editorElement) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    if (!editorElement.contains(range.commonAncestorContainer)) return;
+
+    const del = document.createElement('del');
+    del.className = 'tracked-deletion';
+    try {
+      range.surroundContents(del);
+    } catch {
+      del.appendChild(range.extractContents());
+      range.insertNode(del);
+    }
+    sel.removeAllRanges();
+    handleInput();
   }
 
   export function insertCodeBlock() {
@@ -299,6 +364,57 @@
     sel.removeAllRanges();
   }
 
+  /**
+   * Intercepts a destructive edit while suggesting is on and marks the text
+   * instead of dropping it. Returns true when the event was handled.
+   */
+  function interceptTrackedDeletion(e: InputEvent): boolean {
+    if (!trackChangesOn || !editorElement) return false;
+    const type = e.inputType || '';
+    if (!type.startsWith('delete')) return false;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return false;
+
+    if (!sel.isCollapsed) {
+      e.preventDefault();
+      markSelectionDeleted();
+      return true;
+    }
+
+    // A collapsed backspace has no range, so remove one character ourselves.
+    const range = sel.getRangeAt(0);
+    if (!editorElement.contains(range.startContainer)) return false;
+    const node = range.startContainer;
+    if (node.nodeType !== 3) return false;
+
+    e.preventDefault();
+    const textNode = node as Text;
+    const size = type.includes('Backward') ? 1 : 1;
+    const start = type.includes('Backward') ? Math.max(0, range.startOffset - size) : range.startOffset;
+    const end = Math.min(textNode.data.length, range.startOffset + size);
+    if (end <= start) return true;
+
+    const del = document.createElement('del');
+    del.className = 'tracked-deletion';
+    try {
+      const cut = document.createRange();
+      cut.setStart(textNode, start);
+      cut.setEnd(textNode, end);
+      del.appendChild(cut.extractContents());
+      textNode.parentNode?.insertBefore(del, textNode);
+      const caret = document.createRange();
+      caret.setStart(textNode, start);
+      caret.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(caret);
+    } catch {
+      // Fall through and let the browser perform the deletion.
+      return false;
+    }
+    handleInput();
+    return true;
+  }
+
   function insertTrackedHtml(html: string) {
     if (trackChangesOn) {
       document.execCommand('insertHTML', false, `<ins class="tracked-insertion">${html}</ins>`);
@@ -307,7 +423,51 @@
     }
   }
 
+  /**
+   * Track changes that actually track. Only programmatic inserts were wrapped
+   * before, so anything typed at the keyboard landed untracked, which is the
+   * behaviour a reviewer would trust least.
+   *
+   * `beforeinput` records the caret, and the following `input` wraps exactly the
+   * text that appeared after it. Deletions are intercepted and turned into
+   * tracked deletions rather than silently removing text.
+   */
+  let pendingAnchor: { node: Text; offset: number } | null = null;
+
+  function handleBeforeInput() {
+    if (!trackChangesOn) return;
+    pendingAnchor = null;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const node = sel.getRangeAt(0).startContainer;
+    pendingAnchor = { node: node as Text, offset: sel.getRangeAt(0).startOffset };
+  }
+
+  function wrapTrackedInsertion() {
+    const anchor = pendingAnchor;
+    pendingAnchor = null;
+    if (!anchor || !editorElement) return;
+    const { node, offset } = anchor;
+    // The node may have been replaced by the browser during the edit.
+    if (!node.parentNode || !editorElement.contains(node) || node.nodeType !== 3) return;
+    if (node.data.length <= offset) return;
+    if (node.parentElement?.closest('ins, del')) return;
+
+    const range = document.createRange();
+    try {
+      range.setStart(node, offset);
+      range.setEnd(node, node.data.length);
+      const ins = document.createElement('ins');
+      ins.className = 'tracked-insertion';
+      ins.appendChild(range.extractContents());
+      node.parentNode?.insertBefore(ins, node.nextSibling);
+    } catch {
+      // Leave the text untracked rather than losing it.
+    }
+  }
+
   function handleInput() {
+    if (trackChangesOn) wrapTrackedInsertion();
     if (!editorElement) return;
     const html = sanitizeHtml(editorElement.innerHTML);
     const text = editorElement.innerText || '';
@@ -373,6 +533,9 @@
     aria-multiline="true"
     class="document-page bg-white shadow-md hover:shadow-lg transition-all cursor-text text-slate-800 {dimensionClass}"
     style={(isPageless ? '' : marginStyle) + columnStyle}
+    on:beforeinput={(e) => {
+      if (!interceptTrackedDeletion(e)) handleBeforeInput();
+    }}
     on:input={handleInput}
     on:keyup={handleInput}
   >
@@ -439,6 +602,23 @@
     color: #1d4ed8;
     text-decoration: none;
     font-weight: 700;
+  }
+  :global(.document-page .document-footnotes) {
+    margin-top: 2rem;
+    border-top: 1px solid rgb(226 232 240);
+    padding-top: 0.75rem;
+    font-size: 0.8rem;
+    color: rgb(71 85 105);
+  }
+  :global(.document-page .document-footnotes h2) {
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  :global(.document-page sup.footnote-ref) {
+    color: rgb(37 99 235);
+    font-weight: 600;
+    margin-left: 1px;
   }
   :global(.document-page .footnote-entry) {
     font-size: 0.8em;
