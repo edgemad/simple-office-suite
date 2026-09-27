@@ -6,7 +6,26 @@
   import DocumentOutline from './DocumentOutline.svelte';
   import TableInsertModal from './TableInsertModal.svelte';
   import PageSetupModal from './PageSetupModal.svelte';
-  import type { DocumentMeta, DocumentPageSetup } from '../../types';
+  import CommentsDrawer from './CommentsDrawer.svelte';
+  import VersionHistoryModal from './VersionHistoryModal.svelte';
+  import WatermarkModal from './WatermarkModal.svelte';
+  import SpecialCharactersModal from './SpecialCharactersModal.svelte';
+  import type {
+    DocumentMeta,
+    DocumentPageSetup,
+    DocumentComment,
+    DocumentVersion,
+    DocumentWatermark,
+    EditorMode,
+  } from '../../types';
+  import {
+    addComment as addCommentToList,
+    createVersion as createVersionSnapshot,
+    normalizeWatermark as normalizeWatermarkOptions,
+    removeComment as removeCommentFromList,
+    replyToComment as appendReply,
+    toggleCommentResolved as flipCommentResolved,
+  } from '../../lib/review';
   import { Search, X, Replace, FileText } from '@lucide/svelte';
 
   export let meta: DocumentMeta;
@@ -54,8 +73,19 @@
   let footnotes: { id: number; text: string }[] = [];
   let footnoteCounter = 0;
   let citationCounter = 0;
-  let comments: { id: number; quote: string; text: string; author: string }[] = [];
-  let commentCounter = 0;
+  export let comments: DocumentComment[] = [];
+  export let versions: DocumentVersion[] = [];
+  export let editorMode: EditorMode = 'editing';
+  export let watermarkOptions: Pick<DocumentWatermark, 'opacity' | 'angle' | 'color'> = {
+    opacity: 0.15,
+    angle: -45,
+    color: '#0f172a',
+  };
+  let showCommentsDrawer = false;
+  let showVersionHistory = false;
+  let showWatermarkModal = false;
+  let showSpecialChars = false;
+  let selectedQuote = '';
   let findInput: HTMLInputElement;
   let replaceInput: HTMLInputElement;
 
@@ -65,6 +95,10 @@
     watermarkChange: { watermark: string };
     pageSetupChange: { pageSetup: DocumentPageSetup };
     columnCountChange: { columnCount: number };
+    commentsChange: { comments: DocumentComment[] };
+    versionsChange: { versions: DocumentVersion[] };
+    editorModeChange: { mode: EditorMode };
+    watermarkOptionsChange: { options: Pick<DocumentWatermark, 'opacity' | 'angle' | 'color'> };
   }>();
 
   export function triggerUndo() {
@@ -199,11 +233,85 @@
       alert('Select some text first, then add a comment.');
       return;
     }
-    const text = prompt(`Comment on "${quote.slice(0, 40)}":`);
-    if (!text) return;
-    commentCounter += 1;
-    comments = [...comments, { id: commentCounter, quote, text, author: 'You' }];
-    canvasRef?.markComment(quote, commentCounter);
+    // Capture the selection now: the drawer is a separate surface, so the live
+    // selection is gone by the time the user types their comment.
+    selectedQuote = quote;
+    showCommentsDrawer = true;
+  }
+
+  export function openCommentsDrawer() {
+    selectedQuote = '';
+    showCommentsDrawer = true;
+  }
+
+  function commitComments(next: DocumentComment[]) {
+    comments = next;
+    dispatch('commentsChange', { comments });
+  }
+
+  function handleAddComment(e: CustomEvent<{ text: string; quotedText: string }>) {
+    const quote = (e.detail.quotedText || selectedQuote).trim();
+    if (!quote) return;
+    commitComments(addCommentToList(comments, { text: e.detail.text, quotedText: quote }));
+    selectedQuote = '';
+  }
+
+  function handleReplyComment(e: CustomEvent<{ commentId: string; text: string }>) {
+    commitComments(appendReply(comments, e.detail.commentId, { text: e.detail.text }));
+  }
+
+  function handleResolveComment(e: CustomEvent<{ commentId: string }>) {
+    commitComments(flipCommentResolved(comments, e.detail.commentId));
+  }
+
+  function handleDeleteComment(e: CustomEvent<{ commentId: string }>) {
+    commitComments(removeCommentFromList(comments, e.detail.commentId));
+  }
+
+  function handleChangeMode(e: CustomEvent<{ mode: EditorMode }>) {
+    editorMode = e.detail.mode;
+    canvasRef?.setEditorMode(editorMode);
+    dispatch('editorModeChange', { mode: editorMode });
+  }
+
+  function handleRestoreVersion(e: CustomEvent<{ content: string }>) {
+    contentHtml = e.detail.content;
+    dispatch('contentChange', {
+      html: contentHtml,
+      text: '',
+      words: contentHtml.split(/\s+/).filter(Boolean).length,
+      chars: contentHtml.length,
+    });
+  }
+
+  function handleNameVersion(e: CustomEvent<{ name: string }>) {
+    const versionsNext = createVersionSnapshot(versions, { name: e.detail.name, content: contentHtml });
+    versions = versionsNext;
+    dispatch('versionsChange', { versions });
+  }
+
+  export function saveNamedVersion(name: string) {
+    handleNameVersion(new CustomEvent('nameVersion', { detail: { name } }));
+  }
+
+  export function openVersionHistory() {
+    showVersionHistory = true;
+  }
+
+  export function openWatermarkDialog() {
+    showWatermarkModal = true;
+  }
+
+  export function handleWatermarkSave(e: CustomEvent<{ watermark: DocumentWatermark }>) {
+    const wm = normalizeWatermarkOptions(e.detail.watermark);
+    showWatermark = wm.enabled ? wm.text : '';
+    watermarkOptions = { opacity: wm.opacity, angle: wm.angle, color: wm.color };
+    dispatch('watermarkChange', { watermark: showWatermark });
+    dispatch('watermarkOptionsChange', { options: watermarkOptions });
+  }
+
+  export function openSpecialCharacters() {
+    showSpecialChars = true;
   }
 
   export function toggleTrackChanges() {
@@ -434,6 +542,7 @@
       {pageSetup}
       {isPageless}
       watermark={showWatermark}
+      {watermarkOptions}
       {columnCount}
       on:change={handleCanvasChange}
     />
@@ -457,6 +566,52 @@
       dispatch('pageSetupChange', { pageSetup });
       isPageless = e.detail.isPageless;
     }}
+  />
+
+  <!-- Review Comments Drawer -->
+  <CommentsDrawer
+    isOpen={showCommentsDrawer}
+    {comments}
+    {editorMode}
+    {selectedQuote}
+    on:close={() => (showCommentsDrawer = false)}
+    on:addComment={handleAddComment}
+    on:replyComment={handleReplyComment}
+    on:resolveComment={handleResolveComment}
+    on:deleteComment={handleDeleteComment}
+    on:changeMode={handleChangeMode}
+    on:focusComment={() => {}}
+  />
+
+  <!-- Version History -->
+  <VersionHistoryModal
+    isOpen={showVersionHistory}
+    {versions}
+    currentContent={contentHtml}
+    on:close={() => (showVersionHistory = false)}
+    on:restore={handleRestoreVersion}
+    on:nameVersion={handleNameVersion}
+  />
+
+  <!-- Watermark styling -->
+  <WatermarkModal
+    isOpen={showWatermarkModal}
+    watermark={{
+      enabled: !!showWatermark,
+      text: showWatermark || 'CONFIDENTIAL',
+      opacity: watermarkOptions.opacity,
+      angle: watermarkOptions.angle,
+      color: watermarkOptions.color,
+    }}
+    on:close={() => (showWatermarkModal = false)}
+    on:save={handleWatermarkSave}
+  />
+
+  <!-- Special Characters -->
+  <SpecialCharactersModal
+    isOpen={showSpecialChars}
+    on:close={() => (showSpecialChars = false)}
+    on:insert={(e) => canvasRef?.insertInlineNode(e.detail.char)}
   />
 
   <!-- Google Docs Style Word Count Modal (Cmd+Shift+C) -->

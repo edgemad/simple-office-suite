@@ -22,6 +22,52 @@ export interface DocumentPageSetup {
   size: 'letter' | 'a4' | 'legal';
 }
 
+export type EditorMode = 'editing' | 'suggesting' | 'viewing';
+
+export interface CommentReply {
+  id: string;
+  authorName: string;
+  authorAvatar?: string;
+  content: string;
+  timestamp: string;
+}
+
+export interface DocumentComment {
+  id: string;
+  authorName: string;
+  authorAvatar?: string;
+  content: string;
+  timestamp: string;
+  quotedText?: string;
+  resolved: boolean;
+  replies: CommentReply[];
+  isSuggestion?: boolean;
+  suggestedAction?: 'insert' | 'delete' | 'replace';
+  suggestedText?: string;
+}
+
+export interface DocumentVersion {
+  id: string;
+  timestamp: string;
+  authorName: string;
+  name?: string;
+  content: string;
+  isAutoSave?: boolean;
+}
+
+/**
+ * What the watermark dialog edits. `WriterDocument` stores the text as a plain
+ * string so the existing toggle keeps working, and the presentation options
+ * separately in `watermarkOptions`; Writer bridges the two.
+ */
+export interface DocumentWatermark {
+  enabled: boolean;
+  text: string;
+  opacity: number;
+  angle: number;
+  color?: string;
+}
+
 export interface WriterDocument {
   meta: DocumentMeta;
   contentHtml: string;
@@ -33,6 +79,9 @@ export interface WriterDocument {
   pageSetup?: DocumentPageSetup;
   columns?: number;
   watermark?: string;
+  watermarkOptions?: Pick<DocumentWatermark, 'opacity' | 'angle' | 'color'>;
+  comments?: DocumentComment[];
+  versions?: DocumentVersion[];
 }
 
 // SOS Sheets Types

@@ -14,6 +14,7 @@
     Undo2,
     Redo2,
     Sparkles,
+    History,
     Table,
     Image,
     Link,
@@ -922,6 +923,12 @@
         <button class="ribbon-btn" on:click={() => triggerAction('addComment')} title="Comment on the selected text">
           <MessageSquare size={14} class="text-amber-300" /><span>Comment</span>
         </button>
+        <button class="ribbon-btn" on:click={() => triggerAction('openComments')} title="Open the comments panel with replies and resolved threads">
+          <MessageSquare size={14} class="text-amber-200" /><span>All comments</span>
+        </button>
+        <button class="ribbon-btn" on:click={() => triggerAction('versionHistory')} title="Browse and restore earlier versions">
+          <History size={14} class="text-slate-300" /><span>Version history</span>
+        </button>
         <button class="ribbon-btn" on:click={() => triggerAction('trackChanges')} title="Track changes while typing">
           <Shield size={14} class="text-purple-400" /><span>Suggesting</span>
         </button>
@@ -942,6 +949,12 @@
         </button>
         <button class="ribbon-btn" on:click={() => triggerAction('watermark')} title="Toggle a DRAFT watermark">
           <Palette size={14} class="text-sky-300" /><span>Watermark</span>
+        </button>
+        <button class="ribbon-btn" on:click={() => triggerAction('watermarkDialog')} title="Watermark text, angle, opacity, and colour">
+          <Palette size={14} class="text-sky-200" /><span>Watermark style</span>
+        </button>
+        <button class="ribbon-btn" on:click={() => triggerAction('specialChars')} title="Insert a special character">
+          <Sparkles size={14} class="text-violet-300" /><span>Symbols</span>
         </button>
       </div>
 

@@ -12,6 +12,11 @@
   };
   export let isPageless: boolean = false;
   export let watermark: string = '';
+  export let watermarkOptions: { opacity: number; angle: number; color?: string } = {
+    opacity: 0.15,
+    angle: -45,
+    color: '#0f172a',
+  };
   export let columnCount: number = 1;
 
   const dispatch = createEventDispatcher<{
@@ -21,6 +26,7 @@
   let editorElement: HTMLDivElement;
   let isEditable = true;
   let trackChangesOn = false;
+  let editorMode: 'editing' | 'suggesting' | 'viewing' = 'editing';
   let footnoteTotal = 0;
 
   $: safeContentHtml = sanitizeHtml(contentHtml);
@@ -211,6 +217,21 @@
 
   export function setTrackChanges(value: boolean) {
     trackChangesOn = value;
+  }
+
+  /**
+   * 'editing' allows typing, 'viewing' freezes the page, and 'suggesting'
+   * turns edits into tracked suggestions instead of direct changes.
+   */
+  export function setEditorMode(mode: 'editing' | 'suggesting' | 'viewing') {
+    editorMode = mode;
+    if (!editorElement) return;
+    if (mode === 'viewing') {
+      editorElement.contentEditable = 'false';
+    } else {
+      editorElement.contentEditable = isEditable ? 'true' : 'false';
+    }
+    trackChangesOn = mode === 'suggesting';
   }
 
   export function suggestDelete() {
@@ -522,11 +543,15 @@
   <!-- Document Page Canvas -->
   <div class="relative w-full flex justify-center">
     {#if watermark}
-      <div class="doc-watermark" aria-hidden="true">{watermark}</div>
+      <div
+        class="doc-watermark"
+        style="opacity:{watermarkOptions.opacity};transform:rotate({watermarkOptions.angle}deg);color:{watermarkOptions.color ?? '#0f172a'}"
+        aria-hidden="true"
+      >{watermark}</div>
     {/if}
   <div
     bind:this={editorElement}
-    contenteditable="true"
+    contenteditable={editorMode === 'viewing' ? 'false' : 'true'}
     spellcheck="true"
     role="textbox"
     tabindex="0"
@@ -565,8 +590,6 @@
     font-size: 5rem;
     font-weight: 800;
     letter-spacing: 0.1em;
-    color: rgba(15, 23, 42, 0.08);
-    transform: rotate(-28deg);
     pointer-events: none;
     user-select: none;
     z-index: 0;

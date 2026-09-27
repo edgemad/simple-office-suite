@@ -133,6 +133,8 @@
   let writerRef: Writer;
   let sheetsRef: Sheets;
   let slidesRef: Slides;
+  // Review mode: 'editing' | 'suggesting' | 'viewing'
+  let writerEditorMode: 'editing' | 'suggesting' | 'viewing' = 'editing';
   // Active status bar statistics
   let writerWordCount = 48;
   let writerCharCount = 312;
@@ -708,6 +710,14 @@
         writerRef?.insertCitation();
       } else if (action === 'addComment') {
         writerRef?.addComment();
+      } else if (action === 'openComments') {
+        writerRef?.openCommentsDrawer();
+      } else if (action === 'versionHistory') {
+        writerRef?.openVersionHistory();
+      } else if (action === 'watermarkDialog') {
+        writerRef?.openWatermarkDialog();
+      } else if (action === 'specialChars') {
+        writerRef?.openSpecialCharacters();
       } else if (action === 'trackChanges') {
         writerRef?.toggleTrackChanges();
       } else if (action === 'watermark') {
@@ -909,8 +919,15 @@
         bind:contentHtml={writerDoc.contentHtml}
         bind:pageSetup={writerDoc.pageSetup}
         bind:showWatermark={writerDoc.watermark}
-        bind:columnCount={writerDoc.columns}
+        bind:watermarkOptions={writerDoc.watermarkOptions}
+        bind:comments={writerDoc.comments}
+        bind:versions={writerDoc.versions}
+        bind:editorMode={writerEditorMode}
         on:watermarkChange={() => triggerAutoSave()}
+        on:watermarkOptionsChange={() => triggerAutoSave()}
+        on:commentsChange={() => triggerAutoSave()}
+        on:versionsChange={() => triggerAutoSave()}
+        on:editorModeChange={(e) => (writerEditorMode = e.detail.mode)}
         on:pageSetupChange={() => triggerAutoSave()}
         on:columnCountChange={() => triggerAutoSave()}
         on:contentChange={triggerAutoSave}
