@@ -228,9 +228,21 @@ pnpm tauri build
 ```
 
 Built artifacts will be placed in `src-tauri/target/release/bundle/`:
-- **macOS**: `.dmg` (Universal or target-specific) & `.app`
-- **Linux**: `.AppImage` & `.deb`
-- **Windows**: `.msi` & `.exe` (NSIS)
+- **macOS**: `.app` and portable `.zip` / `.dmg`
+- **Linux**: `.AppImage` (standalone portable executable) & `.deb`
+- **Windows**: `.exe` (NSIS user-space portable installer) & `.zip`
+
+---
+
+## 🚀 Zero-Driver & Portable Architecture
+
+Simple Office Suite is engineered to be **100% driverless and user-space portable** across all operating systems:
+- **No Kernel Extensions or System Drivers**: Uses OS-native user-space web rendering (WebKit on macOS/Linux, WebView2 on Windows) and pure Rust binaries.
+- **No Elevated Permissions (Root/UAC) Required**:
+  - **macOS**: Standalone `.app` bundle can be placed in `~/Applications` or run directly from anywhere.
+  - **Windows**: NSIS installer defaults to `currentUser` installation mode (`%LOCALAPPDATA%`), requiring no administrator privileges or driver prompts.
+  - **Linux**: Portable `.AppImage` runs on any Linux distribution with `chmod +x` without requiring root `sudo` or package manager changes.
+  - **Web / Offline PWA**: Open directly in any modern browser with client-side persistence and zero installation.
 
 ---
 
