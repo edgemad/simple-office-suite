@@ -15,40 +15,45 @@ jobs:
       matrix:
         include:
           - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin --bundles app,dmg'
+            args: '--target aarch64-apple-darwin'
           - platform: 'macos-13'
-            args: '--target x86_64-apple-darwin --bundles app,dmg'
+            args: '--target x86_64-apple-darwin'
           - platform: 'ubuntu-22.04'
-            args: '--bundles appimage,deb'
+            args: ''
           - platform: 'windows-latest'
-            args: '--bundles nsis'
+            args: ''
 
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+
+      - name: setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: lts/*
           cache: 'npm'
 
-      - name: Install Rust
+      - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || matrix.platform == 'macos-13' && 'x86_64-apple-darwin' || '' }}
 
-      - name: Install Linux Dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
 
-      - name: Install Frontend Dependencies
+      - name: install frontend dependencies
         run: npm ci
 
       - name: Build Application Installers with Tauri Action
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
