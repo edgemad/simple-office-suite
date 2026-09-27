@@ -4,6 +4,7 @@
   import Header from './components/layout/Header.svelte';
   import StatusBar from './components/layout/StatusBar.svelte';
   import ShortcutsModal from './components/layout/ShortcutsModal.svelte';
+  import ErrorBoundary from './components/layout/ErrorBoundary.svelte';
   import SettingsModal from './components/layout/SettingsModal.svelte';
   import type { AppSettings } from './types';
   import { loadSettings, DEFAULT_SETTINGS } from './lib/settings';
@@ -17,6 +18,8 @@
     writeTextFileNative,
   } from './lib/tauri';
   import { autoSaver } from './lib/storage';
+  import { clearAutoSaveSnapshotNative } from './lib/tauri';
+  import { evaluateRecovery, describeSnapshot, type RecoveryDecision } from './lib/recovery';
   import { downloadFile, triggerPrintToPdf, htmlToMarkdown } from './lib/utils';
   import { htmlToPlainText, sanitizeHtml } from './lib/sanitize';
   import {
@@ -57,6 +60,63 @@
     sheetsWorkbook.sheets[0].colCount = Math.max(maxCol + 4, 35);
   }
 
+  let recovery: (RecoveryDecision & { data?: unknown; module: string; documentId: string }) | null = null;
+  let recovering = false;
+
+  /** Offers back autosaved work after a crash, and only when it is genuinely newer. */
+  async function checkForRecovery() {
+    const candidates: Array<{ module: 'writer' | 'sheets' | 'slides'; documentId: string }> = [
+      { module: 'writer', documentId: writerDoc.meta.id },
+      { module: 'sheets', documentId: sheetsWorkbook.meta.id },
+      { module: 'slides', documentId: slidesDeck.meta.id },
+    ];
+
+    for (const candidate of candidates) {
+      const snapshot = await autoSaver.recoverLatestSnapshot(candidate.module, candidate.documentId);
+      const meta =
+        candidate.module === 'writer' ? writerDoc.meta : candidate.module === 'sheets' ? sheetsWorkbook.meta : slidesDeck.meta;
+      const decision = evaluateRecovery(snapshot, { lastSavedAt: meta.lastSaved, filePath: meta.filePath });
+      if (decision.shouldOffer && snapshot) {
+        recovery = { ...decision, data: snapshot.data, module: candidate.module, documentId: candidate.documentId };
+        return;
+      }
+    }
+  }
+
+  async function acceptRecovery() {
+    if (!recovery?.data) return;
+    recovering = true;
+    try {
+      if (recovery.module === 'writer') {
+        writerDoc = sanitizeImportedWriterDocument(recovery.data as Record<string, unknown>, writerDoc.meta);
+        activeMode = 'writer';
+      } else if (recovery.module === 'sheets') {
+        const restored = sanitizeImportedWorkbook(recovery.data, sheetsWorkbook.meta);
+        if (restored) sheetsWorkbook = restored;
+        activeMode = 'sheets';
+      } else {
+        const restored = sanitizeImportedSlideDeck(recovery.data, slidesDeck.meta);
+        if (restored) slidesDeck = restored;
+        activeMode = 'slides';
+      }
+      triggerAutoSave();
+    } finally {
+      recovering = false;
+      recovery = null;
+    }
+  }
+
+  async function declineRecovery() {
+    if (recovery) {
+      try {
+        await clearAutoSaveSnapshotNative(recovery.module, recovery.documentId);
+      } catch (err) {
+        console.warn('Could not clear recovery snapshot:', err);
+      }
+    }
+    recovery = null;
+  }
+
   let activeMode: WorkspaceMode = 'writer';
   let showShortcutsModal = false;
   let showSettingsModal = false;
@@ -67,6 +127,7 @@
     if (appSettings.defaultMode) {
       activeMode = appSettings.defaultMode;
     }
+    void checkForRecovery();
   });
 
   let writerRef: Writer;
@@ -834,6 +895,7 @@
   />
 
   <!-- Active Workspace Module -->
+  <ErrorBoundary on:recover={() => (activeMode = activeMode)}>
   <main class="flex-1 flex overflow-hidden relative">
     <div class="flex-1 flex overflow-hidden origin-top-left" style={`transform: scale(${uiZoom / 100}); width: ${10000 / uiZoom}%; height: ${10000 / uiZoom}%`}>
     {#if activeMode === 'writer'}
@@ -876,6 +938,7 @@
     {/if}
     </div>
   </main>
+  </ErrorBoundary>
 
   <!-- Bottom Application Status Bar -->
   <StatusBar
@@ -893,7 +956,34 @@
 
   <!-- Keyboard Shortcuts Cheat Sheet Modal -->
   {#if showShortcutsModal}
-    <ShortcutsModal on:close={() => (showShortcutsModal = false)} />
+    {#if recovery}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" role="dialog" aria-modal="true">
+      <div class="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 text-slate-700 shadow-2xl">
+        <h3 class="text-sm font-semibold text-slate-900">{recovery.label}</h3>
+        <p class="mt-1.5 text-[11px] leading-relaxed text-slate-600">
+          An autosave from a previous session is newer than anything saved to disk
+          ({describeSnapshot(recovery.data)}). Restore it, or discard it and keep the current document.
+        </p>
+        <div class="mt-5 flex items-center justify-end gap-2">
+          <button
+            class="px-3 py-1.5 rounded-md border border-slate-300 text-xs font-medium hover:bg-slate-50"
+            on:click={declineRecovery}
+          >
+            Discard
+          </button>
+          <button
+            class="px-3 py-1.5 rounded-md bg-slate-900 text-white text-xs font-medium hover:bg-slate-700 disabled:opacity-50"
+            disabled={recovering}
+            on:click={acceptRecovery}
+          >
+            {recovering ? 'Restoring...' : 'Restore'}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <ShortcutsModal on:close={() => (showShortcutsModal = false)} />
   {/if}
 
   <!-- Application Settings Modal -->

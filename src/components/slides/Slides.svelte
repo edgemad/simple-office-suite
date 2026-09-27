@@ -6,6 +6,7 @@
   import SlideCanvas from './SlideCanvas.svelte';
   import PresenterModal from './PresenterModal.svelte';
   import { FileText } from '@lucide/svelte';
+  import { EditHistory } from '$lib/history';
   import type { SlideDeck, Slide, SlideElementType, SlideElement } from '../../types';
 
   export let deck: SlideDeck;
@@ -24,9 +25,9 @@
   let currentFontSize = 24;
   let currentColor = '#0f172a';
 
-  // Undo / Redo History Stack for Slides
-  let undoStack: string[] = [];
-  let redoStack: string[] = [];
+  // Undo / Redo history, bounded by bytes
+  // Bounded by bytes so a large deck cannot grow history without limit.
+  const history = new EditHistory<Slide[]>({ label: 'Edit', maxBytes: 16 * 1024 * 1024 });
 
   $: currentSlide = deck.slides[activeSlideIndex] || deck.slides[0];
 
@@ -46,16 +47,13 @@
   }
 
   function pushUndo() {
-    undoStack.push(JSON.stringify(deck.slides));
-    if (undoStack.length > 30) undoStack.shift();
-    redoStack = [];
+    history.push(deck.slides);
   }
 
   export function triggerUndo() {
-    if (undoStack.length === 0) return;
-    const prev = undoStack.pop()!;
-    redoStack.push(JSON.stringify(deck.slides));
-    deck.slides = JSON.parse(prev);
+    const prev = history.undo(deck.slides);
+    if (!prev) return;
+    deck.slides = prev;
     if (activeSlideIndex >= deck.slides.length) {
       activeSlideIndex = deck.slides.length - 1;
     }
@@ -64,10 +62,9 @@
   }
 
   export function triggerRedo() {
-    if (redoStack.length === 0) return;
-    const next = redoStack.pop()!;
-    undoStack.push(JSON.stringify(deck.slides));
-    deck.slides = JSON.parse(next);
+    const next = history.redo(deck.slides);
+    if (!next) return;
+    deck.slides = next;
     if (activeSlideIndex >= deck.slides.length) {
       activeSlideIndex = deck.slides.length - 1;
     }

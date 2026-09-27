@@ -958,6 +958,17 @@ fn auto_save_snapshot(
     Ok(target.to_string_lossy().to_string())
 }
 
+/// Removes a recovered snapshot so a dismissed recovery cannot reappear.
+#[tauri::command]
+fn clear_auto_save_snapshot(module: String, document_id: String) -> Result<bool, String> {
+    let (_, target) = autosave_target(&module, &document_id)?;
+    match fs::remove_file(&target) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!("Failed to remove autosave snapshot: {}", error)),
+    }
+}
+
 #[tauri::command]
 fn read_auto_save_snapshot(module: String, document_id: String) -> Result<Option<String>, String> {
     let (_, target) = autosave_target(&module, &document_id)?;
@@ -1107,6 +1118,7 @@ pub fn run() {
             read_text_file,
             write_text_file,
             auto_save_snapshot,
+            clear_auto_save_snapshot,
             read_auto_save_snapshot,
             get_system_metrics,
             open_native_file_dialog,

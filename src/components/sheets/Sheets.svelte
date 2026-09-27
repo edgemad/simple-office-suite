@@ -17,6 +17,7 @@
     validationViolation,
     type BorderStyle,
   } from '$lib/spreadsheetOps';
+  import { EditHistory } from '$lib/history';
   import type { SpreadsheetWorkbook, SheetGrid, CellFormatting, SheetTab, SheetChart, ConditionalFormatRule, CellRect } from '../../types';
   import {
     Plus,
@@ -72,9 +73,10 @@
   let cellBgColor = '#ffffff';
   let cellNumberFormat: 'general' | 'number' | 'currency' | 'percent' | 'date' = 'general';
 
-  // Undo / Redo History Stack
-  let undoStack: string[] = [];
-  let redoStack: string[] = [];
+  // Undo / Redo history, bounded by bytes
+  // Bounded by bytes rather than entry count: a 50-entry cap on a large grid
+  // still held tens of megabytes of JSON and could exhaust memory.
+  const history = new EditHistory<SheetGrid>({ label: 'Edit', maxBytes: 24 * 1024 * 1024 });
 
   const fontFamilies = [
     { label: 'Sans (Default)', value: 'Inter, sans-serif' },
@@ -90,16 +92,13 @@
   $: activeSheet = workbook.sheets.find((s) => s.id === workbook.activeSheetId) || workbook.sheets[0];
 
   function pushUndo() {
-    undoStack.push(JSON.stringify(activeSheet.cells));
-    if (undoStack.length > 50) undoStack.shift();
-    redoStack = [];
+    history.push(activeSheet.cells);
   }
 
   export function triggerUndo() {
-    if (undoStack.length === 0) return;
-    const prev = undoStack.pop()!;
-    redoStack.push(JSON.stringify(activeSheet.cells));
-    activeSheet.cells = JSON.parse(prev);
+    const prev = history.undo(activeSheet.cells);
+    if (!prev) return;
+    activeSheet.cells = recalculateGrid(prev);
     workbook.meta.isDirty = true;
     rawValue = activeSheet.cells[activeCell]?.raw ?? '';
     computeStats();
@@ -107,10 +106,9 @@
   }
 
   export function triggerRedo() {
-    if (redoStack.length === 0) return;
-    const next = redoStack.pop()!;
-    undoStack.push(JSON.stringify(activeSheet.cells));
-    activeSheet.cells = JSON.parse(next);
+    const next = history.redo(activeSheet.cells);
+    if (!next) return;
+    activeSheet.cells = recalculateGrid(next);
     workbook.meta.isDirty = true;
     rawValue = activeSheet.cells[activeCell]?.raw ?? '';
     computeStats();
@@ -1029,7 +1027,7 @@
         <button
           class="p-1.5 rounded hover:bg-slate-100 text-slate-700 transition-colors disabled:opacity-30"
           on:click={triggerUndo}
-          disabled={undoStack.length === 0}
+          disabled={history.undoCount === 0}
           title="Undo (Ctrl+Z)"
         >
           <Undo2 size={14} />
@@ -1037,7 +1035,7 @@
         <button
           class="p-1.5 rounded hover:bg-slate-100 text-slate-700 transition-colors disabled:opacity-30"
           on:click={triggerRedo}
-          disabled={redoStack.length === 0}
+          disabled={history.redoCount === 0}
           title="Redo (Ctrl+Y)"
         >
           <Redo2 size={14} />

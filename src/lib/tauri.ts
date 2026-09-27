@@ -120,6 +120,20 @@ export async function readAutoSaveSnapshotNative(
   return localStorage.getItem(`sos_autosave_${module}_${documentId}`);
 }
 
+export async function clearAutoSaveSnapshotNative(
+  module: string,
+  documentId: string
+): Promise<boolean> {
+  if (isTauri()) {
+    return invokeCommand<boolean>('clear_auto_save_snapshot', {
+      module,
+      documentId,
+    });
+  }
+  localStorage.removeItem(`sos_autosave_${module}_${documentId}`);
+  return true;
+}
+
 export async function getSystemMetricsNative(): Promise<SystemMetrics> {
   if (isTauri()) {
     try {
