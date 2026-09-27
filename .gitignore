@@ -15,7 +15,6 @@ dist-ssr/
 
 # Rust & Tauri Builds
 src-tauri/target/
-src-tauri/Cargo.lock
 src-tauri/gen/
 
 # Environment Variables & Secrets
