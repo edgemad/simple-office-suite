@@ -820,6 +820,10 @@
       else if (action === 'insertImage') slidesRef?.insertImage();
       else if (action === 'insertNotes') slidesRef?.focusNotes();
       else if (action === 'alignElement') slidesRef?.alignSelected(payload);
+      else if (action === 'elementAnimation') slidesRef?.setElementAnimation(payload);
+      else if (action === 'animationDelay') slidesRef?.setAnimationDelay(Number(payload));
+      else if (action === 'animationAutoPlay') slidesRef?.toggleAutoPlayAnimation();
+      else if (action === 'clearAnimations') slidesRef?.clearAnimations();
     }
   }
 

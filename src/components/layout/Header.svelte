@@ -136,7 +136,7 @@
   const tabsByMode: Record<WorkspaceMode, string[]> = {
     writer: ['File', 'Home', 'Insert', 'Layout', 'References', 'Collaboration', 'Protection', 'View', 'Tools', 'AI'],
     sheets: ['File', 'Home', 'Insert', 'Layout', 'Formula', 'Data', 'References', 'Collaboration', 'Protection', 'View', 'Tools', 'AI'],
-    slides: ['File', 'Home', 'Insert', 'Design', 'Transitions', 'Layout', 'References', 'Collaboration', 'Protection', 'View', 'Tools', 'AI'],
+    slides: ['File', 'Home', 'Insert', 'Design', 'Transitions', 'Animation', 'Layout', 'References', 'Collaboration', 'Protection', 'View', 'Tools', 'AI'],
   };
 
   $: currentTabs = tabsByMode[activeMode] || tabsByMode.writer;
@@ -719,6 +719,26 @@
       </div>
 
     
+
+    {:else if activeTab === 'Animation'}
+      <div class="flex items-center space-x-2">
+        <span class="text-[11px] text-slate-400">Entrance</span>
+        <button class="ribbon-btn" on:click={() => triggerAction('elementAnimation', 'none')} title="No animation">None</button>
+        <button class="ribbon-btn" on:click={() => triggerAction('elementAnimation', 'fade')} title="Fade in">Fade</button>
+        <button class="ribbon-btn" on:click={() => triggerAction('elementAnimation', 'slideUp')} title="Slide up">Up</button>
+        <button class="ribbon-btn" on:click={() => triggerAction('elementAnimation', 'slideDown')} title="Slide down">Down</button>
+        <button class="ribbon-btn" on:click={() => triggerAction('elementAnimation', 'slideLeft')} title="Slide from the right">Left</button>
+        <button class="ribbon-btn" on:click={() => triggerAction('elementAnimation', 'slideRight')} title="Slide from the left">Right</button>
+        <button class="ribbon-btn" on:click={() => triggerAction('elementAnimation', 'zoom')} title="Zoom in">Zoom</button>
+        <button class="ribbon-btn" on:click={() => triggerAction('elementAnimation', 'pop')} title="Pop">Pop</button>
+        <div class="h-4 w-px bg-slate-700 mx-1"></div>
+        <button class="ribbon-btn" on:click={() => triggerAction('animationDelay', 0)} title="Start immediately">0ms</button>
+        <button class="ribbon-btn" on:click={() => triggerAction('animationDelay', 250)} title="Delay a quarter second">250ms</button>
+        <button class="ribbon-btn" on:click={() => triggerAction('animationDelay', 500)} title="Delay half a second">500ms</button>
+        <button class="ribbon-btn" on:click={() => triggerAction('animationDelay', 1000)} title="Delay one second">1s</button>
+        <button class="ribbon-btn" on:click={() => triggerAction('animationAutoPlay')} title="Repeat while the slide is shown">Loop</button>
+        <button class="ribbon-btn" on:click={() => triggerAction('clearAnimations')} title="Remove every animation on this slide">Clear</button>
+      </div>
 
     {:else if activeTab === 'Layout'}
       <!-- LAYOUT TAB: Orientation, Margins, Paper Size, Columns -->

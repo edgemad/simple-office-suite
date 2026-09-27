@@ -308,6 +308,65 @@ describe('sanitizeImportedSlideDeck', () => {
     expect(deck?.slides[0].elements[0].x).toBe(0);
     expect(deck?.meta.mode).toBe('slides');
   });
+
+  it('preserves slide transitions and element animations', () => {
+    const deck = sanitizeImportedSlideDeck(
+      {
+        slides: [
+          {
+            id: 'slide_1',
+            transition: 'zoom',
+            elements: [
+              { id: 'a', animation: { preset: 'slideUp', delayMs: 250, durationMs: 600, autoPlay: true } },
+              { id: 'b' },
+            ],
+          },
+        ],
+      },
+      meta,
+    );
+
+    expect(deck?.slides[0].transition).toBe('zoom');
+    expect(deck?.slides[0].elements[0].animation).toEqual({
+      preset: 'slideUp',
+      delayMs: 250,
+      durationMs: 600,
+      autoPlay: true,
+    });
+    expect(deck?.slides[0].elements[1].animation).toBeUndefined();
+  });
+
+  it('rejects unknown transitions and hostile animation values', () => {
+    const deck = sanitizeImportedSlideDeck(
+      {
+        slides: [
+          {
+            transition: 'explode',
+            elements: [
+              { animation: { preset: 'nuke', delayMs: -5, durationMs: 9_999_999, autoPlay: 'yes' } },
+              { animation: { preset: 'fade', delayMs: 10_000_000, durationMs: 1 } },
+            ],
+          },
+        ],
+      },
+      meta,
+    );
+
+    expect(deck?.slides[0].transition).toBe('none');
+    expect(deck?.slides[0].elements[0].animation).toBeUndefined();
+    expect(deck?.slides[0].elements[1].animation).toEqual({
+      preset: 'fade',
+      delayMs: 10_000,
+      durationMs: 100,
+      autoPlay: false,
+    });
+  });
+
+  it('drops a slide transition key that was never set', () => {
+    const deck = sanitizeImportedSlideDeck({ slides: [{ id: 'slide_1', elements: [] }] }, meta);
+    expect(deck?.slides[0].transition).toBeUndefined();
+    expect('transition' in deck!.slides[0]).toBe(false);
+  });
 });
 
 describe('sanitizeImportedWorkbook', () => {

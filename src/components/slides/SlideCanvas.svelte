@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onDestroy } from 'svelte';
   import type { Slide, SlideElement } from '../../types';
+  import { animationStyle, type AnimationPreset } from '$lib/animation';
   import { Code, Image as ImageIcon } from '@lucide/svelte';
 
   export let slide: Slide;
@@ -15,17 +16,24 @@
   let dragElementId: string | null = null;
   let dragOffset = { x: 0, y: 0 };
   let canvasContainer: HTMLDivElement;
-  let transitionKey = 0;
   let playTransition = false;
+  let lastSlideId: string | null = null;
 
   let transitionTimer: ReturnType<typeof setTimeout> | null = null;
 
-  $: if (slide) {
-    transitionKey += 1;
+  // Keyed on the slide id, not the object. Every edit replaces the slide object
+  // (`deck.slides = [...deck.slides]`), so watching identity replayed the
+  // transition whenever a text box was added.
+  $: if (slide && slide.id !== lastSlideId) {
+    lastSlideId = slide.id;
     playTransition = true;
     if (transitionTimer) clearTimeout(transitionTimer);
-    transitionTimer = setTimeout(() => (playTransition = false), 380);
+    transitionTimer = setTimeout(() => (playTransition = false), 400);
   }
+
+  onDestroy(() => {
+    if (transitionTimer) clearTimeout(transitionTimer);
+  });
 
   $: transitionClass = !playTransition
     ? ''
@@ -128,7 +136,6 @@
   }}
 >
   <!-- 16:9 Presentation Stage -->
-  {#key transitionKey}
   <div
     bind:this={canvasContainer}
     class="w-[880px] aspect-video rounded-xl shadow-2xl relative overflow-hidden transition-colors border border-slate-300 {transitionClass}"
@@ -151,6 +158,7 @@
           color: {elem.fontColor || 'inherit'};
           font-family: {elem.fontFamily || 'inherit'};
           z-index: {elem.zIndex || 1};
+          {animationStyle(elem.animation ? { ...elem.animation, preset: elem.animation.preset as AnimationPreset } : undefined)}
         "
         on:mousedown={(e) => handleMouseDown(elem, e)}
         on:click={(e) => handleSelect(elem.id, e)}
@@ -301,10 +309,38 @@
       </div>
     {/each}
   </div>
-  {/key}
 </div>
 
 <style>
+  @keyframes anim-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes anim-slide-up {
+    from { opacity: 0; transform: translateY(14%); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes anim-slide-down {
+    from { opacity: 0; transform: translateY(-14%); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes anim-slide-left {
+    from { opacity: 0; transform: translateX(12%); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes anim-slide-right {
+    from { opacity: 0; transform: translateX(-12%); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes anim-zoom {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes anim-pop {
+    0% { opacity: 0; transform: scale(0.6); }
+    70% { opacity: 1; transform: scale(1.06); }
+    100% { opacity: 1; transform: scale(1); }
+  }
   @keyframes slideFade {
     from {
       opacity: 0;

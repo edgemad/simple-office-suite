@@ -17,6 +17,8 @@ import type {
 } from '../types';
 import { colToLetter, recalculateGrid, parseCoord } from '../components/sheets/formulaEngine';
 import { escapeHtml, extractHtmlBody, sanitizeHtml } from './sanitize';
+import { normalizeAnimation } from './animation';
+import { normalizeTransition } from './slideLayout';
 
 /**
  * Universal File Format Engine for Simple Office Suite (SOS)
@@ -214,6 +216,31 @@ export function sanitizePageSetup(value: unknown): DocumentPageSetup {
   };
 }
 
+/**
+ * Keeps a slide transition only when it names a known effect, so a hand-edited
+ * deck cannot smuggle unexpected values into the canvas.
+ */
+function sanitizeSlideTransition(value: unknown): Slide['transition'] {
+  if (value === undefined || value === null) return undefined;
+  return normalizeTransition(String(value));
+}
+
+/**
+ * Animation survives a save/load round trip through the same normalizer the
+ * canvas uses, which also clamps hostile delays and durations.
+ */
+function sanitizeElementAnimation(value: unknown): SlideElement['animation'] {
+  if (!value || typeof value !== 'object') return undefined;
+  const source = value as Record<string, unknown>;
+  const animation = normalizeAnimation({
+    preset: typeof source.preset === 'string' ? source.preset : undefined,
+    delayMs: typeof source.delayMs === 'number' ? source.delayMs : undefined,
+    durationMs: typeof source.durationMs === 'number' ? source.durationMs : undefined,
+    autoPlay: source.autoPlay === true,
+  });
+  return animation.preset === 'none' ? undefined : animation;
+}
+
 export function sanitizeImportedSlideDeck(parsed: unknown, fallbackMeta: DocumentMeta): SlideDeck | null {
   if (!parsed || typeof parsed !== 'object') return null;
   const source = parsed as { slides?: unknown; aspectRatio?: unknown; theme?: unknown };
@@ -225,6 +252,7 @@ export function sanitizeImportedSlideDeck(parsed: unknown, fallbackMeta: Documen
     .map(({ entry, index }) => {
       const slide = entry as Record<string, unknown>;
       const elements = Array.isArray(slide.elements) ? slide.elements : [];
+      const transition = sanitizeSlideTransition(slide.transition);
       return {
         id: typeof slide.id === 'string' && slide.id ? slide.id : `slide_${index + 1}`,
         title: typeof slide.title === 'string' ? slide.title : `Slide ${index + 1}`,
@@ -250,8 +278,10 @@ export function sanitizeImportedSlideDeck(parsed: unknown, fallbackMeta: Documen
               borderRadius: typeof element.borderRadius === 'number' ? element.borderRadius : undefined,
               shapeVariant: typeof element.shapeVariant === 'string' ? (element.shapeVariant as SlideElement['shapeVariant']) : undefined,
               language: typeof element.language === 'string' ? element.language : undefined,
+              animation: sanitizeElementAnimation(element.animation),
             };
           }),
+        ...(transition === undefined ? {} : { transition }),
       };
     });
 

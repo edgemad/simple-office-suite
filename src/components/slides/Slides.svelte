@@ -7,6 +7,7 @@
   import PresenterModal from './PresenterModal.svelte';
   import { FileText } from '@lucide/svelte';
   import { EditHistory } from '$lib/history';
+  import { normalizeAnimation, type AnimationPreset } from '$lib/animation';
   import type { SlideDeck, Slide, SlideElementType, SlideElement } from '../../types';
 
   export let deck: SlideDeck;
@@ -88,6 +89,66 @@
     } else if (themeName === 'navy') {
       handleChangeBg({ detail: '#1e3a8a' } as any);
     }
+  }
+
+  /** Applies an entrance animation to the selected element. */
+  export function setElementAnimation(preset: string, options: { delayMs?: number; autoPlay?: boolean } = {}) {
+    if (!selectedElement) return;
+    pushUndo();
+    const current = selectedElement.animation;
+    const next = normalizeAnimation({
+      preset: preset as AnimationPreset,
+      delayMs: options.delayMs ?? current?.delayMs ?? 0,
+      durationMs: current?.durationMs ?? 400,
+      autoPlay: options.autoPlay ?? current?.autoPlay ?? false,
+    });
+    if (next.preset === 'none') {
+      delete selectedElement.animation;
+    } else {
+      selectedElement.animation = next;
+    }
+    currentSlide.elements = [...currentSlide.elements];
+    deck.slides = [...deck.slides];
+    deck.meta.isDirty = true;
+    dispatch('change');
+  }
+
+  export function setAnimationDelay(delayMs: number) {
+    if (!selectedElement?.animation) return;
+    pushUndo();
+    selectedElement.animation = normalizeAnimation({
+      ...selectedElement.animation,
+      preset: selectedElement.animation.preset as AnimationPreset,
+      delayMs,
+    });
+    currentSlide.elements = [...currentSlide.elements];
+    deck.slides = [...deck.slides];
+    deck.meta.isDirty = true;
+    dispatch('change');
+  }
+
+  export function toggleAutoPlayAnimation() {
+    if (!selectedElement?.animation) return;
+    pushUndo();
+    selectedElement.animation = {
+      ...selectedElement.animation,
+      autoPlay: !selectedElement.animation.autoPlay,
+    };
+    currentSlide.elements = [...currentSlide.elements];
+    deck.slides = [...deck.slides];
+    deck.meta.isDirty = true;
+    dispatch('change');
+  }
+
+  export function clearAnimations() {
+    if (!currentSlide) return;
+    if (!currentSlide.elements.some((e) => e.animation)) return;
+    pushUndo();
+    for (const element of currentSlide.elements) delete element.animation;
+    currentSlide.elements = [...currentSlide.elements];
+    deck.slides = [...deck.slides];
+    deck.meta.isDirty = true;
+    dispatch('change');
   }
 
   export function setTransition(name: string) {

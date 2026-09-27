@@ -118,6 +118,9 @@ export interface SpreadsheetWorkbook {
 export type SlideElementType = 'title' | 'text' | 'shape' | 'code' | 'image' | 'stat' | 'arrow' | 'star' | 'triangle' | 'callout';
 export type ShapeVariant = 'rectangle' | 'rounded' | 'circle' | 'pill' | 'quote-box' | 'star' | 'arrow-right' | 'arrow-left' | 'triangle' | 'callout';
 
+export type { ElementAnimation } from '../lib/animation';
+import type { ElementAnimation } from '../lib/animation';
+
 export interface SlideElement {
   id: string;
   type: SlideElementType;
@@ -137,6 +140,7 @@ export interface SlideElement {
   shapeVariant?: ShapeVariant;
   language?: string; // For code blocks
   zIndex?: number;
+  animation?: ElementAnimation;
 }
 
 export interface Slide {
