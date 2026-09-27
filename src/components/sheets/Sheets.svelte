@@ -1062,7 +1062,7 @@
     }
 
     // 1. Navigation & In-place Editing Keys (when not actively editing inside a cell)
-    if (!gridRef?.isEditing()) {
+    if (!gridRef?.isEditing?.()) {
       if (!mod && !e.altKey) {
         if (e.key === 'ArrowDown') {
           e.preventDefault();
@@ -1107,23 +1107,23 @@
       } else if (e.key.toLowerCase() === 'u') {
         e.preventDefault();
         toggleUnderline();
-      } else if (e.key.toLowerCase() === 'c' && !gridRef?.isEditing()) {
+      } else if (e.key.toLowerCase() === 'c' && !gridRef?.isEditing?.()) {
         e.preventDefault();
         copyActiveCell();
-      } else if (e.key.toLowerCase() === 'x' && !gridRef?.isEditing()) {
+      } else if (e.key.toLowerCase() === 'x' && !gridRef?.isEditing?.()) {
         e.preventDefault();
         cutActiveCell();
-      } else if (e.key.toLowerCase() === 'v' && !gridRef?.isEditing()) {
+      } else if (e.key.toLowerCase() === 'v' && !gridRef?.isEditing?.()) {
         e.preventDefault();
         pasteIntoActiveCell();
-      } else if (e.key.toLowerCase() === 'z' && !gridRef?.isEditing()) {
+      } else if (e.key.toLowerCase() === 'z' && !gridRef?.isEditing?.()) {
         e.preventDefault();
         triggerUndo();
-      } else if (e.key.toLowerCase() === 'y' && !gridRef?.isEditing()) {
+      } else if (e.key.toLowerCase() === 'y' && !gridRef?.isEditing?.()) {
         e.preventDefault();
         triggerRedo();
       }
-    } else if (mod && e.shiftKey && e.key.toLowerCase() === 'z' && !gridRef?.isEditing()) {
+    } else if (mod && e.shiftKey && e.key.toLowerCase() === 'z' && !gridRef?.isEditing?.()) {
       e.preventDefault();
       triggerRedo();
     }

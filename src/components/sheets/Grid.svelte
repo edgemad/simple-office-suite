@@ -458,7 +458,11 @@
     activeValidationDropdownKey = null;
   }
 
-  function navigate(deltaCol: number, deltaRow: number) {
+  export function isEditing(): boolean {
+    return editingCell !== null;
+  }
+
+  export function navigate(deltaCol: number, deltaRow: number) {
     const coord = parseCoord(activeCell);
     if (!coord) return;
     const newCol = Math.max(0, Math.min(colCount - 1, coord.col + deltaCol));

@@ -103,7 +103,7 @@
   }
 </script>
 
-<div class="h-9 bg-white border-b border-slate-200 px-3 flex items-center space-x-2 select-none text-xs relative z-30">
+<div class="h-9 bg-white border-b border-slate-200 px-3 flex items-center space-x-2 select-none text-xs relative z-10">
   <!-- Active Cell Coordinate Badge -->
   <div class="w-14 h-6 px-2 bg-slate-100 border border-slate-300 rounded text-slate-800 font-mono font-semibold flex items-center justify-center shadow-inner text-xs">
     {activeCell}

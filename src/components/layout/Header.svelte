@@ -53,7 +53,8 @@
     BarChart2,
     BarChart3,
     Palette,
-    Square
+    Square,
+    Code2
   } from 'lucide-svelte';
   import GoogleShareModal from './GoogleShareModal.svelte';
   import GoogleAccountModal from './GoogleAccountModal.svelte';
@@ -244,7 +245,7 @@
 
 <svelte:window on:click={closeMenus} />
 
-<header class="no-print select-none z-30 relative bg-[#F9FBFD] border-b border-slate-200/90 text-slate-700 font-sans shadow-2xs">
+<header class="no-print select-none z-[100] relative bg-[#F9FBFD] border-b border-slate-200/90 text-slate-700 font-sans shadow-2xs">
   <!-- Top Bar: App Branding, Document Title, Google Workspace Menus, Mode Switcher, Share -->
   <div class="h-16 px-4 flex items-center justify-between">
     <!-- Left: Google App Logo & Info Stack -->
@@ -345,7 +346,7 @@
               <!-- Dropdown Menu -->
               {#if isOpen}
                 <div
-                  class="absolute left-0 top-7 min-w-[230px] bg-white border border-slate-200/90 rounded-xl shadow-2xl py-1.5 z-50 text-xs text-slate-700 divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-75 select-none"
+                  class="absolute left-0 top-7 min-w-[230px] max-h-[calc(100vh-80px)] overflow-y-auto bg-white border border-slate-200/90 rounded-xl shadow-2xl py-1.5 z-50 text-xs text-slate-700 divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-75 select-none"
                   on:click|stopPropagation
                 >
                   <!-- FILE MENU -->

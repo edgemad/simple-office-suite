@@ -44,7 +44,7 @@
 
 <svelte:window on:click={() => (showNewMenu = false)} />
 
-<div class="no-print h-9 bg-[#EDF2FA] border-b border-slate-200/90 px-3 flex items-center justify-between select-none text-xs text-slate-600 font-sans">
+<div class="no-print h-9 bg-[#EDF2FA] border-b border-slate-200/90 px-3 flex items-center justify-between select-none text-xs text-slate-600 font-sans relative z-10">
   <div class="flex items-center space-x-1 overflow-x-auto max-w-4xl py-1">
     {#each tabs as tab (tab.id)}
       {@const isActive = tab.id === activeTabId}

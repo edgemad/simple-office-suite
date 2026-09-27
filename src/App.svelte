@@ -1051,7 +1051,7 @@
   />
 
   <!-- Active Workspace Module -->
-  <main class="flex-1 flex overflow-hidden relative">
+  <main class="flex-1 flex overflow-hidden relative z-0">
     {#if activeMode === 'drive'}
       <DriveHub
         activeWorkspaceDocIds={openTabs.map((t) => t.id)}
