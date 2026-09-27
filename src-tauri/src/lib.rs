@@ -496,31 +496,245 @@ async fn save_native_file_dialog(
     Ok(file_path.map(|p| p.to_string()))
 }
 
+fn build_app_menu<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> tauri::Result<tauri::menu::Menu<R>> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+
+    let app_menu = Submenu::with_items(
+        handle,
+        "Simple Office Suite",
+        true,
+        &[
+            &PredefinedMenuItem::about(handle, Some("About Simple Office Suite"), None)?,
+            &PredefinedMenuItem::separator(handle)?,
+            &MenuItem::with_id(handle, "settings", "Settings...", true, Some("CmdOrCtrl+,"))?,
+            &PredefinedMenuItem::separator(handle)?,
+            &PredefinedMenuItem::services(handle, None)?,
+            &PredefinedMenuItem::separator(handle)?,
+            &PredefinedMenuItem::hide(handle, None)?,
+            &PredefinedMenuItem::hide_others(handle, None)?,
+            &PredefinedMenuItem::show_all(handle, None)?,
+            &PredefinedMenuItem::separator(handle)?,
+            &PredefinedMenuItem::quit(handle, None)?,
+        ],
+    )?;
+
+    let file_menu = Submenu::with_items(
+        handle,
+        "File",
+        true,
+        &[
+            &MenuItem::with_id(handle, "new_doc", "New Document", true, Some("CmdOrCtrl+N"))?,
+            &MenuItem::with_id(handle, "open_doc", "Open...", true, Some("CmdOrCtrl+O"))?,
+            &PredefinedMenuItem::separator(handle)?,
+            &MenuItem::with_id(handle, "save_doc", "Save", true, Some("CmdOrCtrl+S"))?,
+            &MenuItem::with_id(handle, "save_as_doc", "Save As...", true, Some("CmdOrCtrl+Shift+S"))?,
+            &PredefinedMenuItem::separator(handle)?,
+            &MenuItem::with_id(handle, "print_doc", "Print / Export to PDF...", true, Some("CmdOrCtrl+P"))?,
+            &PredefinedMenuItem::separator(handle)?,
+            &PredefinedMenuItem::close_window(handle, None)?,
+        ],
+    )?;
+
+    let edit_menu = Submenu::with_items(
+        handle,
+        "Edit",
+        true,
+        &[
+            &PredefinedMenuItem::undo(handle, None)?,
+            &PredefinedMenuItem::redo(handle, None)?,
+            &PredefinedMenuItem::separator(handle)?,
+            &PredefinedMenuItem::cut(handle, None)?,
+            &PredefinedMenuItem::copy(handle, None)?,
+            &PredefinedMenuItem::paste(handle, None)?,
+            &PredefinedMenuItem::select_all(handle, None)?,
+        ],
+    )?;
+
+    let view_menu = Submenu::with_items(
+        handle,
+        "View",
+        true,
+        &[
+            &MenuItem::with_id(handle, "mode_drive", "Google Drive", true, Some("CmdOrCtrl+0"))?,
+            &MenuItem::with_id(handle, "mode_writer", "Google Docs", true, Some("CmdOrCtrl+1"))?,
+            &MenuItem::with_id(handle, "mode_sheets", "Google Sheets", true, Some("CmdOrCtrl+2"))?,
+            &MenuItem::with_id(handle, "mode_slides", "Google Slides", true, Some("CmdOrCtrl+3"))?,
+            &MenuItem::with_id(handle, "mode_pdf", "Google PDF", true, Some("CmdOrCtrl+4"))?,
+            &MenuItem::with_id(handle, "mode_forms", "Google Forms", true, Some("CmdOrCtrl+5"))?,
+            &PredefinedMenuItem::separator(handle)?,
+            &PredefinedMenuItem::fullscreen(handle, None)?,
+        ],
+    )?;
+
+    let tools_menu = Submenu::with_items(
+        handle,
+        "Tools",
+        true,
+        &[
+            &MenuItem::with_id(handle, "command_palette", "Command Palette...", true, Some("CmdOrCtrl+K"))?,
+            &MenuItem::with_id(handle, "settings", "Settings & Preferences...", true, Some("CmdOrCtrl+,"))?,
+            &MenuItem::with_id(handle, "shortcuts", "Keyboard Shortcuts...", true, Some("CmdOrCtrl+/"))?,
+        ],
+    )?;
+
+    let window_menu = Submenu::with_items(
+        handle,
+        "Window",
+        true,
+        &[
+            &PredefinedMenuItem::minimize(handle, None)?,
+        ],
+    )?;
+
+    Menu::with_items(
+        handle,
+        &[
+            &app_menu,
+            &file_menu,
+            &edit_menu,
+            &view_menu,
+            &tools_menu,
+            &window_menu,
+        ],
+    )
+}
+
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OAuthLoopbackResult {
+    pub success: bool,
+    pub code: Option<String>,
+    pub error: Option<String>,
+}
 
 #[tauri::command]
-async fn open_detached_communicator(app: AppHandle) -> Result<(), String> {
-    use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
-
-    if let Some(win) = app.get_webview_window("communicator") {
-        let _ = win.set_focus();
-        return Ok(());
+fn open_url_in_browser(url: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to open browser: {}", e))?;
     }
-
-    WebviewWindowBuilder::new(&app, "communicator", WebviewUrl::App("index.html?mode=communicator".into()))
-        .title("Simple Communicator (Secure)")
-        .inner_size(1050.0, 720.0)
-        .min_inner_size(800.0, 550.0)
-        .resizable(true)
-        .build()
-        .map_err(|e| format!("Failed to open standalone communicator window: {}", e))?;
-
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(&["/C", "start", "", &url])
+            .spawn()
+            .map_err(|e| format!("Failed to open browser: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to open browser: {}", e))?;
+    }
     Ok(())
+}
+
+#[tauri::command]
+async fn listen_for_oauth_callback(port: u16) -> Result<OAuthLoopbackResult, String> {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::time::Duration;
+
+    let addr = format!("127.0.0.1:{}", port);
+    let listener = TcpListener::bind(&addr).map_err(|e| format!("Failed to bind local loopback server on {}: {}", addr, e))?;
+
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _ = listener.set_nonblocking(true);
+        let start = std::time::Instant::now();
+        loop {
+            if start.elapsed() > Duration::from_secs(120) {
+                return OAuthLoopbackResult {
+                    success: false,
+                    code: None,
+                    error: Some("Authentication timed out after 2 minutes.".to_string()),
+                };
+            }
+            match listener.accept() {
+                Ok((mut stream, _)) => {
+                    let mut buffer = [0u8; 4096];
+                    let n = stream.read(&mut buffer).unwrap_or(0);
+                    let req_str = String::from_utf8_lossy(&buffer[..n]);
+
+                    let mut extracted_code = None;
+                    let mut extracted_error = None;
+
+                    if let Some(first_line) = req_str.lines().next() {
+                        if let Some(path) = first_line.split_whitespace().nth(1) {
+                            if let Some(query_idx) = path.find('?') {
+                                let query = &path[query_idx + 1..];
+                                for pair in query.split('&') {
+                                    let mut kv = pair.splitn(2, '=');
+                                    let k = kv.next().unwrap_or("");
+                                    let v = kv.next().unwrap_or("");
+                                    if k == "code" {
+                                        extracted_code = Some(v.to_string());
+                                    } else if k == "error" {
+                                        extracted_error = Some(v.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let (status, body) = if extracted_code.is_some() {
+                        ("200 OK", "<!DOCTYPE html><html><body style='font-family:system-ui,-apple-system,sans-serif;text-align:center;padding:50px;'><h2 style='color:#16a34a;'>✅ Sign-In Successful!</h2><p>You have successfully connected your Google Account to Simple Office Suite.</p><p style='color:#666;'>You can close this tab and return to the application.</p></body></html>")
+                    } else {
+                        ("400 Bad Request", "<!DOCTYPE html><html><body style='font-family:system-ui,-apple-system,sans-serif;text-align:center;padding:50px;'><h2 style='color:#dc2626;'>❌ Sign-In Canceled or Failed</h2><p>Google authentication was not completed.</p></body></html>")
+                    };
+
+                    let response = format!(
+                        "HTTP/1.1 {}
+Content-Type: text/html; charset=UTF-8
+Content-Length: {}
+Connection: close
+
+{}",
+                        status,
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(response.as_bytes());
+                    let _ = stream.flush();
+
+                    return OAuthLoopbackResult {
+                        success: extracted_code.is_some(),
+                        code: extracted_code,
+                        error: extracted_error,
+                    };
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(150));
+                }
+                Err(e) => {
+                    return OAuthLoopbackResult {
+                        success: false,
+                        code: None,
+                        error: Some(format!("Connection error: {}", e)),
+                    };
+                }
+            }
+        }
+    })
+    .await
+    .map_err(|e| format!("Task execution failed: {}", e))?;
+
+    Ok(result)
 }
 
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .menu(|handle| build_app_menu(handle))
+        .on_menu_event(|app, event| {
+            use tauri::Emitter;
+            let id = event.id().as_ref();
+            let _ = app.emit("menu-event", id);
+        })
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             read_text_file,
@@ -530,7 +744,8 @@ pub fn run() {
             get_system_metrics,
             open_native_file_dialog,
             save_native_file_dialog,
-            open_detached_communicator
+            open_url_in_browser,
+            listen_for_oauth_callback
         ])
         .run(tauri::generate_context!())
         .expect("error while running Simple Office Suite application");

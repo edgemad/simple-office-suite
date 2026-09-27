@@ -13,7 +13,12 @@
     LayoutTemplate,
     Sparkles,
     Baseline,
-    TrendingUp
+    TrendingUp,
+    Table,
+    BarChart3,
+    AlignLeft,
+    AlignCenter,
+    AlignRight
   } from 'lucide-svelte';
   import type { SlideElementType } from '../../types';
 
@@ -26,6 +31,10 @@
   const dispatch = createEventDispatcher<{
     addElement: { type: SlideElementType };
     addShape: string;
+    addTable: void;
+    addChart: void;
+    openTransitions: void;
+    alignElement: { alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' };
     bringToFront: void;
     sendToBack: void;
     deleteElement: void;
@@ -196,9 +205,31 @@
           <option value="pill">Pill / Badge</option>
           <option value="star">Star Milestone ★</option>
           <option value="arrow-right">Process Arrow ➔</option>
+          <option value="arrow-left">Return Arrow ⬅</option>
+          <option value="diamond">Decision Diamond ◊</option>
+          <option value="triangle">Priority Triangle ▲</option>
           <option value="callout">Callout Quote 💬</option>
+          <option value="banner">Ribbon Banner 🏷</option>
         </select>
       </div>
+
+      <button
+        class="flex items-center space-x-1 px-1.5 py-1 rounded hover:bg-slate-100 text-slate-700"
+        on:click={() => dispatch('addTable')}
+        title="Insert Editable Table"
+      >
+        <Table size={13} />
+        <span>Table</span>
+      </button>
+
+      <button
+        class="flex items-center space-x-1 px-1.5 py-1 rounded hover:bg-slate-100 text-slate-700"
+        on:click={() => dispatch('addChart')}
+        title="Insert Chart (Bar, Column)"
+      >
+        <BarChart3 size={13} />
+        <span>Chart</span>
+      </button>
 
       <button
         class="flex items-center space-x-1 px-1.5 py-1 rounded hover:bg-slate-100 text-slate-700"
@@ -226,6 +257,15 @@
         <Image size={13} />
         <span>Image</span>
       </button>
+
+      <button
+        class="flex items-center space-x-1 px-2 py-1 rounded bg-orange-50 hover:bg-orange-100 text-orange-800 font-medium transition-colors ml-1"
+        on:click={() => dispatch('openTransitions')}
+        title="Slide Transitions"
+      >
+        <Sparkles size={13} class="text-orange-500" />
+        <span>Transitions</span>
+      </button>
     </div>
 
     <!-- Slide Themes / Backgrounds -->
@@ -243,6 +283,18 @@
 
     {#if selectedElementId}
       <div class="flex items-center space-x-1 border-l border-slate-200 pl-1.5 ml-1">
+        <div class="flex items-center space-x-0.5 border-r border-slate-200 pr-1">
+          <button class="p-1 rounded hover:bg-slate-100 text-slate-600" on:click={() => dispatch('alignElement', { alignment: 'left' })} title="Align Left">
+            <AlignLeft size={13} />
+          </button>
+          <button class="p-1 rounded hover:bg-slate-100 text-slate-600" on:click={() => dispatch('alignElement', { alignment: 'center' })} title="Align Center">
+            <AlignCenter size={13} />
+          </button>
+          <button class="p-1 rounded hover:bg-slate-100 text-slate-600" on:click={() => dispatch('alignElement', { alignment: 'right' })} title="Align Right">
+            <AlignRight size={13} />
+          </button>
+        </div>
+
         <button
           class="px-1.5 py-0.5 rounded hover:bg-slate-100 text-slate-700 font-medium text-[11px] transition-colors"
           on:click={() => dispatch('bringToFront')}

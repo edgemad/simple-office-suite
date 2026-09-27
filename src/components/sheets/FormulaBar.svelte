@@ -13,6 +13,7 @@
   const dispatch = createEventDispatcher<{
     commit: string;
     cancel: void;
+    input: string;
   }>();
 
   let inputVal = rawValue;
@@ -125,6 +126,7 @@
       type="text"
       bind:value={inputVal}
       on:focus={() => (isFocused = true)}
+      on:input={() => dispatch('input', inputVal)}
       on:blur={() => {
         // Delay blur to allow suggestion click
         setTimeout(() => {

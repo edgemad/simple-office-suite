@@ -7,8 +7,6 @@
     Sheet,
     Presentation,
     FileCheck,
-    Mail,
-    MessageSquare,
     Sparkles,
     Download,
     Info,
@@ -32,7 +30,7 @@
     reset: void;
   }>();
 
-  let activeCategory: 'general' | 'word' | 'sheet' | 'slides' | 'pdf' | 'email' | 'communicator' | 'ai' | 'installers' | 'about' = 'general';
+  let activeCategory: 'general' | 'word' | 'sheet' | 'slides' | 'pdf' | 'ai' | 'installers' | 'about' = 'general';
   let tempSettings: AppSettings = JSON.parse(JSON.stringify(settings));
   let savedNotice = false;
 
@@ -148,23 +146,7 @@
           <span>PDF & Forms</span>
         </button>
 
-        <button
-          class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors
-            {activeCategory === 'email' ? 'bg-indigo-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
-          on:click={() => (activeCategory = 'email')}
-        >
-          <Mail size={15} class={activeCategory === 'email' ? 'text-white' : 'text-indigo-400'} />
-          <span>Email & Accounts</span>
-        </button>
 
-        <button
-          class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors
-            {activeCategory === 'communicator' ? 'bg-cyan-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
-          on:click={() => (activeCategory = 'communicator')}
-        >
-          <MessageSquare size={15} class={activeCategory === 'communicator' ? 'text-white' : 'text-cyan-400'} />
-          <span>Teams & Communicator</span>
-        </button>
 
         <button
           class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors
@@ -258,12 +240,12 @@
                 bind:value={tempSettings.defaultMode}
                 class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
               >
-                <option value="writer">Word / Document Editor</option>
-                <option value="sheets">Sheet / Spreadsheet Editor</option>
-                <option value="slides">Slides / Presentation Editor</option>
-                <option value="pdf">PDF & Forms Editor</option>
-                <option value="email">Mail / Email Client</option>
-                <option value="communicator">Teams / Secure Communicator</option>
+                <option value="drive">Google Drive Hub</option>
+                <option value="writer">Google Docs (Documents)</option>
+                <option value="sheets">Google Sheets (Spreadsheets)</option>
+                <option value="slides">Google Slides (Presentations)</option>
+                <option value="forms">Google Forms (Quizzes & Surveys)</option>
+                <option value="pdf">Google PDF Viewer</option>
               </select>
             </div>
 
@@ -519,109 +501,6 @@
             </div>
           </div>
 
-        <!-- EMAIL TAB -->
-        {:else if activeCategory === 'email'}
-          <div class="space-y-5">
-            <div>
-              <h3 class="text-sm font-semibold text-white">Email & Messaging Preferences</h3>
-              <p class="text-slate-400 text-[11px]">Configure mail signature, IMAP/SMTP accounts, and polling interval.</p>
-            </div>
-
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <span class="font-medium text-slate-200 block">Default Email Account</span>
-                  <span class="text-[11px] text-slate-400">Primary sender identity for new messages.</span>
-                </div>
-                <span class="text-xs text-indigo-400 font-medium font-mono">edgar.madeja@simpleoffice.local</span>
-              </div>
-
-              <div class="space-y-1.5 border-t border-slate-800 pt-3">
-                <label class="block font-medium text-slate-200">Email Signature</label>
-                <textarea
-                  bind:value={tempSettings.emailSignature}
-                  rows="3"
-                  class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-sans"
-                  placeholder="Your automated signature..."
-                ></textarea>
-                <span class="text-[10px] text-slate-500">Automatically appended to outgoing messages.</span>
-              </div>
-
-              <div class="flex items-center justify-between border-t border-slate-800 pt-3">
-                <div>
-                  <span class="font-medium text-slate-200 block">Check for New Messages</span>
-                  <span class="text-[11px] text-slate-400">Automatic background sync interval for local inbox.</span>
-                </div>
-                <select
-                  bind:value={tempSettings.emailCheckIntervalMin}
-                  class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-                >
-                  <option value={1}>Every 1 minute</option>
-                  <option value={5}>Every 5 minutes (Default)</option>
-                  <option value={15}>Every 15 minutes</option>
-                  <option value={0}>Manual Only</option>
-                </select>
-              </div>
-
-              <div class="flex items-center justify-between border-t border-slate-800 pt-3">
-                <div>
-                  <span class="font-medium text-slate-200 block">Zero-Cloud Offline Encryption</span>
-                  <span class="text-[11px] text-slate-400">All messages cached and stored on local disk only.</span>
-                </div>
-                <span class="text-xs text-emerald-400 font-semibold">Enabled (Local Storage)</span>
-              </div>
-            </div>
-          </div>
-
-        <!-- COMMUNICATOR TAB -->
-        {:else if activeCategory === 'communicator'}
-          <div class="space-y-5">
-            <div>
-              <h3 class="text-sm font-semibold text-white">Teams & Communicator Preferences</h3>
-              <p class="text-slate-400 text-[11px]">Configure end-to-end encryption, workspace identity, and standalone window detachment.</p>
-            </div>
-
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <span class="font-medium text-slate-200 block">Workspace Security Mode</span>
-                  <span class="text-[11px] text-slate-400">Cryptographic protection for channel and direct messages.</span>
-                </div>
-                <span class="text-xs text-cyan-400 font-semibold flex items-center space-x-1">
-                  <ShieldCheck size={14} />
-                  <span>AES-256-GCM + Ed25519 (Enforced)</span>
-                </span>
-              </div>
-
-              <div class="flex items-center justify-between border-t border-slate-800 pt-3">
-                <div>
-                  <span class="font-medium text-slate-200 block">Window Detachment</span>
-                  <span class="text-[11px] text-slate-400">Launch Communicator as an independent, floating application window.</span>
-                </div>
-                <button
-                  type="button"
-                  class="px-3 py-1.5 rounded-lg bg-cyan-600/30 hover:bg-cyan-600 border border-cyan-500/40 text-cyan-200 hover:text-white text-xs font-medium transition-colors flex items-center space-x-1.5"
-                  on:click={() => {
-                    if (typeof window !== 'undefined') {
-                      window.open('index.html?mode=communicator', '_blank', 'width=1050,height=720');
-                    }
-                  }}
-                >
-                  <ExternalLink size={13} />
-                  <span>Detach Window Now</span>
-                </button>
-              </div>
-
-              <div class="flex items-center justify-between border-t border-slate-800 pt-3">
-                <div>
-                  <span class="font-medium text-slate-200 block">Universal Email Login</span>
-                  <span class="text-[11px] text-slate-400">Log in with company domain or personal address without cloud tracking.</span>
-                </div>
-                <span class="text-xs text-emerald-400 font-medium">Any Email Supported</span>
-              </div>
-            </div>
-          </div>
-
         <!-- AI ASSISTANT TAB -->
         {:else if activeCategory === 'ai'}
           <div class="space-y-5">
@@ -634,13 +513,14 @@
               <div class="flex items-center justify-between">
                 <div>
                   <span class="font-medium text-slate-200 block">AI Engine Provider</span>
-                  <span class="text-[11px] text-slate-400">Built-in local engine works 100% offline without API keys.</span>
+                  <span class="text-[11px] text-slate-400">Supports Personal Google Account API Keys, Workspace, and Offline Engine.</span>
                 </div>
                 <select
                   bind:value={tempSettings.aiProvider}
                   class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
                 >
-                  <option value="local">Built-in Offline Engine (Default)</option>
+                  <option value="gemini">Google Gemini (Google AI Studio / Personal / Workspace)</option>
+                  <option value="local">Built-in Offline Gemini Engine (100% Offline)</option>
                   <option value="openai">OpenAI (ChatGPT 4o / mini)</option>
                   <option value="anthropic">Anthropic (Claude 3.5)</option>
                   <option value="ollama">Ollama (Local LLM server)</option>
@@ -650,14 +530,23 @@
               {#if tempSettings.aiProvider !== 'local'}
                 <div class="space-y-1.5 border-t border-slate-800 pt-3">
                   <label class="block font-medium text-slate-200">
-                    {tempSettings.aiProvider === 'ollama' ? 'Ollama Server URL' : 'API Key'}
+                    {tempSettings.aiProvider === 'gemini'
+                      ? 'Google Gemini API Key (Personal or Workspace)'
+                      : tempSettings.aiProvider === 'ollama'
+                      ? 'Ollama Server URL'
+                      : 'API Key'}
                   </label>
                   <input
                     type="password"
                     bind:value={tempSettings.aiApiKey}
-                    placeholder={tempSettings.aiProvider === 'ollama' ? 'http://localhost:11434' : 'sk-...'}
+                    placeholder={tempSettings.aiProvider === 'gemini' ? 'AIzaSy... (leave blank for offline Gemini)' : tempSettings.aiProvider === 'ollama' ? 'http://localhost:11434' : 'sk-...'}
                     class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
                   />
+                  {#if tempSettings.aiProvider === 'gemini'}
+                    <span class="text-[10px] text-slate-400 block">
+                      Works with Personal Google Accounts (free key from Google AI Studio) or Workspace accounts. If empty, the suite runs the intelligent offline Gemini engine with zero cloud latency.
+                    </span>
+                  {/if}
                 </div>
 
                 <div class="space-y-1.5">
@@ -665,7 +554,7 @@
                   <input
                     type="text"
                     bind:value={tempSettings.aiModel}
-                    placeholder="gpt-4o or claude-3-5-sonnet"
+                    placeholder={tempSettings.aiProvider === 'gemini' ? 'gemini-1.5-flash (or gemini-2.0-flash, gemini-1.5-pro)' : 'gpt-4o or claude-3-5-sonnet'}
                     class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
                   />
                 </div>

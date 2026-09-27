@@ -76,6 +76,16 @@
     dispatch('elementChange', { id, content: val });
   }
 
+  function handleTableCellInput(elemId: string, rowIdx: number, colIdx: number, val: string) {
+    const elem = slide.elements.find((el) => el.id === elemId);
+    if (elem && elem.tableData) {
+      if (!elem.tableData.cells[rowIdx]) elem.tableData.cells[rowIdx] = [];
+      elem.tableData.cells[rowIdx][colIdx] = val;
+      slide.elements = [...slide.elements];
+      dispatch('elementChange', { id: elemId, content: JSON.stringify(elem.tableData) });
+    }
+  }
+
   function handleImageUpload(elemId: string) {
     const input = document.createElement('input');
     input.type = 'file';
@@ -213,6 +223,55 @@
                 placeholder="Important quote or callout message..."
               ></textarea>
             </div>
+          {:else if elem.shapeVariant === 'diamond'}
+            <div class="w-full h-full bg-purple-500/15 border-2 border-purple-500/40 rounded-xl p-4 flex flex-col items-center justify-center shadow-xs rotate-45">
+              <div class="-rotate-45 w-full text-center">
+                <input
+                  type="text"
+                  value={elem.content}
+                  on:input={(e) => handleContentInput(elem.id, e.currentTarget.value)}
+                  style="font-size: {elem.fontSize || 16}px;"
+                  class="w-full bg-transparent font-bold text-center outline-none text-purple-900"
+                  placeholder="Decision ◊"
+                />
+              </div>
+            </div>
+          {:else if elem.shapeVariant === 'triangle'}
+            <div class="w-full h-full bg-amber-500/15 border-2 border-amber-500/40 rounded-xl p-4 flex flex-col items-center justify-center shadow-xs">
+              <span class="text-amber-600 text-xl font-bold">▲</span>
+              <input
+                type="text"
+                value={elem.content}
+                on:input={(e) => handleContentInput(elem.id, e.currentTarget.value)}
+                style="font-size: {elem.fontSize || 16}px;"
+                class="w-full bg-transparent font-bold text-center outline-none text-amber-900"
+                placeholder="Priority ▲"
+              />
+            </div>
+          {:else if elem.shapeVariant === 'arrow-left'}
+            <div class="w-full h-full bg-blue-500/15 border-2 border-blue-500/40 rounded-xl p-3 flex items-center justify-between shadow-xs">
+              <span class="text-blue-600 font-extrabold text-xl pl-2">⬅</span>
+              <input
+                type="text"
+                value={elem.content}
+                on:input={(e) => handleContentInput(elem.id, e.currentTarget.value)}
+                style="font-size: {elem.fontSize || 16}px;"
+                class="flex-1 bg-transparent font-bold text-center outline-none text-blue-900"
+                placeholder="← Return"
+              />
+            </div>
+          {:else if elem.shapeVariant === 'banner'}
+            <div class="w-full h-full bg-rose-500/15 border-2 border-rose-500/40 rounded-xl px-4 py-2 flex items-center justify-center shadow-xs">
+              <span class="text-rose-600 mr-1 font-bold">🏷</span>
+              <input
+                type="text"
+                value={elem.content}
+                on:input={(e) => handleContentInput(elem.id, e.currentTarget.value)}
+                style="font-size: {elem.fontSize || 16}px;"
+                class="w-full bg-transparent font-bold text-center outline-none text-rose-900 uppercase tracking-wide"
+                placeholder="ANNOUNCEMENT"
+              />
+            </div>
           {:else}
             <!-- Default Card / Box -->
             <div class="w-full h-full bg-slate-500/10 border-2 border-slate-400/30 rounded-xl p-4 flex flex-col justify-center shadow-xs">
@@ -226,6 +285,65 @@
               />
             </div>
           {/if}
+        {:else if elem.type === 'table'}
+          <!-- Google Slides Style Table -->
+          <div class="w-full h-full bg-white/95 rounded-xl border border-slate-300 shadow-sm overflow-hidden p-2 text-slate-800">
+            <table class="w-full h-full border-collapse text-xs">
+              <thead>
+                <tr class="bg-slate-100 border-b border-slate-300">
+                  {#each (elem.tableData?.cells[0] || ['Feature', 'Description', 'Status']) as header, cIdx}
+                    <th class="p-1.5 font-bold text-left border-r border-slate-200">
+                      <input
+                        type="text"
+                        value={header}
+                        on:input={(e) => handleTableCellInput(elem.id, 0, cIdx, e.currentTarget.value)}
+                        class="w-full bg-transparent font-bold outline-none"
+                      />
+                    </th>
+                  {/each}
+                </tr>
+              </thead>
+              <tbody>
+                {#each (elem.tableData?.cells.slice(1) || [['Docs', 'Rich editor', 'Ready'], ['Sheets', 'Formulas', 'Ready']]) as row, rIdx}
+                  <tr class="border-b border-slate-200 hover:bg-slate-50">
+                    {#each row as cell, cIdx}
+                      <td class="p-1.5 border-r border-slate-200">
+                        <input
+                          type="text"
+                          value={cell}
+                          on:input={(e) => handleTableCellInput(elem.id, rIdx + 1, cIdx, e.currentTarget.value)}
+                          class="w-full bg-transparent outline-none"
+                        />
+                      </td>
+                    {/each}
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {:else if elem.type === 'chart'}
+          <!-- Google Slides Style Embedded Chart -->
+          <div class="w-full h-full bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between text-slate-800">
+            <div class="font-bold text-xs text-slate-700 pb-1 mb-2 border-b border-slate-100 flex items-center justify-between">
+              <span>{elem.chartData?.title || 'Quarterly Performance'}</span>
+              <span class="text-[10px] text-orange-600 font-semibold uppercase">{elem.chartData?.chartType || 'Bar'}</span>
+            </div>
+            <div class="flex-1 flex items-end justify-around gap-2 pt-2 pb-1">
+              {#each (elem.chartData?.labels || ['Q1', 'Q2', 'Q3', 'Q4']) as label, idx}
+                {@const val = (elem.chartData?.values || [45, 80, 65, 95])[idx] || 50}
+                {@const max = Math.max(...(elem.chartData?.values || [100]))}
+                {@const heightPercent = Math.max(15, Math.min(100, Math.round((val / max) * 100)))}
+                <div class="flex-1 flex flex-col items-center h-full justify-end group/bar">
+                  <div class="text-[9px] font-bold text-slate-600 mb-0.5 opacity-0 group-hover/bar:opacity-100 transition-opacity">{val}</div>
+                  <div
+                    class="w-full rounded-t-md transition-all duration-300 shadow-xs"
+                    style="height: {heightPercent}%; background: {(elem.chartData?.colors || ['#f97316', '#3b82f6', '#10b981', '#8b5cf6'])[idx % 4]};"
+                  ></div>
+                  <div class="text-[10px] text-slate-500 font-medium mt-1 truncate">{label}</div>
+                </div>
+              {/each}
+            </div>
+          </div>
         {:else if elem.type === 'code'}
           <div class="w-full bg-slate-900 text-emerald-400 rounded-lg p-3 font-mono text-xs shadow-inner">
             <div class="flex items-center space-x-1.5 pb-2 mb-2 border-b border-slate-800 text-slate-500 text-[10px]">

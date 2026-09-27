@@ -14,12 +14,14 @@
 
   const categories = [
     'All',
+    'Lookup',
+    'Filter & Array',
     'Math',
     'Statistical',
     'Logical',
-    'Lookup',
     'Text',
     'Date & Time',
+    'Google',
   ];
 
   $: filteredFormulas = FORMULA_CATALOG.filter((f) => {

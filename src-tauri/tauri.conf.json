@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Simple Office Suite",
         "width": 1280,
         "height": 850,
@@ -21,7 +22,8 @@
         "resizable": true,
         "fullscreen": false,
         "center": true,
-        "transparent": false
+        "transparent": false,
+        "devtools": true
       }
     ],
     "security": {

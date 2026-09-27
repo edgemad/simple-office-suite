@@ -1,12 +1,36 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { onMount, createEventDispatcher } from 'svelte';
   import WriterToolbar from './WriterToolbar.svelte';
   import WriterCanvas from './WriterCanvas.svelte';
   import DocumentOutline from './DocumentOutline.svelte';
   import TableInsertModal from './TableInsertModal.svelte';
   import PageSetupModal from './PageSetupModal.svelte';
-  import type { DocumentMeta, DocumentPageSetup } from '../../types';
-  import { Search, X, Replace, FileText } from 'lucide-svelte';
+  import VersionHistoryModal from './VersionHistoryModal.svelte';
+  import CommentsDrawer from './CommentsDrawer.svelte';
+  import SpecialCharactersModal from './SpecialCharactersModal.svelte';
+  import WatermarkModal from './WatermarkModal.svelte';
+  import type {
+    DocumentMeta,
+    DocumentPageSetup,
+    DocumentVersion,
+    DocumentComment,
+    DocumentWatermark,
+    DocumentHeaderFooter,
+    EditorMode
+  } from '../../types';
+  import {
+    Search,
+    X,
+    Replace,
+    FileText,
+    ChevronDown,
+    ChevronUp,
+    CheckSquare,
+    Stamp,
+    MessageSquare,
+    History,
+    Sparkles
+  } from 'lucide-svelte';
 
   export let meta: DocumentMeta;
   export let contentHtml: string = `
@@ -27,13 +51,27 @@
 
   let canvasRef: WriterCanvas;
   let showOutline = true;
+  let showComments = false;
   let showTableModal = false;
   let showPageSetupModal = false;
   let showSearch = false;
   let showWordCountModal = false;
+  let showVersionModal = false;
+  let showSpecialCharModal = false;
+  let showWatermarkModal = false;
 
+  let editorMode: EditorMode = 'editing';
+  let selectedQuote = '';
+
+  // Find & Replace Advanced State (Google Docs style)
   let findQuery = '';
   let replaceQuery = '';
+  let matchCase = false;
+  let wholeWord = false;
+  let useRegex = false;
+  let matchCount = 0;
+  let currentMatchIndex = 0;
+
   let currentWords = 0;
   let currentChars = 0;
 
@@ -43,6 +81,50 @@
     size: 'a4',
   };
   let isPageless = false;
+
+  let watermark: DocumentWatermark = {
+    enabled: false,
+    text: 'CONFIDENTIAL',
+    opacity: 0.15,
+    angle: -45,
+  };
+
+  let headerFooter: DocumentHeaderFooter = {
+    headerText: 'Simple Office Suite — Executive Brief',
+    footerText: 'Confidential & Proprietary',
+    showPageNumbers: true,
+    firstPageDifferent: false,
+  };
+
+  let versions: DocumentVersion[] = [
+    {
+      id: 'v_init',
+      timestamp: new Date(Date.now() - 3600000).toISOString(),
+      authorName: 'Edgar Madeja',
+      name: 'Initial Template',
+      content: contentHtml,
+      isAutoSave: true,
+    },
+  ];
+
+  let comments: DocumentComment[] = [
+    {
+      id: 'c_1',
+      authorName: 'Sarah Jenkins',
+      content: 'Make sure to add the export to PDF verification test here.',
+      timestamp: new Date(Date.now() - 1800000).toISOString(),
+      quotedText: 'Universal format compatibility',
+      resolved: false,
+      replies: [
+        {
+          id: 'r_1',
+          authorName: 'Edgar Madeja',
+          content: 'Added in the latest release pipeline!',
+          timestamp: new Date(Date.now() - 900000).toISOString(),
+        },
+      ],
+    },
+  ];
 
   const dispatch = createEventDispatcher<{
     updateStats: { words: number; chars: number };
@@ -59,6 +141,14 @@
 
   export function execFormat(command: string, value?: string) {
     if (canvasRef) canvasRef.execCommand(command, value);
+  }
+
+  export function insertHtml(html: string) {
+    if (canvasRef) canvasRef.execCommand('insertHTML', html);
+  }
+
+  export function insertText(text: string) {
+    if (canvasRef) canvasRef.execCommand('insertText', text);
   }
 
   export function insertTable() {
@@ -95,6 +185,51 @@
 
   export function openWordCount() {
     showWordCountModal = true;
+  }
+
+  export function openVersionHistory() {
+    showVersionModal = true;
+  }
+
+  export function openWatermark() {
+    showWatermarkModal = true;
+  }
+
+  export function toggleCommentsDrawer() {
+    showComments = !showComments;
+  }
+
+  export function openSpecialCharacters() {
+    showSpecialCharModal = true;
+  }
+
+  // Quick Table context actions
+  export function tableInsertRowAbove() {
+    canvasRef?.insertTableRow(true);
+  }
+
+  export function tableInsertRowBelow() {
+    canvasRef?.insertTableRow(false);
+  }
+
+  export function tableInsertColLeft() {
+    canvasRef?.insertTableColumn(true);
+  }
+
+  export function tableInsertColRight() {
+    canvasRef?.insertTableColumn(false);
+  }
+
+  export function tableDeleteRow() {
+    canvasRef?.deleteTableRow();
+  }
+
+  export function tableDeleteCol() {
+    canvasRef?.deleteTableColumn();
+  }
+
+  export function tableDelete() {
+    canvasRef?.deleteTable();
   }
 
   function handleFormat(e: CustomEvent<{ command: string; value?: string }> | { detail: { command: string; value?: string } }) {
@@ -134,14 +269,14 @@
   }
 
   function handleFindNext() {
-    if (findQuery && canvasRef) {
-      window.find(findQuery, false, false, true);
-    }
+    if (!findQuery) return;
+    window.find(findQuery, matchCase, false, true);
   }
 
   function handleReplace(all: boolean = false) {
     if (canvasRef && findQuery) {
       canvasRef.replaceText(findQuery, replaceQuery, all);
+      handleFindNext();
     }
   }
 
@@ -154,6 +289,69 @@
     dispatch('updateStats', { words: e.detail.words, chars: e.detail.chars });
   }
 
+  function handleSelectionChange(e: CustomEvent<{ text: string }>) {
+    selectedQuote = e.detail.text;
+  }
+
+  function handleAddComment(e: CustomEvent<{ text: string; quotedText: string }>) {
+    const newComment: DocumentComment = {
+      id: `c_${Date.now()}`,
+      authorName: 'You (Author)',
+      content: e.detail.text,
+      timestamp: new Date().toISOString(),
+      quotedText: e.detail.quotedText,
+      resolved: false,
+      replies: [],
+    };
+    comments = [newComment, ...comments];
+    canvasRef?.anchorComment(newComment.id);
+  }
+
+  function handleReplyComment(e: CustomEvent<{ commentId: string; text: string }>) {
+    comments = comments.map((c) => {
+      if (c.id === e.detail.commentId) {
+        return {
+          ...c,
+          replies: [
+            ...c.replies,
+            {
+              id: `r_${Date.now()}`,
+              authorName: 'You',
+              content: e.detail.text,
+              timestamp: new Date().toISOString(),
+            },
+          ],
+        };
+      }
+      return c;
+    });
+  }
+
+  function handleResolveComment(e: CustomEvent<{ commentId: string }>) {
+    comments = comments.map((c) => (c.id === e.detail.commentId ? { ...c, resolved: !c.resolved } : c));
+  }
+
+  function handleDeleteComment(e: CustomEvent<{ commentId: string }>) {
+    comments = comments.filter((c) => c.id !== e.detail.commentId);
+  }
+
+  function handleSaveNamedVersion(e: CustomEvent<{ name: string }>) {
+    const newVer: DocumentVersion = {
+      id: `v_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      authorName: 'You',
+      name: e.detail.name,
+      content: contentHtml,
+      isAutoSave: false,
+    };
+    versions = [newVer, ...versions];
+  }
+
+  function handleRestoreVersion(e: CustomEvent<{ content: string }>) {
+    contentHtml = e.detail.content;
+    meta.isDirty = true;
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     const mod = e.ctrlKey || e.metaKey;
 
@@ -163,6 +361,10 @@
     } else if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       handleInsertLink();
+    } else if (mod && e.altKey && e.key.toLowerCase() === 'm') {
+      // Google Docs shortcut: Add comment (Cmd+Alt+M)
+      e.preventDefault();
+      showComments = true;
     } else if (mod && e.shiftKey && e.key.toLowerCase() === 'c') {
       e.preventDefault();
       showWordCountModal = true;
@@ -210,6 +412,8 @@
 <div class="flex-1 flex flex-col h-full overflow-hidden bg-slate-100">
   <WriterToolbar
     {showOutline}
+    {showComments}
+    openCommentsCount={comments.filter((c) => !c.resolved).length}
     on:format={handleFormat}
     on:insertTable={() => (showTableModal = true)}
     on:insertImage={handleInsertImage}
@@ -217,57 +421,73 @@
     on:insertChecklist={insertChecklist}
     on:insertDate={() => canvasRef?.insertDate()}
     on:insertCallout={() => insertCallout('info')}
+    on:insertPageBreak={() => canvasRef?.insertPageBreak()}
+    on:insertSpecialChar={() => (showSpecialCharModal = true)}
+    on:openWatermark={() => (showWatermarkModal = true)}
+    on:openVersionHistory={() => (showVersionModal = true)}
+    on:toggleComments={() => (showComments = !showComments)}
     on:toggleOutline={toggleOutline}
     on:openPageSetup={openPageSetup}
     on:openWordCount={openWordCount}
     on:toggleSearch={() => (showSearch = !showSearch)}
   />
 
-  <!-- Find & Replace Floating / Top Bar -->
+  <!-- Google Docs Style Find & Replace Floating Panel -->
   {#if showSearch}
-    <div class="no-print bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between text-xs shadow-md z-20 animate-in fade-in slide-in-from-top duration-150">
-      <div class="flex items-center space-x-2">
-        <div class="flex items-center space-x-1.5 bg-slate-100 px-2.5 py-1 rounded border border-slate-300">
+    <div class="no-print bg-white border-b border-slate-200 px-4 py-2 flex flex-wrap items-center justify-between text-xs shadow-md z-20 animate-in fade-in slide-in-from-top duration-150 gap-2">
+      <div class="flex items-center flex-wrap gap-2">
+        <!-- Find Input -->
+        <div class="flex items-center space-x-1.5 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-300">
           <Search size={13} class="text-slate-400" />
           <input
             type="text"
-            placeholder="Find text..."
+            placeholder="Find in document..."
             bind:value={findQuery}
-            class="bg-transparent outline-none text-xs w-36 text-slate-800"
+            class="bg-transparent outline-none text-xs w-40 text-slate-800"
             on:keydown={(e) => e.key === 'Enter' && handleFindNext()}
           />
         </div>
 
         <button
-          class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded border border-slate-300 text-slate-700 font-medium transition-colors"
+          class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-300 text-slate-700 font-medium transition-colors"
           on:click={handleFindNext}
         >
           Find Next
         </button>
 
-        <div class="flex items-center space-x-1.5 bg-slate-100 px-2.5 py-1 rounded border border-slate-300 ml-2">
+        <!-- Replace Input -->
+        <div class="flex items-center space-x-1.5 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-300">
           <Replace size={13} class="text-slate-400" />
           <input
             type="text"
             placeholder="Replace with..."
             bind:value={replaceQuery}
-            class="bg-transparent outline-none text-xs w-36 text-slate-800"
+            class="bg-transparent outline-none text-xs w-40 text-slate-800"
+            on:keydown={(e) => e.key === 'Enter' && handleReplace(false)}
           />
         </div>
 
         <button
-          class="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200 text-blue-700 font-medium transition-colors"
+          class="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 text-blue-700 font-medium transition-colors"
           on:click={() => handleReplace(false)}
         >
           Replace
         </button>
 
         <button
-          class="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200 text-blue-700 font-medium transition-colors"
+          class="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 text-blue-700 font-medium transition-colors"
           on:click={() => handleReplace(true)}
         >
           Replace All
         </button>
+
+        <!-- Advanced Options Checkboxes -->
+        <div class="flex items-center space-x-3 ml-2 text-[11px] text-slate-600">
+          <label class="flex items-center space-x-1 cursor-pointer">
+            <input type="checkbox" bind:checked={matchCase} class="w-3.5 h-3.5 accent-blue-600 rounded" />
+            <span>Match case</span>
+          </label>
+        </div>
       </div>
 
       <button
@@ -280,7 +500,7 @@
     </div>
   {/if}
 
-  <!-- Main Body: Document Outline Sidebar + Canvas -->
+  <!-- Main Body: Document Outline Sidebar + Canvas + Comments Drawer -->
   <div class="flex-1 flex overflow-hidden relative">
     <DocumentOutline
       isOpen={showOutline}
@@ -295,7 +515,27 @@
       bind:contentHtml
       {pageSetup}
       {isPageless}
+      {watermark}
+      {headerFooter}
+      {editorMode}
       on:change={handleCanvasChange}
+      on:selectionChange={handleSelectionChange}
+      on:selectComment={(e) => {
+        showComments = true;
+      }}
+    />
+
+    <CommentsDrawer
+      isOpen={showComments}
+      {comments}
+      {editorMode}
+      bind:selectedQuote
+      on:close={() => (showComments = false)}
+      on:addComment={handleAddComment}
+      on:replyComment={handleReplyComment}
+      on:resolveComment={handleResolveComment}
+      on:deleteComment={handleDeleteComment}
+      on:changeMode={(e) => (editorMode = e.detail.mode)}
     />
   </div>
 
@@ -321,7 +561,12 @@
   <!-- Google Docs Style Word Count Modal (Cmd+Shift+C) -->
   {#if showWordCountModal}
     <div class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-      <div class="bg-white rounded-xl shadow-2xl border border-slate-200 p-6 w-80 text-xs text-slate-700 animate-in fade-in zoom-in-95 duration-100">
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="bg-white rounded-xl shadow-2xl border border-slate-200 p-6 w-80 text-xs text-slate-700 animate-in fade-in zoom-in-95 duration-100"
+        on:click|stopPropagation
+      >
         <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
           <div class="flex items-center space-x-2 font-bold text-slate-800 text-sm">
             <FileText size={16} class="text-blue-600" />
@@ -355,7 +600,7 @@
         </div>
         <div class="pt-5 flex justify-end">
           <button
-            class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm transition-colors"
+            class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-xs transition-colors"
             on:click={() => (showWordCountModal = false)}
           >
             OK
@@ -364,4 +609,29 @@
       </div>
     </div>
   {/if}
+
+  <!-- Version History Modal -->
+  <VersionHistoryModal
+    isOpen={showVersionModal}
+    {versions}
+    currentContent={contentHtml}
+    on:close={() => (showVersionModal = false)}
+    on:nameVersion={handleSaveNamedVersion}
+    on:restore={handleRestoreVersion}
+  />
+
+  <!-- Special Characters Modal -->
+  <SpecialCharactersModal
+    isOpen={showSpecialCharModal}
+    on:close={() => (showSpecialCharModal = false)}
+    on:insert={(e) => canvasRef?.insertCharacter(e.detail.char)}
+  />
+
+  <!-- Watermark Modal -->
+  <WatermarkModal
+    isOpen={showWatermarkModal}
+    {watermark}
+    on:close={() => (showWatermarkModal = false)}
+    on:save={(e) => (watermark = e.detail.watermark)}
+  />
 </div>

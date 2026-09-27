@@ -1,19 +1,32 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import type { WorkspaceMode, DocumentMeta } from '../../types';
+  import type { WorkspaceMode, DocumentMeta, AppSettings } from '../../types';
   import {
     FileText,
     Sheet,
     Presentation,
-    Save,
+    CheckSquare,
+    HardDrive,
+    FileCheck,
+    Star,
+    Cloud,
+    FolderKanban,
+    History,
+    MessageSquare,
+    Lock,
+    Search,
+    Sliders,
+    Settings,
+    Keyboard,
     Download,
     Printer,
-    ChevronDown,
-    Cloud,
-    Star,
-    Keyboard,
     Undo2,
     Redo2,
+    ChevronDown,
+    Plus,
+    Copy,
+    Trash2,
+    Check,
     Sparkles,
     Table,
     Image,
@@ -28,50 +41,31 @@
     AlignJustify,
     List,
     ListOrdered,
-    PenTool,
-    Highlighter,
-    Eraser,
-    LayoutTemplate,
-    Columns,
     Sigma,
-    FunctionSquare,
     Filter,
     ArrowDownAZ,
     ArrowUpZA,
-    BookOpen,
-    CheckSquare,
-    CheckCircle2,
-    Shield,
-    Lock,
-    Eye,
-    ZoomIn,
-    ZoomOut,
-    Maximize,
-    Sliders,
-    Palette,
-    Play,
-    Calculator,
-    MessageSquare,
-    Plus,
-    X,
-    FileSpreadsheet,
-    FileCheck,
-    Settings,
-    Mail,
-    Reply,
-    ReplyAll,
-    Forward,
-    Archive,
-    Trash2,
-    Video,
-    Phone,
-    ExternalLink,
+    LayoutTemplate,
+    PenTool,
     ShieldCheck,
-    UserPlus,
-    Hash
+    ExternalLink,
+    User,
+    BarChart2,
+    BarChart3,
+    Palette,
+    Square
   } from 'lucide-svelte';
-  import type { AppSettings } from '../../types';
-  import AiAssistantModal from './AiAssistantModal.svelte';
+  import GoogleShareModal from './GoogleShareModal.svelte';
+  import GoogleAccountModal from './GoogleAccountModal.svelte';
+  import GoogleSyncModal from './GoogleSyncModal.svelte';
+  import GoogleAppsManagerModal from './GoogleAppsManagerModal.svelte';
+  import {
+    currentSyncStatus,
+    syncSettings,
+    isNetworkOnline,
+    performCloudSync,
+    activeAccount
+  } from '../../lib/googleSync';
 
   export let activeMode: WorkspaceMode;
   export let meta: DocumentMeta;
@@ -83,66 +77,66 @@
     openDoc: void;
     saveDoc: void;
     saveAsDoc: void;
-    exportFormat: { format: string };
+    exportFormat: string;
     printPdf: void;
     openShortcuts: void;
     openSettings: void;
+    openCommandPalette: void;
+    openFileBackstage: void;
     undo: void;
     redo: void;
     ribbonAction: { action: string; payload?: any };
+    toggleGeminiSidePanel: void;
+    openGeminiAction: { action: string; payload?: any };
   }>();
 
   let isRenaming = false;
-  let tempTitle = meta.title;
-  let showExportMenu = false;
-  let showAiModal = false;
-  let activeTab: string = 'Home';
+  let tempTitle = '';
   let isStarred = false;
-  let showFileMenu = false;
+  let showShareModal = false;
+  let showAccountModal = false;
+  let showSyncModal = false;
+  let showAppsManagerModal = false;
+  let activeOpenMenu: string | null = null;
+  let showOfflineTooltip = false;
 
-  const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-  const modKey = isMac ? '⌘' : 'Ctrl';
-
-  // Ribbon tabs configuration strictly matching OnlyOffice user images
-  const tabsByMode: Record<WorkspaceMode, string[]> = {
-    writer: ['File', 'Home', 'Insert', 'Draw', 'Layout', 'References', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
-    sheets: ['File', 'Home', 'Insert', 'Draw', 'Layout', 'Formula', 'Data', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
-    pdf: ['File', 'Home', 'Insert', 'Draw', 'Layout', 'References', 'Forms', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
-    slides: ['File', 'Home', 'Insert', 'Draw', 'Design', 'Transitions', 'Animation', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
-    email: ['File', 'Home', 'View', 'Folder', 'Tools', 'Accounts', 'AI'],
-    communicator: ['File', 'Home', 'Channels', 'Calls', 'Security', 'Tools', 'AI'],
-  };
-
-  $: currentTabs = tabsByMode[activeMode] || tabsByMode.writer;
-
-  // Active theme accent color matching OnlyOffice brand guidelines
-  $: accentColor =
-    activeMode === 'writer'
-      ? { text: 'text-blue-500', hex: '#3b82f6', bg: 'bg-blue-600', ring: 'ring-blue-500' }
-      : activeMode === 'sheets'
-      ? { text: 'text-emerald-500', hex: '#16a34a', bg: 'bg-emerald-600', ring: 'ring-emerald-500' }
-      : activeMode === 'pdf'
-      ? { text: 'text-rose-500', hex: '#e0564c', bg: 'bg-rose-600', ring: 'ring-rose-500' }
-      : activeMode === 'slides'
-      ? { text: 'text-orange-500', hex: '#ea580c', bg: 'bg-orange-600', ring: 'ring-orange-500' }
-      : activeMode === 'email'
-      ? { text: 'text-indigo-400', hex: '#6366f1', bg: 'bg-indigo-600', ring: 'ring-indigo-500' }
-      : { text: 'text-cyan-400', hex: '#06b6d4', bg: 'bg-cyan-600', ring: 'ring-cyan-500' };
-
-  function handleTabClick(tab: string) {
-    if (tab === 'File') {
-      showFileMenu = !showFileMenu;
-      return;
+  let enabledAppIds: string[] = (() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const raw = localStorage.getItem('google_enabled_apps_v1');
+        if (raw) return JSON.parse(raw);
+      } catch {}
     }
-    showFileMenu = false;
-    activeTab = tab;
-    if (tab === 'AI') {
-      showAiModal = true;
+    return ['drive', 'writer', 'sheets', 'slides', 'forms', 'pdf'];
+  })();
+
+  function handleSaveAppsConfig(e: CustomEvent<{ enabledAppIds: string[]; defaultAppId: string }>) {
+    enabledAppIds = e.detail.enabledAppIds;
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem('google_enabled_apps_v1', JSON.stringify(enabledAppIds));
+    }
+    if (!enabledAppIds.includes(activeMode)) {
+      dispatch('changeMode', enabledAppIds[0] as WorkspaceMode);
     }
   }
 
+  const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const modKey = isMac ? '⌘' : 'Ctrl';
+
+  // Menus per Google Workspace Application (Includes Gemini)
+  const menusByMode: Record<WorkspaceMode, string[]> = {
+    writer: ['File', 'Edit', 'View', 'Insert', 'Format', 'Tools', 'Gemini', 'Extensions', 'Help'],
+    sheets: ['File', 'Edit', 'View', 'Insert', 'Format', 'Data', 'Tools', 'Gemini', 'Extensions', 'Help'],
+    slides: ['File', 'Edit', 'View', 'Insert', 'Format', 'Slide', 'Arrange', 'Tools', 'Gemini', 'Extensions', 'Help'],
+    forms: ['File', 'Edit', 'View', 'Insert', 'Tools', 'Gemini', 'Responses', 'Help'],
+    drive: ['File', 'New', 'View', 'Sort', 'Tools', 'Gemini', 'Help'],
+    pdf: ['File', 'Edit', 'View', 'Annotate', 'Tools', 'Gemini', 'Help'],
+  };
+
+  $: currentMenus = menusByMode[activeMode] || menusByMode.writer;
+
   function commitRename() {
-    if (tempTitle.trim()) {
+    if (tempTitle.trim() && tempTitle !== meta.title) {
       meta.title = tempTitle.trim();
       meta.isDirty = true;
     }
@@ -151,845 +145,1137 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') commitRename();
-    if (e.key === 'Escape') {
-      tempTitle = meta.title;
-      isRenaming = false;
-    }
+    if (e.key === 'Escape') isRenaming = false;
   }
 
-  function handleExport(format: string) {
-    showExportMenu = false;
-    showFileMenu = false;
-    dispatch('exportFormat', { format });
+  function toggleMenu(menu: string) {
+    activeOpenMenu = activeOpenMenu === menu ? null : menu;
+  }
+
+  function closeMenus() {
+    activeOpenMenu = null;
   }
 
   function triggerAction(action: string, payload?: any) {
+    closeMenus();
     dispatch('ribbonAction', { action, payload });
   }
 
-  function handleAiApply(e: CustomEvent<string>) {
-    triggerAction('insertText', e.detail);
+  function handleExport(format: string) {
+    closeMenus();
+    dispatch('exportFormat', format);
   }
+
+  function getAppBranding(mode: WorkspaceMode) {
+    if (mode === 'sheets') {
+      return {
+        name: 'Spreadsheet',
+        shortName: 'Sheets',
+        icon: Sheet,
+        color: '#0F9D58',
+        textColor: 'text-emerald-700',
+        bgColor: 'bg-emerald-600',
+        lightBg: 'bg-emerald-50',
+        borderFocus: 'border-emerald-500'
+      };
+    }
+    if (mode === 'slides') {
+      return {
+        name: 'Presentation',
+        shortName: 'Slides',
+        icon: Presentation,
+        color: '#F4B400',
+        textColor: 'text-amber-700',
+        bgColor: 'bg-amber-500',
+        lightBg: 'bg-amber-50',
+        borderFocus: 'border-amber-500'
+      };
+    }
+    if (mode === 'forms') {
+      return {
+        name: 'Form Editor',
+        shortName: 'Forms',
+        icon: CheckSquare,
+        color: '#673AB7',
+        textColor: 'text-purple-700',
+        bgColor: 'bg-purple-600',
+        lightBg: 'bg-purple-50',
+        borderFocus: 'border-purple-500'
+      };
+    }
+    if (mode === 'drive') {
+      return {
+        name: 'Files & Storage',
+        shortName: 'Files',
+        icon: HardDrive,
+        color: '#4285F4',
+        textColor: 'text-blue-700',
+        bgColor: 'bg-blue-600',
+        lightBg: 'bg-blue-50',
+        borderFocus: 'border-blue-500'
+      };
+    }
+    if (mode === 'pdf') {
+      return {
+        name: 'PDF Viewer',
+        shortName: 'PDF',
+        icon: FileCheck,
+        color: '#EA4335',
+        textColor: 'text-rose-700',
+        bgColor: 'bg-rose-600',
+        lightBg: 'bg-rose-50',
+        borderFocus: 'border-rose-500'
+      };
+    }
+    return {
+      name: 'Document Editor',
+      shortName: 'Docs',
+      icon: FileText,
+      color: '#1a73e8',
+      textColor: 'text-blue-700',
+      bgColor: 'bg-blue-600',
+      lightBg: 'bg-blue-50',
+      borderFocus: 'border-blue-500'
+    };
+  }
+
+  $: brand = getAppBranding(activeMode);
 </script>
 
-<svelte:window on:click={() => { showFileMenu = false; showExportMenu = false; }} />
+<svelte:window on:click={closeMenus} />
 
-<header class="no-print select-none z-30 relative shadow-md bg-[#222428] text-slate-200">
-  <!-- Top Title & Quick Access Bar -->
-  <div class="h-10 px-3 bg-[#1a1c1e] border-b border-[#2d3135] flex items-center justify-between text-xs">
-    <!-- Left: App Brand Icon, Title & Save / Undo / Redo Shortcuts -->
-    <div class="flex items-center space-x-3">
-      <!-- App Mode Icon -->
-      <div class="flex items-center space-x-1.5">
-        {#if activeMode === 'writer'}
-          <div class="w-6 h-6 rounded bg-blue-600 flex items-center justify-center text-white shadow-xs" title="OnlyOffice Document Editor">
-            <FileText size={14} />
-          </div>
-          <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Word</span>
-        {:else if activeMode === 'sheets'}
-          <div class="w-6 h-6 rounded bg-emerald-600 flex items-center justify-center text-white shadow-xs" title="OnlyOffice Spreadsheet Editor">
-            <Sheet size={14} />
-          </div>
-          <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Sheet</span>
-        {:else if activeMode === 'pdf'}
-          <div class="w-6 h-6 rounded bg-rose-600 flex items-center justify-center text-white shadow-xs" title="OnlyOffice PDF & Form Editor">
-            <FileCheck size={14} />
-          </div>
-          <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">PDF</span>
-        {:else if activeMode === 'slides'}
-          <div class="w-6 h-6 rounded bg-orange-600 flex items-center justify-center text-white shadow-xs" title="OnlyOffice Presentation Editor">
-            <Presentation size={14} />
-          </div>
-          <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Slides</span>
-        {:else if activeMode === 'email'}
-          <div class="w-6 h-6 rounded bg-indigo-600 flex items-center justify-center text-white shadow-xs" title="OnlyOffice Mail Client">
-            <Mail size={14} />
-          </div>
-          <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Mail</span>
-        {:else}
-          <div class="w-6 h-6 rounded bg-cyan-600 flex items-center justify-center text-white shadow-xs" title="Teams Communicator">
-            <MessageSquare size={14} />
-          </div>
-          <span class="font-bold text-slate-100 text-xs tracking-tight hidden sm:inline">Teams</span>
-        {/if}
-      </div>
+<header class="no-print select-none z-30 relative bg-[#F9FBFD] border-b border-slate-200/90 text-slate-700 font-sans shadow-2xs">
+  <!-- Top Bar: App Branding, Document Title, Google Workspace Menus, Mode Switcher, Share -->
+  <div class="h-16 px-4 flex items-center justify-between">
+    <!-- Left: Google App Logo & Info Stack -->
+    <div class="flex items-center space-x-3.5">
+      <!-- App Icon (Click opens Google Drive Backstage) -->
+      <button
+        class="w-10 h-10 rounded-xl {brand.bgColor} text-white flex items-center justify-center shadow-xs hover:scale-105 transition-transform"
+        on:click|stopPropagation={() => dispatch('openFileBackstage')}
+        title="{brand.name} — Click to open Google Drive Hub"
+      >
+        <svelte:component this={brand.icon} size={22} />
+      </button>
 
-      <!-- Quick Action Buttons -->
-      <div class="flex items-center space-x-0.5 border-l border-slate-700 pl-2">
-        <button
-          class="p-1 rounded hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
-          on:click={() => dispatch('saveDoc')}
-          title="Save ({modKey}+S)"
-        >
-          <Save size={13} />
-        </button>
-        <button
-          class="p-1 rounded hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
-          on:click={() => dispatch('undo')}
-          title="Undo ({modKey}+Z)"
-        >
-          <Undo2 size={13} />
-        </button>
-        <button
-          class="p-1 rounded hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
-          on:click={() => dispatch('redo')}
-          title="Redo ({modKey}+Y)"
-        >
-          <Redo2 size={13} />
-        </button>
-      </div>
+      <!-- Document Metadata & Menu Bar -->
+      <div class="flex flex-col justify-center">
+        <!-- Top Row: Document Title, Star, Folder, Offline Badge -->
+        <div class="flex items-center space-x-1.5 h-6">
+          {#if isRenaming}
+            <input
+              type="text"
+              bind:value={tempTitle}
+              on:blur={commitRename}
+              on:keydown={handleKeydown}
+              class="bg-white text-slate-900 border {brand.borderFocus} px-2 py-0.5 rounded text-sm font-medium outline-none shadow-xs"
+              autoFocus
+            />
+          {:else}
+            <button
+              class="font-medium text-slate-800 hover:bg-slate-200/70 px-2 py-0.5 rounded text-sm truncate max-w-[260px] text-left transition-colors"
+              on:click|stopPropagation={() => { tempTitle = meta.title; isRenaming = true; }}
+              title="Click to rename"
+            >
+              {meta.title}
+            </button>
+          {/if}
 
-      <!-- Editable Document Title & Offline Badge -->
-      <div class="flex items-center space-x-2 border-l border-slate-700 pl-2">
-        {#if isRenaming}
-          <input
-            type="text"
-            bind:value={tempTitle}
-            on:blur={commitRename}
-            on:keydown={handleKeydown}
-            class="bg-slate-800 text-white border border-blue-500 px-1.5 py-0.5 rounded text-xs outline-none"
-          />
-        {:else}
+          <!-- Star Icon -->
           <button
-            class="font-semibold text-slate-200 hover:text-white hover:bg-white/10 px-2 py-0.5 rounded text-xs truncate max-w-[200px]"
-            on:click|stopPropagation={() => { tempTitle = meta.title; isRenaming = true; }}
-            title="Click to rename"
+            class="p-1 rounded-full hover:bg-slate-200/70 transition-colors {isStarred ? 'text-amber-500' : 'text-slate-400 hover:text-slate-600'}"
+            on:click|stopPropagation={() => (isStarred = !isStarred)}
+            title="Star document"
           >
-            {meta.title}
+            <Star size={14} fill={isStarred ? 'currentColor' : 'none'} />
           </button>
-        {/if}
 
-        <button
-          class="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-amber-400 transition-colors {isStarred ? 'text-amber-400' : ''}"
-          on:click|stopPropagation={() => (isStarred = !isStarred)}
-          title="Star Document"
-        >
-          <Star size={13} fill={isStarred ? 'currentColor' : 'none'} />
-        </button>
+          <!-- Move to Drive Folder Icon -->
+          <button
+            class="p-1 rounded-full hover:bg-slate-200/70 text-slate-400 hover:text-slate-600 transition-colors"
+            on:click|stopPropagation={() => dispatch('changeMode', 'drive')}
+            title="Move to folder in Google Drive"
+          >
+            <FolderKanban size={14} />
+          </button>
 
-        <div class="hidden md:flex items-center space-x-1 px-1.5 py-0.5 rounded bg-white/5 text-[10px] text-slate-400">
-          <Cloud size={11} class="text-slate-400" />
-          <span>Device</span>
+          <!-- Offline Status Icon Badge -->
+          <div class="relative">
+            <button
+              class="flex items-center space-x-1 px-1.5 py-0.5 rounded-full hover:bg-slate-200/70 text-slate-500 transition-colors text-[11px]"
+              on:click|stopPropagation={() => (showOfflineTooltip = !showOfflineTooltip)}
+              title="Document status"
+            >
+              <Cloud size={13} class="text-blue-600" />
+              <Check size={10} class="text-blue-600 -ml-1.5 stroke-[3]" />
+              <span class="text-[10px] text-slate-500 hidden xl:inline">Saved to Mac</span>
+            </button>
+
+            {#if showOfflineTooltip}
+              <div class="absolute left-0 top-6 w-60 bg-white border border-slate-200 rounded-xl shadow-xl p-3 z-50 text-xs text-slate-700 animate-in fade-in zoom-in-95 duration-100">
+                <div class="flex items-center space-x-2 text-emerald-700 font-semibold mb-1">
+                  <ShieldCheck size={16} />
+                  <span>100% Offline Document</span>
+                </div>
+                <p class="text-[11px] text-slate-500 leading-relaxed">
+                  All changes are securely saved to your local disk storage. Zero data leaves your machine.
+                </p>
+              </div>
+            {/if}
+          </div>
+
+          {#if meta.isDirty}
+            <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Unsaved edits"></span>
+          {/if}
         </div>
 
-        {#if meta.isDirty}
-          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" title="Unsaved changes"></span>
-        {/if}
-      </div>
-    </div>
+        <!-- Bottom Row: Authentic Google Workspace Menu Bar -->
+        <div class="flex items-center space-x-0.5 text-xs text-slate-700 font-normal -ml-1 relative">
+          {#each currentMenus as menu}
+            {@const isOpen = activeOpenMenu === menu}
+            <div class="relative">
+              <button
+                class="px-2 py-0.5 rounded hover:bg-slate-200/70 transition-colors text-xs
+                  {isOpen ? 'bg-slate-200 text-slate-900 font-medium' : 'text-slate-700'}"
+                on:click|stopPropagation={() => toggleMenu(menu)}
+              >
+                {menu}
+              </button>
 
-    <!-- Center: OnlyOffice 4-Mode Workspace Switcher (Word, Sheet, Slides, PDF) -->
-    <nav class="flex items-center space-x-1 bg-black/40 p-0.5 rounded-lg border border-white/10">
-      <button
-        class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
-          {activeMode === 'writer' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}"
-        on:click={() => dispatch('changeMode', 'writer')}
-        title="Word / Document Editor ({modKey}+1)"
-      >
-        <FileText size={13} />
-        <span class="text-[11px]">Word</span>
-      </button>
+              <!-- Dropdown Menu -->
+              {#if isOpen}
+                <div
+                  class="absolute left-0 top-7 min-w-[230px] bg-white border border-slate-200/90 rounded-xl shadow-2xl py-1.5 z-50 text-xs text-slate-700 divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-75 select-none"
+                  on:click|stopPropagation
+                >
+                  <!-- FILE MENU -->
+                  {#if menu === 'File'}
+                    {#if activeMode === 'sheets'}
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('newDoc'); }}>
+                          <span class="flex items-center space-x-2"><Plus size={14} class="text-emerald-600" /><span>New spreadsheet</span></span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+N</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); triggerAction('insertPrebuiltTable', 'project_budget'); }}>
+                          <span>From template gallery</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openDoc'); }}>
+                          <span>Open</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+O</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); triggerAction('importSpreadsheet'); }}>
+                          <span>Import (.xlsx, .csv, .tsv)</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('saveAsDoc'); }}>
+                          <span>Make a copy</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); showShareModal = true; }}>
+                          <span class="flex items-center space-x-2"><Lock size={13} class="text-emerald-600" /><span>Share with others</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); handleExport('html'); }}>
+                          <span>Publish to web (HTML)</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('saveDoc'); }}>
+                          <span>Save spreadsheet</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+S</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Download</span>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('xlsx')}>
+                          <span>Microsoft Excel (.xlsx)</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('xlsx')}>
+                          <span>OpenDocument (.ods)</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('printPdf'); }}>
+                          <span>PDF Document (.pdf)</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('html')}>
+                          <span>Web page (.html)</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('csv')}>
+                          <span>Comma Separated (.csv)</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('tsv')}>
+                          <span>Tab Separated (.tsv)</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); tempTitle = meta.title; isRenaming = true; }}>
+                          <span>Rename</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('changeMode', 'drive'); }}>
+                          <span>Move to Drive</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); showSyncModal = true; }}>
+                          <span>Add shortcut to Drive</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); showOfflineTooltip = true; }}>
+                          <span>Make available offline</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('spreadsheetSettings')}>
+                          <span>Settings (Calculation)</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('printPdf'); }}>
+                          <span class="flex items-center space-x-2"><Printer size={13} /><span>Print</span></span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+P</span>
+                        </button>
+                      </div>
+                    {:else}
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('newDoc'); }}>
+                          <span class="flex items-center space-x-2"><Plus size={14} class="text-blue-600" /><span>New</span></span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+N</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openDoc'); }}>
+                          <span>Open</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+O</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('saveAsDoc'); }}>
+                          <span>Make a copy</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); showShareModal = true; }}>
+                          <span class="flex items-center space-x-2"><Lock size={13} class="text-blue-600" /><span>Share</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('saveDoc'); }}>
+                          <span>Save</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+S</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Download</span>
+                        {#if activeMode === 'writer'}
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('docx')}>
+                            <span>Microsoft Word (.docx)</span>
+                          </button>
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('rtf')}>
+                            <span>Rich Text Format (.rtf)</span>
+                          </button>
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('md')}>
+                            <span>Markdown (.md)</span>
+                          </button>
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('txt')}>
+                            <span>Plain Text (.txt)</span>
+                          </button>
+                        {:else if activeMode === 'slides'}
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('pptx')}>
+                            <span>PowerPoint (.pptx)</span>
+                          </button>
+                        {/if}
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('printPdf'); }}>
+                          <span>PDF Document (.pdf)</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('printPdf'); }}>
+                          <span class="flex items-center space-x-2"><Printer size={13} /><span>Print</span></span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+P</span>
+                        </button>
+                      </div>
+                    {/if}
 
-      <button
-        class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
-          {activeMode === 'sheets' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}"
-        on:click={() => dispatch('changeMode', 'sheets')}
-        title="Sheet / Spreadsheet Editor ({modKey}+2)"
-      >
-        <Sheet size={13} />
-        <span class="text-[11px]">Sheet</span>
-      </button>
+                  <!-- EDIT MENU -->
+                  {:else if menu === 'Edit'}
+                    {#if activeMode === 'sheets'}
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('undo'); }}>
+                          <span>Undo</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+Z</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('redo'); }}>
+                          <span>Redo</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+Y</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('cut')}>
+                          <span>Cut</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+X</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('copy')}>
+                          <span>Copy</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+C</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('paste')}>
+                          <span>Paste</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+V</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Paste special</span>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('pasteValuesOnly')}>
+                          <span>Values only</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+⇧+V</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('pasteFormatOnly')}>
+                          <span>Format only</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+⌥+V</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('pasteFormulaOnly')}>
+                          <span>Formula only</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('conditionalFormatting')}>
+                          <span>Conditional formatting only</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('openDataValidation')}>
+                          <span>Data validation only</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('pasteTransposed')}>
+                          <span>Transposed</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Delete</span>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertText', '')}>
+                          <span>Values</span>
+                          <span class="text-[10px] text-slate-400 font-mono">Del</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('deleteRow')}>
+                          <span>Delete selected row</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('deleteCol')}>
+                          <span>Delete selected column</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('deleteCellsUp')}>
+                          <span>Cells and shift up</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('deleteCellsLeft')}>
+                          <span>Cells and shift left</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('toggleSearch')}>
+                          <span class="flex items-center space-x-2"><Search size={13} /><span>Find and replace</span></span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+H</span>
+                        </button>
+                      </div>
+                    {:else}
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('undo'); }}>
+                          <span>Undo</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+Z</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('redo'); }}>
+                          <span>Redo</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+Y</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('copy')}>
+                          <span>Copy</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+C</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('paste')}>
+                          <span>Paste</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+V</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('selectAll')}>
+                          <span>Select all</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+A</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('toggleSearch')}>
+                          <span class="flex items-center space-x-2"><Search size={13} /><span>Find and replace</span></span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+H</span>
+                        </button>
+                      </div>
+                    {/if}
 
-      <button
-        class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
-          {activeMode === 'slides' ? 'bg-orange-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}"
-        on:click={() => dispatch('changeMode', 'slides')}
-        title="Slides / Presentation Editor ({modKey}+3)"
-      >
-        <Presentation size={13} />
-        <span class="text-[11px]">Slides</span>
-      </button>
+                  <!-- VIEW MENU -->
+                  {:else if menu === 'View'}
+                    {#if activeMode === 'sheets'}
+                      <div class="py-1">
+                        <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Show</span>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('toggleFormulaBar')}>
+                          <span>Formula bar</span>
+                          <Check size={13} class="text-emerald-600" />
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('toggleGridlines')}>
+                          <span>Gridlines</span>
+                          <Check size={13} class="text-emerald-600" />
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('toggleShowFormulas')}>
+                          <span>Formulas</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+~</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Freeze Rows</span>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('freezeRows', 0)}>
+                          <span>No rows</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('freezeRows', 1)}>
+                          <span>1 row</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('freezeRows', 2)}>
+                          <span>2 rows</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Freeze Columns</span>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('freezeCols', 0)}>
+                          <span>No columns</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('freezeCols', 1)}>
+                          <span>1 column</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('freezeCols', 2)}>
+                          <span>2 columns</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Zoom</span>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('zoom', 75)}>
+                          <span>75%</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('zoom', 100)}>
+                          <span>100% (Default)</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('zoom', 125)}>
+                          <span>125%</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('zoom', 150)}>
+                          <span>150%</span>
+                        </button>
+                      </div>
+                    {:else}
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('toggleOutline')}>
+                          <span>Show document outline</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('toggleComments')}>
+                          <span>Show comments</span>
+                        </button>
+                      </div>
+                    {/if}
 
-      <button
-        class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
-          {activeMode === 'pdf' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}"
-        on:click={() => dispatch('changeMode', 'pdf')}
-        title="PDF & Form Editor ({modKey}+4)"
-      >
-        <FileCheck size={13} />
-        <span class="text-[11px]">PDF</span>
-      </button>
+                  <!-- INSERT MENU -->
+                  {:else if menu === 'Insert'}
+                    {#if activeMode === 'sheets'}
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertRowAbove')}>
+                          <span>Insert 1 row above</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertRowBelow')}>
+                          <span>Insert 1 row below</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertColLeft')}>
+                          <span>Insert 1 column left</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertColRight')}>
+                          <span>Insert 1 column right</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertCellsDown')}>
+                          <span>Insert cells and shift down</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Pre-built tables</span>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertPrebuiltTable', 'task_tracker')}>
+                          <span>Task tracker</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertPrebuiltTable', 'project_budget')}>
+                          <span>Project budget</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertPrebuiltTable', 'employee_roster')}>
+                          <span>Employee roster</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertPrebuiltTable', 'expense_report')}>
+                          <span>Expense report</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertChart')}>
+                          <span class="flex items-center space-x-2"><BarChart3 size={13} class="text-blue-600" /><span>Chart</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('functionList')}>
+                          <span class="flex items-center space-x-2"><Sigma size={13} class="text-emerald-600" /><span>Function list...</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertCheckbox')}>
+                          <span class="flex items-center space-x-2"><CheckSquare size={13} class="text-purple-600" /><span>Checkbox</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('openDataValidation')}>
+                          <span>Dropdown list</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertLink')}>
+                          <span class="flex items-center space-x-2"><Link size={13} class="text-blue-600" /><span>Link</span></span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+K</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertComment')}>
+                          <span>Comment</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+⌥+M</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertNote')}>
+                          <span>Note</span>
+                          <span class="text-[10px] text-slate-400 font-mono">⇧+F2</span>
+                        </button>
+                      </div>
+                    {:else}
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertImage')}>
+                          <span class="flex items-center space-x-2"><Image size={14} class="text-blue-600" /><span>Image</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertTable')}>
+                          <span class="flex items-center space-x-2"><Table size={14} class="text-emerald-600" /><span>Table</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('insertLink')}>
+                          <span class="flex items-center space-x-2"><Link size={14} class="text-indigo-600" /><span>Link</span></span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+K</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('toggleComments')}>
+                          <span class="flex items-center space-x-2"><MessageSquare size={14} class="text-amber-600" /><span>Comment</span></span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+⌥+M</span>
+                        </button>
+                      </div>
+                    {/if}
 
-      <button
-        class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
-          {activeMode === 'email' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}"
-        on:click={() => dispatch('changeMode', 'email')}
-        title="Mail Client ({modKey}+5)"
-      >
-        <Mail size={13} />
-        <span class="text-[11px]">Mail</span>
-      </button>
+                  <!-- FORMAT MENU -->
+                  {:else if menu === 'Format'}
+                    {#if activeMode === 'sheets'}
+                      <div class="py-1">
+                        <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Number</span>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('numberFormat', 'general')}>
+                          <span>Automatic</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('numberFormat', 'text')}>
+                          <span>Plain text</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('numberFormat', 'number')}>
+                          <span>Number (1,000.12)</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('numberFormat', 'percent')}>
+                          <span>Percent (10.12%)</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('numberFormat', 'currency')}>
+                          <span>Currency ($1,000.12)</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('numberFormat', 'accounting')}>
+                          <span>Accounting</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('numberFormat', 'scientific')}>
+                          <span>Scientific (1.01E+03)</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('numberFormat', 'date')}>
+                          <span>Date (YYYY-MM-DD)</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('numberFormat', 'time')}>
+                          <span>Time (HH:MM:SS)</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('numberFormat', 'duration')}>
+                          <span>Duration (24:01:00)</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Text</span>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between font-bold" on:click={() => triggerAction('bold')}>
+                          <span>Bold</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+B</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between italic" on:click={() => triggerAction('italic')}>
+                          <span>Italic</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+I</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between underline" on:click={() => triggerAction('underline')}>
+                          <span>Underline</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+U</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between line-through" on:click={() => triggerAction('strike')}>
+                          <span>Strikethrough</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Alignment</span>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('align', 'left')}>
+                          <span>Left</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('align', 'center')}>
+                          <span>Center</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('align', 'right')}>
+                          <span>Right</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('verticalAlign', 'top')}>
+                          <span>Top</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('verticalAlign', 'middle')}>
+                          <span>Middle</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('verticalAlign', 'bottom')}>
+                          <span>Bottom</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Merge cells</span>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('mergeCells', 'all')}>
+                          <span>Merge all</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('mergeCells', 'unmerge')}>
+                          <span>Unmerge</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('openBorders')}>
+                          <span class="flex items-center space-x-2"><Square size={13} /><span>Borders</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('conditionalFormatting')}>
+                          <span class="flex items-center space-x-2"><Sparkles size={13} class="text-amber-500" /><span>Conditional formatting</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('alternatingColors')}>
+                          <span class="flex items-center space-x-2"><Palette size={13} class="text-emerald-600" /><span>Alternating colors</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('removeFormat')}>
+                          <span>Clear formatting</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+\</span>
+                        </button>
+                      </div>
+                    {:else}
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between font-bold" on:click={() => triggerAction('bold')}>
+                          <span>Bold</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+B</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between italic" on:click={() => triggerAction('italic')}>
+                          <span>Italic</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+I</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between underline" on:click={() => triggerAction('underline')}>
+                          <span>Underline</span>
+                          <span class="text-[10px] text-slate-400 font-mono">{modKey}+U</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between line-through" on:click={() => triggerAction('strike')}>
+                          <span>Strikethrough</span>
+                        </button>
+                      </div>
+                    {/if}
 
-      <button
-        class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
-          {activeMode === 'communicator' ? 'bg-cyan-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}"
-        on:click={() => dispatch('changeMode', 'communicator')}
-        title="Teams Communicator ({modKey}+6)"
-      >
-        <MessageSquare size={13} />
-        <span class="text-[11px]">Teams</span>
-      </button>
-    </nav>
+                  <!-- DATA MENU (SHEETS) -->
+                  {:else if menu === 'Data'}
+                    <div class="py-1">
+                      <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Sort sheet</span>
+                      <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('sortSheetAZ')}>
+                        <span class="flex items-center space-x-2"><ArrowDownAZ size={13} /><span>Sort sheet by Column A → Z</span></span>
+                      </button>
+                      <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('sortSheetZA')}>
+                        <span class="flex items-center space-x-2"><ArrowUpZA size={13} /><span>Sort sheet by Column Z → A</span></span>
+                      </button>
+                    </div>
+                    <div class="py-1">
+                      <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Sort range</span>
+                      <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('sortAsc')}>
+                        <span>Sort range by Column A → Z</span>
+                      </button>
+                      <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('sortDesc')}>
+                        <span>Sort range by Column Z → A</span>
+                      </button>
+                    </div>
+                    <div class="py-1">
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('toggleFilter')}>
+                        <span class="flex items-center space-x-2"><Filter size={13} /><span>Create a filter</span></span>
+                      </button>
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('randomizeRange')}>
+                        <span>Randomize range</span>
+                      </button>
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('columnStats')}>
+                        <span class="flex items-center space-x-2"><BarChart2 size={13} /><span>Column stats</span></span>
+                      </button>
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('openDataValidation')}>
+                        <span>Data validation</span>
+                      </button>
+                    </div>
+                    <div class="py-1">
+                      <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Data cleanup</span>
+                      <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('removeDuplicates')}>
+                        <span>Remove duplicates</span>
+                      </button>
+                      <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('trimWhitespace')}>
+                        <span>Trim whitespace</span>
+                      </button>
+                      <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('splitTextToColumns')}>
+                        <span>Split text to columns</span>
+                      </button>
+                    </div>
 
-    <!-- Right: Export & Shortcuts -->
-    <div class="flex items-center space-x-1.5">
-      <!-- Settings button -->
-      <button
-        class="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-        on:click={() => dispatch('openSettings')}
-        title="Settings ({modKey}+,)"
-      >
-        <Settings size={14} />
-      </button>
+                  <!-- SLIDE MENU (SLIDES) -->
+                  {:else if menu === 'Slide'}
+                    <div class="py-1">
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('newSlide')}>
+                        <span>New slide</span>
+                        <span class="text-[10px] text-slate-400 font-mono">{modKey}+M</span>
+                      </button>
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('duplicateSlide')}>
+                        <span>Duplicate slide</span>
+                        <span class="text-[10px] text-slate-400 font-mono">{modKey}+D</span>
+                      </button>
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between text-rose-600" on:click={() => triggerAction('deleteSlide')}>
+                        <span>Delete slide</span>
+                      </button>
+                    </div>
+                    <div class="py-1">
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('changeTheme')}>
+                        <span>Change theme</span>
+                      </button>
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('changeTransition')}>
+                        <span>Change transition</span>
+                      </button>
+                    </div>
 
-      <!-- Shortcuts button -->
-      <button
-        class="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-        on:click={() => dispatch('openShortcuts')}
-        title="Shortcuts ({modKey}+/)"
-      >
-        <Keyboard size={14} />
-      </button>
+                  <!-- TOOLS MENU -->
+                  {:else if menu === 'Tools'}
+                    {#if activeMode === 'sheets'}
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between text-emerald-700 font-semibold" on:click={() => triggerAction('createForm')}>
+                          <span class="flex items-center space-x-2"><CheckSquare size={13} class="text-purple-600" /><span>Create a new form</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('spellCheck')}>
+                          <span>Spelling: Spell check</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('spreadsheetSettings')}>
+                          <span>Calculation settings</span>
+                        </button>
+                      </div>
+                    {/if}
+                    <div class="py-1">
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openCommandPalette'); }}>
+                        <span class="flex items-center space-x-2"><Search size={13} /><span>Command Palette</span></span>
+                        <span class="text-[10px] text-slate-400 font-mono">{modKey}+K</span>
+                      </button>
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openSettings'); }}>
+                        <span class="flex items-center space-x-2"><Settings size={13} /><span>Preferences</span></span>
+                        <span class="text-[10px] text-slate-400 font-mono">{modKey}+,</span>
+                      </button>
+                    </div>
 
-      <!-- Export Dropdown Trigger -->
-      <div class="relative">
-        <button
-          class="flex items-center space-x-1 px-2.5 py-1 rounded bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-medium transition-colors border border-white/10"
-          on:click|stopPropagation={() => (showExportMenu = !showExportMenu)}
-        >
-          <Download size={12} class="text-slate-300" />
-          <span>Export</span>
-          <ChevronDown size={11} class="text-slate-400" />
-        </button>
+                  <!-- GEMINI MENU (Google Gemini in Docs, Sheets, Slides, Forms, Drive) -->
+                  {:else if menu === 'Gemini'}
+                    {#if activeMode === 'sheets'}
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between text-purple-700 font-semibold" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'organize' }); }}>
+                          <span class="flex items-center space-x-2"><Table size={13} class="text-purple-600" /><span>Help me organize (Table / Tracker)</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'formula' }); }}>
+                          <span class="flex items-center space-x-2"><Sigma size={13} class="text-emerald-600" /><span>Generate formula with Gemini</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'insights' }); }}>
+                          <span class="flex items-center space-x-2"><Sparkles size={13} class="text-blue-600" /><span>Data insights & summary</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'budget' }); }}>
+                          <span>Create financial budget model</span>
+                        </button>
+                      </div>
+                    {:else if activeMode === 'slides'}
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between text-purple-700 font-semibold" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'new_slide' }); }}>
+                          <span class="flex items-center space-x-2"><Presentation size={13} class="text-amber-600" /><span>Create slide from topic</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'outline' }); }}>
+                          <span>Generate presentation outline</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'notes' }); }}>
+                          <span>Generate speaker notes</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'summarize_deck' }); }}>
+                          <span>Summarize slide deck</span>
+                        </button>
+                      </div>
+                    {:else if activeMode === 'forms'}
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between text-purple-700 font-semibold" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'survey' }); }}>
+                          <span class="flex items-center space-x-2"><Sparkles size={13} class="text-purple-600" /><span>Help me create a form / quiz</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'analyze_resp' }); }}>
+                          <span>Analyze survey responses</span>
+                        </button>
+                      </div>
+                    {:else}
+                      <!-- Docs (Writer) / Universal -->
+                      <div class="py-1">
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between text-purple-700 font-semibold" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'help_write' }); }}>
+                          <span class="flex items-center space-x-2"><Sparkles size={13} class="text-purple-600" /><span>Help me write...</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'summarize_doc' }); }}>
+                          <span class="flex items-center space-x-2"><FileText size={13} class="text-blue-600" /><span>Summarize document</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'proofread' }); }}>
+                          <span>Proofread & polish</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'brainstorm' }); }}>
+                          <span>Brainstorm ideas & outline</span>
+                        </button>
+                      </div>
+                      <div class="py-1">
+                        <span class="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Refine Tone</span>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'tone_formal' }); }}>
+                          <span>Formal / Professional</span>
+                        </button>
+                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openGeminiAction', { action: 'tone_concise' }); }}>
+                          <span>Concise & Shorten</span>
+                        </button>
+                      </div>
+                    {/if}
+                    <div class="py-1">
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between font-semibold text-purple-700" on:click={() => { closeMenus(); dispatch('toggleGeminiSidePanel'); }}>
+                        <span class="flex items-center space-x-2"><Sparkles size={13} class="text-purple-600" /><span>Open Gemini Side Panel</span></span>
+                      </button>
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between text-slate-600" on:click={() => { closeMenus(); showAccountModal = true; }}>
+                        <span>Account: {$activeAccount ? ($activeAccount.accountType === 'personal' ? 'Personal Account' : 'Workspace') : 'Local (Offline)'}</span>
+                      </button>
+                    </div>
 
-        {#if showExportMenu}
-          <div class="absolute right-0 mt-1 w-52 bg-slate-900 rounded-lg shadow-2xl border border-slate-700 py-1.5 z-50 text-xs text-slate-200 divide-y divide-slate-800">
-            <div class="py-1">
-              {#if activeMode === 'writer'}
-                <button class="w-full px-3 py-1 text-left hover:bg-blue-600 flex items-center justify-between" on:click={() => handleExport('docx')}>
-                  <span>Microsoft Word (.docx)</span>
-                  <span class="text-[9px] text-slate-400 font-mono">DOCX</span>
-                </button>
-                <button class="w-full px-3 py-1 text-left hover:bg-blue-600 flex items-center justify-between" on:click={() => handleExport('rtf')}>
-                  <span>Rich Text (.rtf)</span>
-                  <span class="text-[9px] text-slate-400 font-mono">RTF</span>
-                </button>
-                <button class="w-full px-3 py-1 text-left hover:bg-blue-600 flex items-center justify-between" on:click={() => handleExport('md')}>
-                  <span>Markdown (.md)</span>
-                  <span class="text-[9px] text-slate-400 font-mono">MD</span>
-                </button>
-                <button class="w-full px-3 py-1 text-left hover:bg-blue-600 flex items-center justify-between" on:click={() => handleExport('txt')}>
-                  <span>Plain Text (.txt)</span>
-                  <span class="text-[9px] text-slate-400 font-mono">TXT</span>
-                </button>
-              {:else if activeMode === 'sheets'}
-                <button class="w-full px-3 py-1 text-left hover:bg-emerald-600 flex items-center justify-between" on:click={() => handleExport('xlsx')}>
-                  <span>Microsoft Excel (.xlsx)</span>
-                  <span class="text-[9px] text-slate-400 font-mono">XLSX</span>
-                </button>
-                <button class="w-full px-3 py-1 text-left hover:bg-emerald-600 flex items-center justify-between" on:click={() => handleExport('csv')}>
-                  <span>Comma Separated (.csv)</span>
-                  <span class="text-[9px] text-slate-400 font-mono">CSV</span>
-                </button>
-                <button class="w-full px-3 py-1 text-left hover:bg-emerald-600 flex items-center justify-between" on:click={() => handleExport('tsv')}>
-                  <span>Tab Separated (.tsv)</span>
-                  <span class="text-[9px] text-slate-400 font-mono">TSV</span>
-                </button>
-              {:else if activeMode === 'slides'}
-                <button class="w-full px-3 py-1 text-left hover:bg-orange-600 flex items-center justify-between" on:click={() => handleExport('pptx')}>
-                  <span>PowerPoint Deck (.pptx)</span>
-                  <span class="text-[9px] text-slate-400 font-mono">PPTX</span>
-                </button>
-              {:else if activeMode === 'pdf'}
-                <button class="w-full px-3 py-1 text-left hover:bg-rose-600 flex items-center justify-between" on:click={() => dispatch('printPdf')}>
-                  <span>Save / Print PDF</span>
-                  <span class="text-[9px] text-slate-400 font-mono">PDF</span>
-                </button>
+                  <!-- EXTENSIONS MENU -->
+                  {:else if menu === 'Extensions'}
+                    <div class="py-1">
+                      {#if activeMode === 'sheets'}
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between font-medium text-emerald-700" on:click={() => triggerAction('appsScript')}>
+                          <span class="flex items-center space-x-2"><Code2 size={13} class="text-emerald-600" /><span>Apps Script</span></span>
+                        </button>
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('createForm')}>
+                          <span>AppSheet (Build App)</span>
+                        </button>
+                      {/if}
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between text-purple-600 font-medium" on:click={() => triggerAction('openAiModal')}>
+                        <span class="flex items-center space-x-2"><Sparkles size={14} /><span>AI Assistant</span></span>
+                      </button>
+                    </div>
+
+                  <!-- HELP MENU -->
+                  {:else if menu === 'Help'}
+                    <div class="py-1">
+                      {#if activeMode === 'sheets'}
+                        <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => triggerAction('functionList')}>
+                          <span class="flex items-center space-x-2"><Sigma size={13} class="text-emerald-600" /><span>Function list (50+ formulas)</span></span>
+                        </button>
+                      {/if}
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openShortcuts'); }}>
+                        <span class="flex items-center space-x-2"><Keyboard size={13} /><span>Keyboard shortcuts</span></span>
+                        <span class="text-[10px] text-slate-400 font-mono">{modKey}+/</span>
+                      </button>
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openSettings'); }}>
+                        <span>About Simple Office Suite</span>
+                      </button>
+                    </div>
+                  {:else}
+                    <div class="py-1">
+                      <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('openSettings'); }}>
+                        <span>Options</span>
+                      </button>
+                    </div>
+                  {/if}
+                </div>
               {/if}
             </div>
-            <div class="py-1">
-              <button class="w-full px-3 py-1 text-left hover:bg-slate-800 flex items-center justify-between font-medium" on:click={() => dispatch('printPdf')}>
-                <span>PDF Document</span>
-                <span class="text-[9px] text-slate-400 font-mono">PDF</span>
-              </button>
-              <button class="w-full px-3 py-1 text-left hover:bg-slate-800 flex items-center justify-between text-slate-400" on:click={() => handleExport('json')}>
-                <span>Suite JSON Backup</span>
-                <span class="text-[9px] text-slate-400 font-mono">JSON</span>
-              </button>
-            </div>
-          </div>
-        {/if}
+          {/each}
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- ONLYOFFICE EXACT RIBBON TAB STRIP (As shown in user screenshots) -->
-  <div class="h-9 px-3 bg-[#222428] border-b border-[#2d3135] flex items-center space-x-1 overflow-x-auto relative select-none">
-    {#each currentTabs as tab}
-      {@const isActive = activeTab === tab}
-      <div class="relative h-full flex items-center">
+    <!-- Center: App Switcher Pills (Filtered by user choice) -->
+    <div class="hidden md:flex items-center space-x-1 bg-slate-200/60 p-1 rounded-full border border-slate-300/40">
+      {#if enabledAppIds.includes('writer')}
         <button
-          class="h-full px-3.5 text-xs font-medium transition-all relative flex items-center space-x-1.5
-            {isActive ? 'text-white font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}"
-          on:click|stopPropagation={() => handleTabClick(tab)}
+          class="flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all
+            {activeMode === 'writer' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'}"
+          on:click={() => dispatch('changeMode', 'writer')}
+          title="Docs ({modKey}+1)"
         >
-          {#if tab === 'AI'}
-            <Sparkles size={12} class="text-purple-400" />
+          <FileText size={13} class="text-blue-600" />
+          <span>Docs</span>
+        </button>
+      {/if}
+
+      {#if enabledAppIds.includes('sheets')}
+        <button
+          class="flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all
+            {activeMode === 'sheets' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'}"
+          on:click={() => dispatch('changeMode', 'sheets')}
+          title="Sheets ({modKey}+2)"
+        >
+          <Sheet size={13} class="text-emerald-600" />
+          <span>Sheets</span>
+        </button>
+      {/if}
+
+      {#if enabledAppIds.includes('slides')}
+        <button
+          class="flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all
+            {activeMode === 'slides' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'}"
+          on:click={() => dispatch('changeMode', 'slides')}
+          title="Slides ({modKey}+3)"
+        >
+          <Presentation size={13} class="text-amber-500" />
+          <span>Slides</span>
+        </button>
+      {/if}
+
+      {#if enabledAppIds.includes('forms')}
+        <button
+          class="flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all
+            {activeMode === 'forms' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'}"
+          on:click={() => dispatch('changeMode', 'forms')}
+          title="Forms ({modKey}+5)"
+        >
+          <CheckSquare size={13} class="text-purple-600" />
+          <span>Forms</span>
+        </button>
+      {/if}
+
+      {#if enabledAppIds.includes('drive')}
+        <button
+          class="flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all
+            {activeMode === 'drive' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'}"
+          on:click={() => dispatch('changeMode', 'drive')}
+          title="Files ({modKey}+D)"
+        >
+          <HardDrive size={13} class="text-blue-600" />
+          <span>Files</span>
+        </button>
+      {/if}
+
+      {#if enabledAppIds.includes('pdf')}
+        <button
+          class="flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all
+            {activeMode === 'pdf' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'}"
+          on:click={() => dispatch('changeMode', 'pdf')}
+          title="PDF ({modKey}+4)"
+        >
+          <FileCheck size={13} class="text-rose-600" />
+          <span>PDF</span>
+        </button>
+      {/if}
+    </div>
+
+    <!-- Right: Collaboration, Sync, Share Pill, Apps Manager, Account Avatar -->
+    <div class="flex items-center space-x-2">
+      <!-- Cloud Sync Live Status Pill (Optional Google Drive file syncing) -->
+      <button
+        class="flex items-center space-x-1.5 px-3 py-1 rounded-full border transition-all text-xs font-medium
+          {$activeAccount
+            ? ($currentSyncStatus === 'syncing' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100')
+            : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'}"
+        on:click|stopPropagation={() => (showSyncModal = true)}
+        title={$activeAccount ? `Google Drive Sync: ${$activeAccount.email}` : "Link Google Account for file syncing"}
+      >
+        {#if $activeAccount}
+          {#if $currentSyncStatus === 'syncing'}
+            <span class="w-2 h-2 rounded-full bg-blue-500 animate-ping mr-0.5"></span>
+            <span class="text-[11px] font-semibold">Syncing</span>
+          {:else if $isNetworkOnline}
+            <Cloud size={13} class="text-emerald-600" />
+            <span class="text-[11px] font-semibold">Drive Synced</span>
+          {:else}
+            <span class="text-[11px]">Drive Offline</span>
           {/if}
-          <span>{tab}</span>
-        </button>
-
-        <!-- OnlyOffice Underline Indicator -->
-        {#if isActive}
-          <div
-            class="absolute bottom-0 left-0 right-0 h-[3px] transition-all"
-            style="background-color: {accentColor.hex};"
-          ></div>
+        {:else}
+          <Cloud size={13} class="text-slate-400" />
+          <span class="text-[11px]">Link Google Drive</span>
         {/if}
+      </button>
 
-        <!-- OnlyOffice File Dropdown Menu -->
-        {#if tab === 'File' && showFileMenu}
-          <div class="absolute left-0 top-9 w-60 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl py-1 z-50 text-xs text-slate-200">
-            <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('newDoc'); }}>
-              <span>New Document</span>
-              <span class="text-[10px] text-slate-400 font-mono">{modKey}+N</span>
-            </button>
-            <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('openDoc'); }}>
-              <span>Open File...</span>
-              <span class="text-[10px] text-slate-400 font-mono">{modKey}+O</span>
-            </button>
-            <div class="border-t border-slate-800 my-1"></div>
-            <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('saveDoc'); }}>
-              <span>Save</span>
-              <span class="text-[10px] text-slate-400 font-mono">{modKey}+S</span>
-            </button>
-            <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('saveAsDoc'); }}>
-              <span>Save As...</span>
-              <span class="text-[10px] text-slate-400 font-mono">{modKey}+⇧+S</span>
-            </button>
-            <div class="border-t border-slate-800 my-1"></div>
-            <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('printPdf'); }}>
-              <span>Print / Save to PDF</span>
-              <span class="text-[10px] text-slate-400 font-mono">{modKey}+P</span>
-            </button>
-            <div class="border-t border-slate-800 my-1"></div>
-            <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('openSettings'); }}>
-              <span>Settings...</span>
-              <span class="text-[10px] text-slate-400 font-mono">{modKey}+,</span>
-            </button>
-          </div>
-        {/if}
-      </div>
-    {/each}
-  </div>
+      <!-- Customize Apps Button -->
+      <button
+        class="p-1.5 rounded-full hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 transition-colors"
+        on:click|stopPropagation={() => (showAppsManagerModal = true)}
+        title="Customize Office Modules in Suite"
+      >
+        <Sliders size={15} />
+      </button>
 
-  <!-- ONLYOFFICE INTERACTIVE RIBBON ACTION TOOLBAR -->
-  <div class="h-10 px-4 bg-[#2b2d31] border-b border-[#36393f] flex items-center justify-between text-xs text-slate-300 overflow-x-auto shadow-inner">
-    {#if activeTab === 'Home'}
-      <!-- HOME TAB: Universal Formatting, Fonts, Styles & Mode-Specific Essentials -->
-      <div class="flex items-center space-x-2">
-        <button class="p-1 rounded hover:bg-white/10 text-slate-300 font-bold" on:click={() => triggerAction('bold')} title="Bold ({modKey}+B)">
-          <Bold size={14} />
-        </button>
-        <button class="p-1 rounded hover:bg-white/10 text-slate-300 italic" on:click={() => triggerAction('italic')} title="Italic ({modKey}+I)">
-          <Italic size={14} />
-        </button>
-        <button class="p-1 rounded hover:bg-white/10 text-slate-300 underline" on:click={() => triggerAction('underline')} title="Underline ({modKey}+U)">
-          <Underline size={14} />
-        </button>
-        <button class="p-1 rounded hover:bg-white/10 text-slate-300 line-through" on:click={() => triggerAction('strike')} title="Strikethrough">
-          <Strikethrough size={14} />
-        </button>
+      <!-- Comment History -->
+      <button
+        class="p-2 rounded-full hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 transition-colors"
+        on:click={() => triggerAction('toggleComments')}
+        title="Open comment history (⌘⌥M)"
+      >
+        <MessageSquare size={16} />
+      </button>
 
-        <div class="h-4 w-px bg-slate-700 mx-1"></div>
+      <!-- Gemini Sparkle Button -->
+      <button
+        class="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 text-purple-700 border border-purple-200/80 font-semibold text-xs shadow-2xs hover:shadow-xs transition-all"
+        on:click|stopPropagation={() => dispatch('toggleGeminiSidePanel')}
+        title="Ask Gemini ({$activeAccount ? ($activeAccount.accountType === 'personal' ? 'Personal Account' : 'Workspace Account') : 'Offline Assistant'})"
+      >
+        <Sparkles size={14} class="text-purple-600" />
+        <span class="hidden sm:inline">Gemini</span>
+      </button>
 
-        <button class="p-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('align', 'left')} title="Align Left">
-          <AlignLeft size={14} />
-        </button>
-        <button class="p-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('align', 'center')} title="Align Center">
-          <AlignCenter size={14} />
-        </button>
-        <button class="p-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('align', 'right')} title="Align Right">
-          <AlignRight size={14} />
-        </button>
-        <button class="p-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('align', 'justify')} title="Justify">
-          <AlignJustify size={14} />
+      <!-- Share Button -->
+      <button
+        class="flex items-center space-x-2 px-4 py-1.5 rounded-full bg-[#1a73e8] hover:bg-[#1557b0] text-white font-medium text-xs shadow-xs hover:shadow transition-all"
+        on:click|stopPropagation={() => (showShareModal = true)}
+        title="Share document or export offline"
+      >
+        <Lock size={13} />
+        <span>Share</span>
+      </button>
+
+      <!-- Profile Avatar / Link Google Account -->
+      <div class="relative">
+        <button
+          class="w-8 h-8 rounded-full text-white font-semibold text-xs flex items-center justify-center ring-2 transition-all shadow-xs relative"
+          style="background-color: {$activeAccount ? $activeAccount.avatarColor : '#64748b'};"
+          class:ring-blue-300={$activeAccount?.accountType === 'personal'}
+          class:ring-emerald-300={$activeAccount?.accountType === 'workspace'}
+          class:ring-slate-200={!$activeAccount}
+          on:click|stopPropagation={() => (showAccountModal = !showAccountModal)}
+          title={$activeAccount ? `${$activeAccount.name} (${$activeAccount.email})` : "Account & Cloud Sync"}
+        >
+          {#if $activeAccount}
+            {($activeAccount.name || 'U').charAt(0).toUpperCase()}
+            <span
+              class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white"
+              class:bg-blue-600={$activeAccount?.accountType === 'personal'}
+              class:bg-emerald-600={$activeAccount?.accountType === 'workspace'}
+            ></span>
+          {:else}
+            <User size={15} class="text-white" />
+          {/if}
         </button>
 
-        <div class="h-4 w-px bg-slate-700 mx-1"></div>
-
-        <button class="p-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('bullet')} title="Bulleted List">
-          <List size={14} />
-        </button>
-        <button class="p-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('ordered')} title="Numbered List">
-          <ListOrdered size={14} />
-        </button>
-
-        {#if activeMode === 'sheets'}
-          <div class="h-4 w-px bg-slate-700 mx-1"></div>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded bg-emerald-600/40 hover:bg-emerald-600 text-emerald-300 hover:text-white" on:click={() => triggerAction('autoSum')} title="AutoSum">
-            <Sigma size={13} />
-            <span>AutoSum</span>
-          </button>
-        {:else if activeMode === 'slides'}
-          <div class="h-4 w-px bg-slate-700 mx-1"></div>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded bg-orange-600/40 hover:bg-orange-600 text-orange-200 hover:text-white" on:click={() => triggerAction('newSlide')} title="New Slide">
-            <Plus size={13} />
-            <span>New Slide</span>
-          </button>
-        {:else if activeMode === 'pdf'}
-          <div class="h-4 w-px bg-slate-700 mx-1"></div>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded bg-rose-600/40 hover:bg-rose-600 text-rose-200 hover:text-white" on:click={() => triggerAction('addTextField')} title="Add Text Field">
-            <Plus size={13} />
-            <span>Text Field</span>
-          </button>
-        {:else if activeMode === 'email'}
-          <div class="h-4 w-px bg-slate-700 mx-1"></div>
-          <button class="flex items-center space-x-1 px-2.5 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-xs" on:click={() => triggerAction('newMail')}>
-            <Plus size={13} />
-            <span>New Message</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('reply')}>
-            <Reply size={13} />
-            <span>Reply</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('archive')}>
-            <Archive size={13} />
-            <span>Archive</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('delete')}>
-            <Trash2 size={13} />
-            <span>Delete</span>
-          </button>
-        {:else if activeMode === 'communicator'}
-          <div class="h-4 w-px bg-slate-700 mx-1"></div>
-          <button class="flex items-center space-x-1 px-2.5 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-medium shadow-xs" on:click={() => triggerAction('meetNow')}>
-            <Video size={13} />
-            <span>Meet Now</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('addParticipant')}>
-            <UserPlus size={13} class="text-cyan-400" />
-            <span>Add Participant</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('createChannel')}>
-            <Hash size={13} class="text-cyan-400" />
-            <span>New Channel</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-rose-500/20 text-rose-300" on:click={() => triggerAction('deleteChat')} title="Delete current conversation">
-            <Trash2 size={13} />
-            <span>Delete Chat</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('detach')}>
-            <ExternalLink size={13} />
-            <span>Detach Window</span>
-          </button>
-          <button class="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('switchAccount')}>
-            <span>Switch Account</span>
-          </button>
+        {#if showAccountModal}
+          <GoogleAccountModal
+            on:close={() => (showAccountModal = false)}
+            on:openSettings={() => dispatch('openSettings')}
+            on:openShortcuts={() => dispatch('openShortcuts')}
+            on:openDrive={() => dispatch('changeMode', 'drive')}
+            on:openSyncModal={() => (showSyncModal = true)}
+            on:openGeminiSettings={() => dispatch('openSettings')}
+          />
         {/if}
       </div>
-
-    {:else if activeTab === 'Insert'}
-      <!-- INSERT TAB: Tables, Images, Shapes, Links, Special Elements -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('insertTable')} title="Insert Table">
-          <Table size={14} class="text-blue-400" />
-          <span>Table</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('insertImage')} title="Insert Image">
-          <Image size={14} class="text-emerald-400" />
-          <span>Picture</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('insertLink')} title="Insert Hyperlink">
-          <Link size={14} class="text-amber-400" />
-          <span>Link</span>
-        </button>
-
-        {#if activeMode === 'sheets'}
-          <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('insertFx')} title="Insert Formula">
-            <FunctionSquare size={14} class="text-purple-400" />
-            <span>Function (fx)</span>
-          </button>
-        {:else if activeMode === 'pdf'}
-          <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('addSignatureField')} title="Signature Field">
-            <CheckSquare size={14} class="text-rose-400" />
-            <span>Signature Line</span>
-          </button>
-        {:else if activeMode === 'slides'}
-          <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('newSlide')} title="Insert Slide">
-            <Presentation size={14} class="text-orange-400" />
-            <span>New Slide</span>
-          </button>
-        {/if}
-      </div>
-
-    {:else if activeTab === 'Draw'}
-      <!-- DRAW TAB: Freehand Pen, Highlighter, Eraser, Line Weight -->
-      <div class="flex items-center space-x-2">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-blue-400" on:click={() => triggerAction('pen')} title="Pen Tool">
-          <PenTool size={14} />
-          <span>Pen</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-amber-300" on:click={() => triggerAction('highlighter')} title="Highlighter">
-          <Highlighter size={14} />
-          <span>Highlighter</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-400" on:click={() => triggerAction('eraser')} title="Eraser">
-          <Eraser size={14} />
-          <span>Eraser</span>
-        </button>
-        <div class="h-4 w-px bg-slate-700 mx-1"></div>
-        <span class="text-[11px] text-slate-400">Stroke:</span>
-        <button class="px-2 py-0.5 rounded bg-white/10 text-xs" on:click={() => triggerAction('stroke', 1)}>1px</button>
-        <button class="px-2 py-0.5 rounded bg-white/10 text-xs font-bold" on:click={() => triggerAction('stroke', 3)}>3px</button>
-        <button class="px-2 py-0.5 rounded bg-white/10 text-xs font-extrabold" on:click={() => triggerAction('stroke', 6)}>6px</button>
-      </div>
-
-    {:else if activeTab === 'Layout'}
-      <!-- LAYOUT TAB: Orientation, Margins, Paper Size, Columns -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('orientation', 'portrait')} title="Portrait">
-          <LayoutTemplate size={14} />
-          <span>Portrait</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('orientation', 'landscape')} title="Landscape">
-          <LayoutTemplate size={14} class="rotate-90" />
-          <span>Landscape</span>
-        </button>
-        <div class="h-4 w-px bg-slate-700 mx-1"></div>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('columns', 1)} title="1 Column">
-          <Columns size={14} />
-          <span>Single Col</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('columns', 2)} title="2 Columns">
-          <Columns size={14} />
-          <span>2 Columns</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('pageSize', 'a4')} title="A4 Standard">
-          <span>A4</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('pageSize', 'letter')} title="US Letter">
-          <span>Letter</span>
-        </button>
-      </div>
-
-    {:else if activeTab === 'Formula'}
-      <!-- FORMULA TAB (Sheets): Function Library, AutoSum, Quick Categories -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs" on:click={() => triggerAction('insertFx')} title="Insert Function">
-          <FunctionSquare size={14} />
-          <span>Insert Function (fx)</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('formulaQuick', 'SUM')}>
-          <Sigma size={13} class="text-emerald-400" />
-          <span>SUM</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('formulaQuick', 'AVERAGE')}>
-          <span>AVERAGE</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('formulaQuick', 'COUNT')}>
-          <span>COUNT</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('formulaQuick', 'IF')}>
-          <span>IF</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('formulaQuick', 'VLOOKUP')}>
-          <span>VLOOKUP</span>
-        </button>
-        <div class="h-4 w-px bg-slate-700 mx-1"></div>
-        <button class="px-2 py-1 rounded hover:bg-white/10 text-emerald-400" on:click={() => triggerAction('recalculate')}>
-          <span>Recalculate Sheet</span>
-        </button>
-      </div>
-
-    {:else if activeTab === 'Data'}
-      <!-- DATA TAB (Sheets): Sort, Filter, Validation, Data Tools -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('sortAsc')} title="Sort Ascending">
-          <ArrowDownAZ size={14} class="text-blue-400" />
-          <span>Sort A → Z</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('sortDesc')} title="Sort Descending">
-          <ArrowUpZA size={14} class="text-blue-400" />
-          <span>Sort Z → A</span>
-        </button>
-        <div class="h-4 w-px bg-slate-700 mx-1"></div>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('toggleFilter')} title="Toggle Filter">
-          <Filter size={14} class="text-amber-400" />
-          <span>AutoFilter</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('importFile')} title="Import CSV/Excel">
-          <FileSpreadsheet size={14} class="text-emerald-400" />
-          <span>Import Data</span>
-        </button>
-      </div>
-
-    {:else if activeTab === 'Forms'}
-      <!-- FORMS TAB (PDF): Text Box, Checkbox, Signature, Form Tools -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-700 text-white font-medium" on:click={() => triggerAction('addTextField')}>
-          <Plus size={13} />
-          <span>Text Box</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('addCheckboxField')}>
-          <CheckSquare size={14} class="text-rose-400" />
-          <span>Checkbox</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('addSignatureField')}>
-          <PenTool size={14} class="text-rose-400" />
-          <span>Signature Line</span>
-        </button>
-        <div class="h-4 w-px bg-slate-700 mx-1"></div>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('exportFormData')}>
-          <Download size={14} />
-          <span>Export Form Data</span>
-        </button>
-      </div>
-
-    {:else if activeTab === 'Design'}
-      <!-- DESIGN TAB (Slides): Themes, Colors, Aspect Ratio -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('slideTheme', 'dark')}>
-          <Palette size={14} class="text-indigo-400" />
-          <span>Midnight Dark</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('slideTheme', 'light')}>
-          <span>Clean Light</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('slideTheme', 'navy')}>
-          <span>Corporate Navy</span>
-        </button>
-        <div class="h-4 w-px bg-slate-700 mx-1"></div>
-        <button class="px-2 py-1 rounded hover:bg-white/10 text-xs" on:click={() => triggerAction('aspectRatio', '16:9')}>
-          <span>16:9 Widescreen</span>
-        </button>
-        <button class="px-2 py-1 rounded hover:bg-white/10 text-xs" on:click={() => triggerAction('aspectRatio', '4:3')}>
-          <span>4:3 Standard</span>
-        </button>
-      </div>
-
-    {:else if activeTab === 'Transitions' || activeTab === 'Animation'}
-      <!-- TRANSITIONS & ANIMATION (Slides): Transition effects, Slideshow -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-3 py-1 rounded bg-orange-600 hover:bg-orange-700 text-white font-medium" on:click={() => triggerAction('present')}>
-          <Play size={13} />
-          <span>Start Slide Show (F5)</span>
-        </button>
-        <button class="px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('transition', 'fade')}>
-          <span>Fade</span>
-        </button>
-        <button class="px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('transition', 'slide')}>
-          <span>Slide</span>
-        </button>
-        <button class="px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('transition', 'zoom')}>
-          <span>Zoom</span>
-        </button>
-      </div>
-
-    {:else if activeTab === 'References'}
-      <!-- REFERENCES TAB: Table of Contents, Footnotes, Citations -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('insertToc')}>
-          <BookOpen size={14} class="text-blue-400" />
-          <span>Table of Contents</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('insertFootnote')}>
-          <span>Insert Footnote</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('insertCitation')}>
-          <span>Add Citation</span>
-        </button>
-      </div>
-
-    {:else if activeTab === 'Collaboration'}
-      <!-- COLLABORATION TAB: Comments, Track Changes, Offline Mode -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('addComment')}>
-          <MessageSquare size={14} class="text-emerald-400" />
-          <span>Add Comment</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('trackChanges')}>
-          <CheckCircle2 size={14} class="text-blue-400" />
-          <span>Track Changes</span>
-        </button>
-        <div class="h-4 w-px bg-slate-700 mx-1"></div>
-        <span class="text-[11px] text-slate-400 font-mono">100% Offline • Local Mac Storage</span>
-      </div>
-
-    {:else if activeTab === 'Protection'}
-      <!-- PROTECTION TAB: Protect Document, Read-Only, Watermark -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('protectDoc')}>
-          <Shield size={14} class="text-amber-400" />
-          <span>Protect Document</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('lockReadOnly')}>
-          <Lock size={14} class="text-rose-400" />
-          <span>Lock Read-Only</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('watermark')}>
-          <span>Add Watermark</span>
-        </button>
-      </div>
-
-    {:else if activeTab === 'Channels'}
-      <div class="flex items-center space-x-3">
-        <span class="text-xs text-white font-medium">Teams Channels:</span>
-        <button class="px-2 py-0.5 rounded bg-white/10 text-cyan-300 text-xs">#general</button>
-        <button class="px-2 py-0.5 rounded bg-white/10 text-slate-300 text-xs">#engineering</button>
-        <button class="px-2 py-0.5 rounded bg-white/10 text-slate-300 text-xs">#product-design</button>
-        <button class="px-2 py-0.5 rounded bg-white/10 text-slate-300 text-xs">#leadership-sync</button>
-      </div>
-
-    {:else if activeTab === 'Calls'}
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-xs" on:click={() => triggerAction('meetNow')}>
-          <Video size={13} />
-          <span>Start Video Meeting</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('meetNow')}>
-          <Phone size={13} />
-          <span>Audio Call</span>
-        </button>
-        <div class="h-4 w-px bg-slate-700 mx-1"></div>
-        <span class="text-cyan-400 text-xs flex items-center space-x-1">
-          <ShieldCheck size={12} />
-          <span>End-to-End Encrypted</span>
-        </span>
-      </div>
-
-    {:else if activeTab === 'Security'}
-      <div class="flex items-center space-x-3">
-        <div class="flex items-center space-x-1.5 px-2 py-1 rounded bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 text-xs font-medium">
-          <ShieldCheck size={14} class="text-cyan-400" />
-          <span>AES-256-GCM + Ed25519 Local Session Guard: Active</span>
-        </div>
-        <span class="text-slate-400 text-xs">100% Zero-Cloud Storage</span>
-      </div>
-
-    {:else if activeTab === 'Folder'}
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-xs" on:click={() => triggerAction('newFolder')}>
-          <Plus size={13} />
-          <span>New Folder</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('markAllRead')}>
-          <CheckCircle2 size={13} class="text-emerald-400" />
-          <span>Mark All Read</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('cleanTrash')}>
-          <Trash2 size={13} class="text-rose-400" />
-          <span>Empty Trash</span>
-        </button>
-      </div>
-
-    {:else if activeTab === 'Tools'}
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('exportMailbox')}>
-          <Download size={13} />
-          <span>Export Mailbox</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('filterRules')}>
-          <Filter size={13} />
-          <span>Filter Rules</span>
-        </button>
-      </div>
-
-    {:else if activeTab === 'Accounts'}
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => dispatch('openSettings')}>
-          <Settings size={13} />
-          <span>Manage Accounts...</span>
-        </button>
-        <span class="text-slate-400 text-xs">Local Mailstore: 100% Offline</span>
-      </div>
-
-    {:else if activeTab === 'View'}
-      <!-- VIEW TAB: Zoom, Presentation Mode, Gridlines, Rulers -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('zoomIn')}>
-          <ZoomIn size={14} />
-          <span>Zoom In</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('zoomOut')}>
-          <ZoomOut size={14} />
-          <span>Zoom Out</span>
-        </button>
-        <button class="px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('zoomReset')}>
-          <span>100%</span>
-        </button>
-        <div class="h-4 w-px bg-slate-700 mx-1"></div>
-        {#if activeMode === 'slides'}
-          <button class="flex items-center space-x-1 px-2.5 py-1 rounded bg-orange-600 text-white font-medium" on:click={() => triggerAction('present')}>
-            <Play size={13} />
-            <span>Slide Show</span>
-          </button>
-        {/if}
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('toggleFullscreen')}>
-          <Maximize size={14} />
-          <span>Full Screen</span>
-        </button>
-      </div>
-
-    {:else if activeTab === 'Plugins'}
-      <!-- PLUGINS TAB: Macro, Word Counter, Calculator -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('openCalculator')}>
-          <Calculator size={14} class="text-emerald-400" />
-          <span>Calculator</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('wordCount')}>
-          <FileText size={14} class="text-blue-400" />
-          <span>Document Statistics</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('ocr')}>
-          <span>OCR Text Extractor</span>
-        </button>
-      </div>
-
-    {:else if activeTab === 'AI'}
-      <!-- AI TAB: OnlyOffice AI Assistant Shortcuts -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1.5 px-3 py-1 rounded bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-xs" on:click={() => (showAiModal = true)}>
-          <Sparkles size={13} />
-          <span>Open AI Assistant</span>
-        </button>
-        <button class="px-2 py-1 rounded hover:bg-white/10 text-purple-300" on:click={() => { showAiModal = true; }}>
-          <span>Summarize Document</span>
-        </button>
-        <button class="px-2 py-1 rounded hover:bg-white/10 text-purple-300" on:click={() => { showAiModal = true; }}>
-          <span>Rewrite & Polish</span>
-        </button>
-        {#if activeMode === 'sheets'}
-          <button class="px-2 py-1 rounded hover:bg-white/10 text-emerald-300" on:click={() => { showAiModal = true; }}>
-            <span>Build Formula</span>
-          </button>
-        {/if}
-      </div>
-    {/if}
-
-    <!-- Right Side Indicator -->
-    <div class="flex items-center space-x-2 text-[11px] text-slate-400 font-mono">
-      <span class="capitalize">{activeMode === 'writer' ? 'Word Document' : activeMode === 'sheets' ? 'Spreadsheet' : activeMode === 'pdf' ? 'PDF Form' : 'Slide Deck'}</span>
     </div>
   </div>
 </header>
 
-<!-- AI Assistant Modal Dialog -->
-{#if showAiModal}
-  <AiAssistantModal
+<!-- Google Share Modal Dialog -->
+{#if showShareModal}
+  <GoogleShareModal
+    {meta}
     {activeMode}
-    on:apply={handleAiApply}
-    on:close={() => (showAiModal = false)}
+    on:close={() => (showShareModal = false)}
+    on:exportFormat={(e) => dispatch('exportFormat', e.detail)}
+    on:printPdf={() => dispatch('printPdf')}
+  />
+{/if}
+
+<!-- Google Account & Cloud Sync Modal -->
+{#if showSyncModal}
+  <GoogleSyncModal on:close={() => (showSyncModal = false)} />
+{/if}
+
+<!-- Google Apps Manager Modal -->
+{#if showAppsManagerModal}
+  <GoogleAppsManagerModal
+    {enabledAppIds}
+    defaultAppId={activeMode}
+    on:close={() => (showAppsManagerModal = false)}
+    on:save={handleSaveAppsConfig}
   />
 {/if}

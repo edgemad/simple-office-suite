@@ -14,6 +14,26 @@ async function invokeCommand<T>(cmd: string, args: Record<string, unknown> = {})
   throw new Error(`Tauri environment not detected for command: ${cmd}`);
 }
 
+export async function listenNativeMenuEvents(
+  callback: (id: string) => void
+): Promise<(() => void) | null> {
+  if (isTauri()) {
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+      const unlisten = await listen<string>('menu-event', (event) => {
+        if (event && event.payload) {
+          callback(event.payload);
+        }
+      });
+      return unlisten;
+    } catch (err) {
+      console.warn('Native menu events unavailable in this session:', err);
+      return null;
+    }
+  }
+  return null;
+}
+
 export async function readTextFileNative(path: string): Promise<string> {
   if (isTauri()) {
     return invokeCommand<string>('read_text_file', { path });
@@ -140,16 +160,31 @@ export async function getSystemMetricsNative(): Promise<SystemMetrics> {
   };
 }
 
-export async function openDetachedCommunicatorNative(): Promise<void> {
+export async function openUrlInBrowserNative(url: string): Promise<void> {
   if (isTauri()) {
     try {
-      await invokeCommand('open_detached_communicator');
+      await invokeCommand('open_url_in_browser', { url });
       return;
     } catch (err) {
-      console.warn('Native detached window error, opening web popup:', err);
+      console.warn('Native browser open failed, falling back to window.open:', err);
     }
   }
   if (typeof window !== 'undefined') {
-    window.open('index.html?mode=communicator', '_blank', 'width=1050,height=720');
+    window.open(url, '_blank');
   }
+}
+
+export interface OAuthLoopbackResult {
+  success: boolean;
+  code?: string;
+  error?: string;
+}
+
+export async function listenForOAuthCallbackNative(
+  port: number = 41337
+): Promise<OAuthLoopbackResult> {
+  if (isTauri()) {
+    return await invokeCommand<OAuthLoopbackResult>('listen_for_oauth_callback', { port });
+  }
+  return { success: false, error: 'Loopback server only available in desktop app.' };
 }

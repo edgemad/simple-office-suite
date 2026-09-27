@@ -73,8 +73,12 @@
         return 'bg-amber-100 text-amber-800 border-amber-300';
       case 'Lookup':
         return 'bg-cyan-100 text-cyan-800 border-cyan-300';
+      case 'Filter & Array':
+        return 'bg-indigo-100 text-indigo-800 border-indigo-300';
       case 'Date & Time':
         return 'bg-rose-100 text-rose-800 border-rose-300';
+      case 'Google':
+        return 'bg-teal-100 text-teal-800 border-teal-300';
       default:
         return 'bg-slate-100 text-slate-800 border-slate-300';
     }

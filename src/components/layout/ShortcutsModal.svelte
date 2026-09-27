@@ -19,9 +19,12 @@
     { key: `${modKey} + O`, desc: 'Open file (.docx, .xlsx, .pptx, .csv, etc.)' },
     { key: `${modKey} + N`, desc: 'Create new document / sheet / slide' },
     { key: `${modKey} + P`, desc: 'Print / Export to PDF' },
-    { key: `${modKey} + 1`, desc: 'Switch to Google Docs (Writer)' },
+    { key: `${modKey} + 0 / ${modKey} + D`, desc: 'Switch to Google Drive (Offline Hub)' },
+    { key: `${modKey} + 1`, desc: 'Switch to Google Docs' },
     { key: `${modKey} + 2`, desc: 'Switch to Google Sheets' },
     { key: `${modKey} + 3`, desc: 'Switch to Google Slides' },
+    { key: `${modKey} + 4`, desc: 'Switch to Google PDF Viewer' },
+    { key: `${modKey} + 5`, desc: 'Switch to Google Forms' },
     { key: `${modKey} + /`, desc: 'Open Keyboard Shortcuts cheat sheet' },
   ];
 

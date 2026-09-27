@@ -31,10 +31,16 @@
     Layout,
     FileText,
     Calendar,
-    MessageSquareQuote
+    MessageSquareQuote,
+    Stamp,
+    MessageSquare,
+    History,
+    Sparkles
   } from 'lucide-svelte';
 
   export let showOutline: boolean = false;
+  export let openCommentsCount: number = 0;
+  export let showComments: boolean = false;
 
   const dispatch = createEventDispatcher<{
     format: { command: string; value?: string };
@@ -44,6 +50,11 @@
     insertChecklist: void;
     insertDate: void;
     insertCallout: void;
+    insertPageBreak: void;
+    insertSpecialChar: void;
+    openWatermark: void;
+    openVersionHistory: void;
+    toggleComments: void;
     toggleSearch: void;
     toggleOutline: void;
     openPageSetup: void;
@@ -371,6 +382,27 @@
       <Minus size={15} />
     </button>
     <button
+      class="p-1.5 rounded hover:bg-slate-100 hover:text-slate-900 transition-colors font-bold text-xs"
+      on:click={() => dispatch('insertSpecialChar')}
+      title="Insert Special Characters & Math Symbols"
+    >
+      Ω
+    </button>
+    <button
+      class="p-1.5 rounded hover:bg-slate-100 hover:text-slate-900 transition-colors"
+      on:click={() => dispatch('insertPageBreak')}
+      title="Insert Page Break"
+    >
+      <span class="text-[10px] font-bold border border-slate-300 rounded px-1">PB</span>
+    </button>
+    <button
+      class="p-1.5 rounded hover:bg-slate-100 hover:text-slate-900 transition-colors"
+      on:click={() => dispatch('openWatermark')}
+      title="Insert / Edit Document Watermark"
+    >
+      <Stamp size={15} />
+    </button>
+    <button
       class="p-1.5 rounded hover:bg-slate-100 hover:text-slate-900 transition-colors text-slate-500 hover:text-rose-600"
       on:click={() => exec('removeFormat')}
       title="Clear Formatting"
@@ -378,8 +410,29 @@
       <RemoveFormatting size={15} />
     </button>
 
-    <!-- Quick Word Count & Search -->
-    <div class="flex items-center space-x-0.5 pl-1 border-l border-slate-200">
+    <!-- Version History, Comments, Word Count & Search -->
+    <div class="flex items-center space-x-1 pl-1.5 border-l border-slate-200">
+      <button
+        class="p-1.5 rounded hover:bg-slate-100 text-slate-600 transition-colors"
+        on:click={() => dispatch('openVersionHistory')}
+        title="Version History (View snapshots & restore revisions)"
+      >
+        <History size={15} />
+      </button>
+
+      <button
+        class="p-1.5 rounded hover:bg-slate-100 text-slate-600 transition-colors relative flex items-center {showComments ? 'bg-blue-100 text-blue-700' : ''}"
+        on:click={() => dispatch('toggleComments')}
+        title="Comments & Suggestions"
+      >
+        <MessageSquare size={15} />
+        {#if openCommentsCount > 0}
+          <span class="absolute -top-1 -right-1 bg-blue-600 text-white rounded-full text-[9px] w-3.5 h-3.5 flex items-center justify-center font-bold">
+            {openCommentsCount}
+          </span>
+        {/if}
+      </button>
+
       <button
         class="p-1.5 rounded hover:bg-slate-100 text-slate-600 transition-colors"
         on:click={() => dispatch('openWordCount')}
@@ -387,6 +440,7 @@
       >
         <FileText size={15} />
       </button>
+
       <button
         class="p-1.5 rounded hover:bg-slate-100 text-slate-600 transition-colors"
         on:click={() => dispatch('toggleSearch')}

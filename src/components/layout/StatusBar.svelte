@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { WorkspaceMode, DocumentMeta } from '../../types';
-  import { FileCode, Layers, Info } from 'lucide-svelte';
+  import { FileCode, Layers, CheckSquare } from 'lucide-svelte';
 
   export let activeMode: WorkspaceMode;
   export let meta: DocumentMeta;
@@ -12,11 +12,8 @@
   export let totalSlides: number = 1;
   export let pdfPage: number = 1;
   export let pdfTotalPages: number = 1;
-  export let emailTotal: number = 5;
-  export let emailUnread: number = 1;
-  export let emailFolder: string = 'INBOX';
-  export let communicatorChannel: string = '#general';
-  export let communicatorOnline: number = 4;
+  export let formQuestionCount: number = 0;
+  export let formResponseCount: number = 0;
 </script>
 
 <footer class="no-print h-7 bg-white border-t border-slate-200 px-4 flex items-center justify-between text-xs text-slate-500 select-none z-20 shadow-inner">
@@ -36,7 +33,15 @@
 
   <!-- Center/Right: Contextual Stats depending on active workspace -->
   <div class="flex items-center space-x-4 font-mono text-[11px]">
-    {#if activeMode === 'writer'}
+    {#if activeMode === 'drive'}
+      <div class="flex items-center space-x-2">
+        <span class="text-blue-600 font-semibold font-sans">Google Drive Offline Hub</span>
+        <span class="text-slate-300">•</span>
+        <span>1.2 GB / 15 GB</span>
+        <span class="text-slate-300">•</span>
+        <span class="text-emerald-600 font-semibold">Offline Ready</span>
+      </div>
+    {:else if activeMode === 'writer'}
       <div class="flex items-center space-x-3">
         <span>{wordCount.toLocaleString()} words</span>
         <span class="text-slate-300">•</span>
@@ -61,21 +66,13 @@
         <span class="text-slate-300">•</span>
         <span>Page {pdfPage} of {pdfTotalPages}</span>
       </div>
-    {:else if activeMode === 'email'}
+    {:else if activeMode === 'forms'}
       <div class="flex items-center space-x-2">
-        <span class="text-indigo-600 font-semibold font-sans">Mail: {emailFolder || 'INBOX'}</span>
+        <span class="text-purple-600 font-semibold font-sans">Google Forms</span>
         <span class="text-slate-300">•</span>
-        <span class="text-indigo-700 font-medium">{emailUnread} unread</span>
+        <span>{formQuestionCount} {formQuestionCount === 1 ? 'question' : 'questions'}</span>
         <span class="text-slate-300">•</span>
-        <span>{emailTotal} messages</span>
-      </div>
-    {:else if activeMode === 'communicator'}
-      <div class="flex items-center space-x-2">
-        <span class="text-cyan-600 font-semibold font-sans">Teams: {communicatorChannel}</span>
-        <span class="text-slate-300">•</span>
-        <span class="text-emerald-600 font-medium">{communicatorOnline} team members online</span>
-        <span class="text-slate-300">•</span>
-        <span class="text-cyan-600 font-mono text-[10px]">E2EE AES-256</span>
+        <span>{formResponseCount} {formResponseCount === 1 ? 'response' : 'responses'}</span>
       </div>
     {/if}
 

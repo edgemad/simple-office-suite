@@ -18,12 +18,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   slideDefaultTheme: 'dark',
   pdfDefaultZoom: '100%',
   pdfHighlightFields: true,
-  aiProvider: 'local',
+  aiProvider: 'gemini',
   aiApiKey: '',
-  aiModel: 'gpt-4o',
+  aiModel: 'gemini-1.5-flash',
   aiTemperature: 0.7,
-  emailSignature: '--\nSent from Simple Office Suite (Offline & Private)',
-  emailCheckIntervalMin: 5,
 };
 
 const STORAGE_KEY = 'simple_office_settings_v1';
