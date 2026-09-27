@@ -106,14 +106,8 @@
   let undoStack: string[] = [];
   let redoStack: string[] = [];
 
-  const fontFamilies = [
-    { label: 'Sans (Default)', value: 'Inter, sans-serif' },
-    { label: 'Arial', value: 'Arial, sans-serif' },
-    { label: 'Times New Roman', value: '"Times New Roman", serif' },
-    { label: 'Courier New', value: '"Courier New", monospace' },
-    { label: 'Consolas', value: 'Consolas, monospace' },
-    { label: 'Georgia', value: 'Georgia, serif' },
-  ];
+  import { OFFICE_FONTS } from '../../lib/fonts';
+  const fontFamilies = OFFICE_FONTS;
 
   const fontSizes = [9, 10, 11, 12, 14, 16, 18, 20];
 

@@ -456,8 +456,20 @@
                           <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('docx')}>
                             <span>Microsoft Word (.docx)</span>
                           </button>
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('odt')}>
+                            <span>OpenDocument Text (.odt)</span>
+                          </button>
                           <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('rtf')}>
                             <span>Rich Text Format (.rtf)</span>
+                          </button>
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('printPdf'); }}>
+                            <span>PDF Document (.pdf)</span>
+                          </button>
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('html')}>
+                            <span>Web page (.html)</span>
+                          </button>
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('epub')}>
+                            <span>EPUB Publication (.epub)</span>
                           </button>
                           <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('md')}>
                             <span>Markdown (.md)</span>
@@ -467,12 +479,34 @@
                           </button>
                         {:else if activeMode === 'slides'}
                           <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('pptx')}>
-                            <span>PowerPoint (.pptx)</span>
+                            <span>Microsoft PowerPoint (.pptx)</span>
+                          </button>
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('odp')}>
+                            <span>OpenDocument Presentation (.odp)</span>
+                          </button>
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('printPdf'); }}>
+                            <span>PDF Document (.pdf)</span>
+                          </button>
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('html')}>
+                            <span>Interactive Slide Deck (.html)</span>
+                          </button>
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('txt')}>
+                            <span>Plain Text Outline (.txt)</span>
+                          </button>
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('json')}>
+                            <span>Presentation Project (.json)</span>
+                          </button>
+                        {:else if activeMode === 'forms'}
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('csv')}>
+                            <span>Responses Spreadsheet (.csv)</span>
+                          </button>
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('html')}>
+                            <span>Offline Standalone Form (.html)</span>
+                          </button>
+                          <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => handleExport('json')}>
+                            <span>Form Schema (.json)</span>
                           </button>
                         {/if}
-                        <button class="w-full px-3.5 py-1 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('printPdf'); }}>
-                          <span>PDF Document (.pdf)</span>
-                        </button>
                       </div>
                       <div class="py-1">
                         <button class="w-full px-3.5 py-1.5 text-left hover:bg-slate-100 flex items-center justify-between" on:click={() => { closeMenus(); dispatch('printPdf'); }}>

@@ -30,9 +30,21 @@
   import { downloadFile, triggerPrintToPdf, htmlToMarkdown } from './lib/utils';
   import {
     exportToDocx,
+    exportToOdt,
     exportToRtf,
+    exportToHtmlDoc,
+    exportToEpub,
     exportToXlsx,
+    exportToOds,
+    exportToCsv,
+    exportToTsv,
+    exportToHtmlSpreadsheet,
     exportToPptxXml,
+    exportToOdp,
+    exportToHtmlPresentation,
+    exportToTextPresentation,
+    exportFormToCsv,
+    exportFormToHtml,
     parseDocumentContent,
     parseSpreadsheetContent
   } from './lib/fileFormats';
@@ -616,34 +628,72 @@
   }
 
   function handleExportFormat(e: CustomEvent<{ format: string }>) {
-    const fmt = e.detail.format;
+    const fmt = e.detail.format.toLowerCase();
     const baseName = currentMeta.title.replace(/\s+/g, '_') || 'document';
 
+    // DOCS / WRITER EXPORTS
     if (fmt === 'docx') {
       const data = exportToDocx(writerDoc);
       downloadFile(`${baseName}.docx`, data, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    } else if (fmt === 'odt') {
+      const data = exportToOdt(writerDoc);
+      downloadFile(`${baseName}.odt`, data, 'application/vnd.oasis.opendocument.text');
     } else if (fmt === 'rtf') {
       const data = exportToRtf(writerDoc);
       downloadFile(`${baseName}.rtf`, data, 'application/rtf');
-    } else if (fmt === 'md') {
+    } else if (fmt === 'md' || fmt === 'markdown') {
       const data = htmlToMarkdown(writerDoc.contentHtml);
       downloadFile(`${baseName}.md`, data, 'text/markdown');
-    } else if (fmt === 'txt') {
-      const data = writerDoc.contentHtml.replace(/<[^>]+>/g, '');
+    } else if (fmt === 'txt' || fmt === 'text') {
+      const data = activeMode === 'slides' ? exportToTextPresentation(slidesDeck) : writerDoc.contentHtml.replace(/<[^>]+>/g, '');
       downloadFile(`${baseName}.txt`, data, 'text/plain');
+    } else if (fmt === 'epub') {
+      const data = exportToEpub(writerDoc);
+      downloadFile(`${baseName}.epub`, data, 'application/epub+zip');
     } else if (fmt === 'html') {
-      downloadFile(`${baseName}.html`, writerDoc.contentHtml, 'text/html');
+      if (activeMode === 'sheets') {
+        const data = exportToHtmlSpreadsheet(sheetsWorkbook);
+        downloadFile(`${baseName}.html`, data, 'text/html');
+      } else if (activeMode === 'slides') {
+        const data = exportToHtmlPresentation(slidesDeck);
+        downloadFile(`${baseName}.html`, data, 'text/html');
+      } else if (activeMode === 'forms') {
+        const data = exportFormToHtml(formDoc);
+        downloadFile(`${baseName}.html`, data, 'text/html');
+      } else {
+        const data = exportToHtmlDoc(writerDoc);
+        downloadFile(`${baseName}.html`, data, 'text/html');
+      }
+    // SHEETS EXPORTS
     } else if (fmt === 'xlsx') {
       const data = exportToXlsx(sheetsWorkbook);
       downloadFile(`${baseName}.xlsx`, data, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    } else if (fmt === 'ods') {
+      const data = exportToOds(sheetsWorkbook);
+      downloadFile(`${baseName}.ods`, data, 'application/vnd.oasis.opendocument.spreadsheet');
     } else if (fmt === 'csv') {
-      const sheetsRefEl = document.querySelector('button[title="Download as CSV"]') as HTMLButtonElement;
-      if (sheetsRefEl) sheetsRefEl.click();
+      if (activeMode === 'forms') {
+        const data = exportFormToCsv(formDoc);
+        downloadFile(`${baseName}_responses.csv`, data, 'text/csv');
+      } else {
+        const data = exportToCsv(sheetsWorkbook);
+        downloadFile(`${baseName}.csv`, data, 'text/csv');
+      }
+    } else if (fmt === 'tsv') {
+      const data = exportToTsv(sheetsWorkbook);
+      downloadFile(`${baseName}.tsv`, data, 'text/tab-separated-values');
+    // SLIDES EXPORTS
     } else if (fmt === 'pptx') {
       const data = exportToPptxXml(slidesDeck);
       downloadFile(`${baseName}.pptx`, data, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    } else if (fmt === 'odp') {
+      const data = exportToOdp(slidesDeck);
+      downloadFile(`${baseName}.odp`, data, 'application/vnd.oasis.opendocument.presentation');
+    // PDF & JSON
+    } else if (fmt === 'pdf') {
+      handlePrintPdf();
     } else if (fmt === 'json') {
-      const payload = activeMode === 'writer' ? writerDoc : activeMode === 'sheets' ? sheetsWorkbook : activeMode === 'slides' ? slidesDeck : pdfDoc;
+      const payload = activeMode === 'writer' ? writerDoc : activeMode === 'sheets' ? sheetsWorkbook : activeMode === 'slides' ? slidesDeck : activeMode === 'forms' ? formDoc : pdfDoc;
       downloadFile(`${baseName}.json`, JSON.stringify(payload, null, 2), 'application/json');
     }
   }

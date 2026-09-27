@@ -67,17 +67,8 @@
   let textColor = '#000000';
   let highlightColor = '#ffff00';
 
-  const fontFamilies = [
-    { label: 'Default (Sans)', value: 'Inter, -apple-system, sans-serif' },
-    { label: 'Arial', value: 'Arial, Helvetica, sans-serif' },
-    { label: 'Times New Roman', value: '"Times New Roman", Times, serif' },
-    { label: 'Georgia', value: 'Georgia, serif' },
-    { label: 'Merriweather', value: 'Merriweather, serif' },
-    { label: 'JetBrains Mono', value: '"JetBrains Mono", Consolas, monospace' },
-    { label: 'Courier New', value: '"Courier New", Courier, monospace' },
-    { label: 'Trebuchet MS', value: '"Trebuchet MS", sans-serif' },
-    { label: 'Verdana', value: 'Verdana, sans-serif' },
-  ];
+  import { OFFICE_FONTS } from '../../lib/fonts';
+  const fontFamilies = OFFICE_FONTS;
 
   const fontSizes = [
     { label: '9pt', value: '1' },

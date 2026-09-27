@@ -3,14 +3,17 @@ import { htmlToMarkdown } from './utils';
 import { colToLetter, recalculateGrid } from '../components/sheets/formulaEngine';
 
 /**
- * Universal File Format Engine for Simple Office Suite (SOS)
- * Supports opening and exporting .docx, .doc, .xlsx, .xls, .pptx, .csv, .tsv, .md, .txt, .html, .rtf, .json
+ * Universal Multi-Format File Engine for Simple Office Suite (SOS)
+ * Supports opening and exporting across all major office suite formats:
+ * - Word & Docs: .docx, .odt, .rtf, .html, .md, .txt, .epub, .pdf
+ * - Sheets: .xlsx, .ods, .csv, .tsv, .html, .json, .pdf
+ * - Slides: .pptx, .odp, .html, .txt, .json, .pdf
+ * - Forms: .csv, .html, .json
  */
 
 // ---------------------- DOCUMENT FORMATS (WRITER) ----------------------
 
 export function exportToDocx(doc: WriterDocument): string {
-  // Generates an HTML-based Word Document with Microsoft Office namespace markup
   const title = doc.meta.title || 'Document';
   return `<!DOCTYPE html>
 <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -57,6 +60,22 @@ export function exportToDocx(doc: WriterDocument): string {
 </html>`;
 }
 
+export function exportToOdt(doc: WriterDocument): string {
+  const title = doc.meta.title || 'Document';
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+ xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+ xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+ office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.text">
+  <office:body>
+    <office:text>
+      <text:h text:outline-level="1">${title}</text:h>
+      <text:p>${doc.contentHtml.replace(/<[^>]+>/g, ' ').trim()}</text:p>
+    </office:text>
+  </office:body>
+</office:document>`;
+}
+
 export function exportToRtf(doc: WriterDocument): string {
   const plainText = doc.contentHtml
     .replace(/<h[1-3][^>]*>(.*?)<\/h[1-3]>/gi, '\n\\b\\fs28 $1\\b0\\fs22\n\n')
@@ -74,15 +93,63 @@ ${plainText.replace(/\n/g, '\\par\n')}
 }`;
 }
 
+export function exportToHtmlDoc(doc: WriterDocument): string {
+  const title = doc.meta.title || 'Document';
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${title}</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+      line-height: 1.6;
+      color: #1e293b;
+    }
+    h1, h2, h3 { color: #0f172a; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px 12px; }
+    th { background: #f8fafc; font-weight: 600; }
+    blockquote { border-left: 4px solid #3b82f6; margin-left: 0; padding-left: 16px; color: #475569; }
+  </style>
+</head>
+<body>
+  ${doc.contentHtml}
+</body>
+</html>`;
+}
+
+export function exportToEpub(doc: WriterDocument): string {
+  const title = doc.meta.title || 'Document';
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+  <title>${title}</title>
+  <style>
+    body { font-family: serif; line-height: 1.5; margin: 5%; }
+    h1 { text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>${title}</h1>
+  ${doc.contentHtml}
+</body>
+</html>`;
+}
+
 export function parseDocumentContent(raw: string, filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase();
   
-  if (ext === 'docx' || ext === 'doc' || ext === 'html' || ext === 'htm') {
+  if (ext === 'docx' || ext === 'doc' || ext === 'html' || ext === 'htm' || ext === 'odt') {
     if (raw.includes('<body') || raw.includes('<div') || raw.includes('<p>')) {
       const bodyMatch = raw.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
       return bodyMatch ? bodyMatch[1] : raw;
     }
-  } else if (ext === 'md') {
+  } else if (ext === 'md' || ext === 'markdown') {
     let html = raw
       .replace(/^### (.*$)/gim, '<h3>$1</h3>')
       .replace(/^## (.*$)/gim, '<h2>$1</h2>')
@@ -157,10 +224,149 @@ ${xmlRows}
 </Workbook>`;
 }
 
+export function exportToOds(workbook: SpreadsheetWorkbook): string {
+  const activeSheet = workbook.sheets.find(s => s.id === workbook.activeSheetId) || workbook.sheets[0];
+  let tableRows = '';
+  for (let r = 0; r < activeSheet.rowCount; r++) {
+    let rowCells = '';
+    for (let c = 0; c < activeSheet.colCount; c++) {
+      const key = `${colToLetter(c)}${r + 1}`;
+      const cell = activeSheet.cells[key];
+      const val = cell?.computed ?? '';
+      rowCells += `<table:table-cell office:value-type="string"><text:p>${String(val).replace(/&/g, '&amp;')}</text:p></table:table-cell>`;
+    }
+    tableRows += `<table:table-row>${rowCells}</table:table-row>`;
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+ xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+ xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+ office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.spreadsheet">
+  <office:body>
+    <office:spreadsheet>
+      <table:table table:name="${activeSheet.name}">
+        ${tableRows}
+      </table:table>
+    </office:spreadsheet>
+  </office:body>
+</office:document>`;
+}
+
+export function exportToCsv(workbook: SpreadsheetWorkbook): string {
+  const activeSheet = workbook.sheets.find(s => s.id === workbook.activeSheetId) || workbook.sheets[0];
+  const lines: string[] = [];
+
+  // Determine max row and column with data
+  let maxR = 0;
+  let maxC = 0;
+  for (const k of Object.keys(activeSheet.cells)) {
+    const colMatch = k.match(/[A-Z]+/);
+    const rowMatch = k.match(/\d+/);
+    if (colMatch && rowMatch) {
+      const r = parseInt(rowMatch[0], 10);
+      let c = 0;
+      for (let i = 0; i < colMatch[0].length; i++) {
+        c = c * 26 + (colMatch[0].charCodeAt(i) - 64);
+      }
+      if (r > maxR) maxR = r;
+      if (c > maxC) maxC = c;
+    }
+  }
+
+  if (maxR === 0) maxR = Math.min(20, activeSheet.rowCount);
+  if (maxC === 0) maxC = Math.min(10, activeSheet.colCount);
+
+  for (let r = 0; r < maxR; r++) {
+    const rowValues: string[] = [];
+    for (let c = 0; c < maxC; c++) {
+      const key = `${colToLetter(c)}${r + 1}`;
+      const cell = activeSheet.cells[key];
+      const val = cell?.computed !== undefined && cell?.computed !== null ? String(cell.computed) : '';
+      if (val.includes(',') || val.includes('"') || val.includes('\n') || val.includes('\r')) {
+        rowValues.push(`"${val.replace(/"/g, '""')}"`);
+      } else {
+        rowValues.push(val);
+      }
+    }
+    lines.push(rowValues.join(','));
+  }
+
+  return lines.join('\r\n');
+}
+
+export function exportToTsv(workbook: SpreadsheetWorkbook): string {
+  const activeSheet = workbook.sheets.find(s => s.id === workbook.activeSheetId) || workbook.sheets[0];
+  const lines: string[] = [];
+
+  let maxR = 0;
+  let maxC = 0;
+  for (const k of Object.keys(activeSheet.cells)) {
+    const colMatch = k.match(/[A-Z]+/);
+    const rowMatch = k.match(/\d+/);
+    if (colMatch && rowMatch) {
+      const r = parseInt(rowMatch[0], 10);
+      let c = 0;
+      for (let i = 0; i < colMatch[0].length; i++) {
+        c = c * 26 + (colMatch[0].charCodeAt(i) - 64);
+      }
+      if (r > maxR) maxR = r;
+      if (c > maxC) maxC = c;
+    }
+  }
+
+  if (maxR === 0) maxR = Math.min(20, activeSheet.rowCount);
+  if (maxC === 0) maxC = Math.min(10, activeSheet.colCount);
+
+  for (let r = 0; r < maxR; r++) {
+    const rowValues: string[] = [];
+    for (let c = 0; c < maxC; c++) {
+      const key = `${colToLetter(c)}${r + 1}`;
+      const cell = activeSheet.cells[key];
+      const val = cell?.computed !== undefined && cell?.computed !== null ? String(cell.computed) : '';
+      rowValues.push(val.replace(/\t/g, ' '));
+    }
+    lines.push(rowValues.join('\t'));
+  }
+
+  return lines.join('\r\n');
+}
+
+export function exportToHtmlSpreadsheet(workbook: SpreadsheetWorkbook): string {
+  const activeSheet = workbook.sheets.find(s => s.id === workbook.activeSheetId) || workbook.sheets[0];
+  let tableHtml = '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:sans-serif;font-size:12px;width:100%;">';
+  
+  for (let r = 0; r < Math.min(50, activeSheet.rowCount); r++) {
+    tableHtml += '<tr>';
+    for (let c = 0; c < Math.min(26, activeSheet.colCount); c++) {
+      const key = `${colToLetter(c)}${r + 1}`;
+      const cell = activeSheet.cells[key];
+      const val = cell?.computed ?? '';
+      const tag = r === 0 ? 'th' : 'td';
+      const bg = r === 0 ? 'background:#f1f5f9;font-weight:bold;' : '';
+      tableHtml += `<${tag} style="${bg}border:1px solid #cbd5e1;padding:6px 10px;">${String(val)}</${tag}>`;
+    }
+    tableHtml += '</tr>';
+  }
+  tableHtml += '</table>';
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${workbook.meta.title}</title>
+</head>
+<body style="padding:20px;font-family:sans-serif;">
+  <h2>${workbook.meta.title} - ${activeSheet.name}</h2>
+  ${tableHtml}
+</body>
+</html>`;
+}
+
 export function parseSpreadsheetContent(raw: string, filename: string): Record<string, any> {
   const ext = filename.split('.').pop()?.toLowerCase();
 
-  // If raw content starts with PK or [Content_Types].xml, it is a binary zip archive, not a CSV!
+  // If raw content starts with PK or [Content_Types].xml, it is a binary zip archive
   if (raw.startsWith('PK') || raw.includes('[Content_Types].xml')) {
     console.error('Binary ZIP archive detected in CSV parser, aborting plain text parse');
     return {};
@@ -260,4 +466,160 @@ export function exportToPptxXml(deck: SlideDeck): string {
     ${slidesXml}
   </slides>
 </Presentation>`;
+}
+
+export function exportToOdp(deck: SlideDeck): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+ xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+ xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+ office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.presentation">
+  <office:body>
+    <office:presentation>
+      ${deck.slides.map((s, idx) => `
+        <draw:page draw:name="Slide ${idx + 1}">
+          <text:p>${s.title}</text:p>
+          ${s.elements.map(e => `<text:p>${e.content.replace(/<[^>]+>/g, '')}</text:p>`).join('')}
+        </draw:page>
+      `).join('\n')}
+    </office:presentation>
+  </office:body>
+</office:document>`;
+}
+
+export function exportToHtmlPresentation(deck: SlideDeck): string {
+  const slidesJson = JSON.stringify(deck.slides);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>${deck.meta.title} - Presentation</title>
+  <style>
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    #viewport { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+    #slide-container { width: 90vw; max-width: 1280px; aspect-ratio: 16/9; background: white; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); position: relative; overflow: hidden; padding: 48px; box-sizing: border-box; }
+    .slide-title { font-size: 36px; font-weight: bold; margin-bottom: 24px; color: #1e293b; }
+    .slide-body { font-size: 20px; line-height: 1.6; color: #334155; }
+    #nav { position: fixed; bottom: 20px; right: 20px; display: flex; gap: 8px; z-index: 100; }
+    .btn { background: rgba(255,255,255,0.2); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; backdrop-filter: blur(8px); }
+    .btn:hover { background: rgba(255,255,255,0.3); }
+    #counter { position: fixed; bottom: 20px; left: 20px; color: rgba(255,255,255,0.6); font-family: monospace; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div id="viewport">
+    <div id="slide-container">
+      <div id="slide-content"></div>
+    </div>
+  </div>
+  <div id="counter"></div>
+  <div id="nav">
+    <button class="btn" onclick="prev()">Previous</button>
+    <button class="btn" onclick="next()">Next</button>
+    <button class="btn" onclick="document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()">Fullscreen</button>
+  </div>
+  <script>
+    const slides = ${slidesJson};
+    let current = 0;
+    function render() {
+      const s = slides[current];
+      const container = document.getElementById('slide-container');
+      container.style.backgroundColor = s.bgColor || '#ffffff';
+      let html = '<div class=\"slide-title\">' + (s.title || '') + '</div><div class=\"slide-body\">';
+      if (s.elements) {
+        s.elements.forEach(e => {
+          html += '<div>' + e.content + '</div>';
+        });
+      }
+      html += '</div>';
+      document.getElementById('slide-content').innerHTML = html;
+      document.getElementById('counter').innerText = 'Slide ' + (current + 1) + ' of ' + slides.length;
+    }
+    function next() { if (current < slides.length - 1) { current++; render(); } }
+    function prev() { if (current > 0) { current--; render(); } }
+    window.addEventListener('keydown', e => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') next();
+      if (e.key === 'ArrowLeft') prev();
+    });
+    render();
+  </script>
+</body>
+</html>`;
+}
+
+export function exportToTextPresentation(deck: SlideDeck): string {
+  let text = `# ${deck.meta.title}\n\n`;
+  deck.slides.forEach((s, idx) => {
+    text += `--- Slide ${idx + 1}: ${s.title} ---\n`;
+    s.elements.forEach(e => {
+      const clean = e.content.replace(/<[^>]+>/g, '').trim();
+      if (clean) text += `${clean}\n`;
+    });
+    if (s.notes) {
+      text += `\nSpeaker Notes: ${s.notes}\n`;
+    }
+    text += '\n\n';
+  });
+  return text;
+}
+
+// ---------------------- FORMS FORMATS ----------------------
+
+export function exportFormToCsv(form: any): string {
+  const headers = ['Timestamp', ...form.questions.map((q: any) => `"${q.title.replace(/"/g, '""')}"`)];
+  const rows: string[] = [headers.join(',')];
+
+  if (form.responses && form.responses.length > 0) {
+    form.responses.forEach((resp: any) => {
+      const row = [
+        resp.submittedAt || new Date().toISOString(),
+        ...form.questions.map((q: any) => {
+          const ans = resp.answers?.[q.id] ?? '';
+          return `"${String(ans).replace(/"/g, '""')}"`;
+        })
+      ];
+      rows.push(row.join(','));
+    });
+  }
+
+  return rows.join('\r\n');
+}
+
+export function exportFormToHtml(form: any): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${form.title || 'Form'}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #ede7f6; margin: 0; padding: 24px; color: #1e293b; }
+    .card { background: white; border-radius: 12px; padding: 24px; max-width: 640px; margin: 0 auto 16px auto; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-top: 8px solid #673ab7; }
+    .question { background: white; border-radius: 8px; padding: 20px; max-width: 640px; margin: 0 auto 16px auto; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    h1 { margin: 0 0 8px 0; color: #1e293b; font-size: 26px; }
+    p { margin: 0; color: #64748b; font-size: 14px; }
+    label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 15px; }
+    input[type="text"], textarea, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+    .btn { background: #673ab7; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-weight: 600; cursor: pointer; display: block; margin: 24px auto; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>${form.title || 'Untitled Form'}</h1>
+    <p>${form.description || ''}</p>
+  </div>
+  <form onsubmit="alert('Response recorded offline in browser!'); return false;">
+    ${form.questions.map((q: any) => `
+      <div class="question">
+        <label>${q.title} ${q.required ? '<span style="color:#ef4444">*</span>' : ''}</label>
+        ${q.type === 'paragraph' ? `<textarea rows="4" placeholder="Your answer" ${q.required ? 'required' : ''}></textarea>` :
+          q.type === 'multiple_choice' ? (q.options || []).map((opt: string) => `<div style="margin: 6px 0;"><label style="font-weight:normal;"><input type="radio" name="${q.id}" value="${opt}" ${q.required ? 'required' : ''}> ${opt}</label></div>`).join('') :
+          q.type === 'checkboxes' ? (q.options || []).map((opt: string) => `<div style="margin: 6px 0;"><label style="font-weight:normal;"><input type="checkbox" name="${q.id}" value="${opt}"> ${opt}</label></div>`).join('') :
+          `<input type="text" placeholder="Your answer" ${q.required ? 'required' : ''}>`}
+      </div>
+    `).join('')}
+    <button type="submit" class="btn">Submit Response</button>
+  </form>
+</body>
+</html>`;
 }

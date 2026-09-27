@@ -60,3 +60,4 @@ dist-installer/
 *.app/
 package-lock.json
 
+dist-release/

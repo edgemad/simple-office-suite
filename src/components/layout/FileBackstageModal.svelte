@@ -537,6 +537,50 @@
                   <div class="text-[11px] text-slate-400 mt-0.5">Comma-separated tabular data</div>
                 </div>
               </button>
+
+              <button
+                class="p-4 rounded-xl bg-[#1e2126] border border-slate-800 hover:border-amber-500/60 hover:bg-slate-800/80 transition-all text-left flex items-start space-x-3"
+                on:click={() => handleExport(activeMode === 'sheets' ? 'ods' : activeMode === 'slides' ? 'odp' : 'odt')}
+              >
+                <div class="p-2 rounded-lg bg-amber-950/60 text-amber-400"><FileText size={20} /></div>
+                <div>
+                  <div class="font-semibold text-slate-100 text-xs">OpenDocument ({activeMode === 'sheets' ? '.ods' : activeMode === 'slides' ? '.odp' : '.odt'})</div>
+                  <div class="text-[11px] text-slate-400 mt-0.5">Open source office standard format</div>
+                </div>
+              </button>
+
+              <button
+                class="p-4 rounded-xl bg-[#1e2126] border border-slate-800 hover:border-indigo-500/60 hover:bg-slate-800/80 transition-all text-left flex items-start space-x-3"
+                on:click={() => handleExport('html')}
+              >
+                <div class="p-2 rounded-lg bg-indigo-950/60 text-indigo-400"><FileCode size={20} /></div>
+                <div>
+                  <div class="font-semibold text-slate-100 text-xs">Web Page (.html)</div>
+                  <div class="text-[11px] text-slate-400 mt-0.5">Self-contained browser viewable package</div>
+                </div>
+              </button>
+
+              <button
+                class="p-4 rounded-xl bg-[#1e2126] border border-slate-800 hover:border-teal-500/60 hover:bg-slate-800/80 transition-all text-left flex items-start space-x-3"
+                on:click={() => handleExport('rtf')}
+              >
+                <div class="p-2 rounded-lg bg-teal-950/60 text-teal-400"><FileText size={20} /></div>
+                <div>
+                  <div class="font-semibold text-slate-100 text-xs">Rich Text Format (.rtf)</div>
+                  <div class="text-[11px] text-slate-400 mt-0.5">Cross-platform rich formatted document</div>
+                </div>
+              </button>
+
+              <button
+                class="p-4 rounded-xl bg-[#1e2126] border border-slate-800 hover:border-lime-500/60 hover:bg-slate-800/80 transition-all text-left flex items-start space-x-3"
+                on:click={() => handleExport('tsv')}
+              >
+                <div class="p-2 rounded-lg bg-lime-950/60 text-lime-400"><FileSpreadsheet size={20} /></div>
+                <div>
+                  <div class="font-semibold text-slate-100 text-xs">TSV Data (.tsv)</div>
+                  <div class="text-[11px] text-slate-400 mt-0.5">Tab-separated tabular data</div>
+                </div>
+              </button>
             </div>
           </div>
 

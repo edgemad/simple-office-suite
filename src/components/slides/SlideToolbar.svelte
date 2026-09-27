@@ -48,15 +48,8 @@
     uploadImage: void;
   }>();
 
-  const fontFamilies = [
-    { label: 'Sans (Default)', value: 'Inter, sans-serif' },
-    { label: 'Arial', value: 'Arial, sans-serif' },
-    { label: 'Times New Roman', value: '"Times New Roman", serif' },
-    { label: 'Georgia', value: 'Georgia, serif' },
-    { label: 'Merriweather', value: 'Merriweather, serif' },
-    { label: 'JetBrains Mono', value: '"JetBrains Mono", monospace' },
-    { label: 'Trebuchet MS', value: '"Trebuchet MS", sans-serif' },
-  ];
+  import { OFFICE_FONTS } from '../../lib/fonts';
+  const fontFamilies = OFFICE_FONTS;
 
   const fontSizes = [14, 18, 24, 32, 40, 48, 60, 72];
 
