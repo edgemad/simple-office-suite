@@ -15,6 +15,27 @@
   let dragElementId: string | null = null;
   let dragOffset = { x: 0, y: 0 };
   let canvasContainer: HTMLDivElement;
+  let transitionKey = 0;
+  let playTransition = false;
+
+  let transitionTimer: ReturnType<typeof setTimeout> | null = null;
+
+  $: if (slide) {
+    transitionKey += 1;
+    playTransition = true;
+    if (transitionTimer) clearTimeout(transitionTimer);
+    transitionTimer = setTimeout(() => (playTransition = false), 380);
+  }
+
+  $: transitionClass = !playTransition
+    ? ''
+    : slide.transition === 'fade'
+    ? 'animate-slide-fade'
+    : slide.transition === 'slide'
+    ? 'animate-slide-push'
+    : slide.transition === 'zoom'
+    ? 'animate-slide-zoom'
+    : 'animate-slide-fade';
 
   function handleSelect(id: string, e: Event) {
     e.stopPropagation();
@@ -107,9 +128,10 @@
   }}
 >
   <!-- 16:9 Presentation Stage -->
+  {#key transitionKey}
   <div
     bind:this={canvasContainer}
-    class="w-[880px] aspect-video rounded-xl shadow-2xl relative overflow-hidden transition-colors border border-slate-300"
+    class="w-[880px] aspect-video rounded-xl shadow-2xl relative overflow-hidden transition-colors border border-slate-300 {transitionClass}"
     style="background-color: {slide.bgColor}; color: {slide.bgColor === '#ffffff' || slide.bgColor === '#f8fafc' ? '#0f172a' : '#ffffff'};"
   >
     {#each slide.elements as elem (elem.id)}
@@ -279,4 +301,45 @@
       </div>
     {/each}
   </div>
+  {/key}
 </div>
+
+<style>
+  @keyframes slideFade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes slidePush {
+    from {
+      opacity: 0;
+      transform: translateX(6%);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  @keyframes slideZoom {
+    from {
+      opacity: 0;
+      transform: scale(0.94);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  :global(.animate-slide-fade) {
+    animation: slideFade 0.34s ease-out;
+  }
+  :global(.animate-slide-push) {
+    animation: slidePush 0.34s ease-out;
+  }
+  :global(.animate-slide-zoom) {
+    animation: slideZoom 0.34s ease-out;
+  }
+</style>

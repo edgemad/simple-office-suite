@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { clampColumnCount, stepFontSizeLevel, fontSizeLevelFor } from '$lib/spreadsheetOps';
+  import { createEventDispatcher, tick } from 'svelte';
   import WriterToolbar from './WriterToolbar.svelte';
   import WriterCanvas from './WriterCanvas.svelte';
   import DocumentOutline from './DocumentOutline.svelte';
@@ -37,16 +38,33 @@
   let currentWords = 0;
   let currentChars = 0;
 
-  let pageSetup: DocumentPageSetup = {
+  export let pageSetup: DocumentPageSetup = {
     margin: 'normal',
     orientation: 'portrait',
     size: 'a4',
   };
   let isPageless = false;
+  export let columnCount = 1;
+
+  // --- Ribbon-driven document features ---
+  let trackChanges = false;
+  let isProtected = false;
+  let isReadOnly = false;
+  export let showWatermark = '';
+  let footnotes: { id: number; text: string }[] = [];
+  let footnoteCounter = 0;
+  let citationCounter = 0;
+  let comments: { id: number; quote: string; text: string; author: string }[] = [];
+  let commentCounter = 0;
+  let findInput: HTMLInputElement;
+  let replaceInput: HTMLInputElement;
 
   const dispatch = createEventDispatcher<{
     updateStats: { words: number; chars: number };
     contentChange: { html: string; text: string; words: number; chars: number };
+    watermarkChange: { watermark: string };
+    pageSetupChange: { pageSetup: DocumentPageSetup };
+    columnCountChange: { columnCount: number };
   }>();
 
   export function triggerUndo() {
@@ -96,6 +114,124 @@
   export function openWordCount() {
     showWordCountModal = true;
   }
+
+  export function setColumns(count: number) {
+    columnCount = clampColumnCount(count);
+    dispatch('columnCountChange', { columnCount });
+  }
+
+  export function setPageSetup(patch: Partial<DocumentPageSetup>) {
+    pageSetup = { ...pageSetup, ...patch };
+    dispatch('pageSetupChange', { pageSetup });
+  }
+
+  export function stepFontSize(direction: 1 | -1) {
+    if (!canvasRef) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const node = sel.getRangeAt(0).startContainer;
+    const el = node instanceof HTMLElement ? node : node.parentElement;
+    if (!el) return;
+    const pixels = Number.parseFloat(window.getComputedStyle(el).fontSize) || 11;
+    const next = stepFontSizeLevel(fontSizeLevelFor(pixels), direction);
+    canvasRef.execCommand('fontSize', String(next));
+  }
+
+  export function setLineSpacing(value: string) {
+    if (!canvasRef) return;
+    canvasRef.setBlockStyle('line-height', value);
+  }
+
+  export function insertDivider() {
+    canvasRef?.insertHorizontalRule();
+  }
+
+  export function insertDate() {
+    canvasRef?.insertDate();
+  }
+
+  export function insertCodeBlock() {
+    canvasRef?.insertCodeBlock();
+  }
+
+  export function insertHighlight() {
+    canvasRef?.insertHighlight();
+  }
+
+  export function suggestDelete() {
+    canvasRef?.suggestDelete();
+  }
+
+  export function openFind(focusReplace: boolean = false) {
+    showSearch = true;
+    if (focusReplace) {
+      tick().then(() => replaceInput?.focus());
+    } else {
+      tick().then(() => findInput?.focus());
+    }
+  }
+
+  export function insertPageBreak() {
+    canvasRef?.insertPageBreak();
+  }
+
+  export function insertFootnote() {
+    if (!canvasRef) return;
+    footnoteCounter += 1;
+    const id = footnoteCounter;
+    footnotes = [...footnotes, { id, text: '' }];
+    canvasRef.insertFootnoteRef(id);
+  }
+
+  export function insertCitation() {
+    if (!canvasRef) return;
+    citationCounter += 1;
+    const year = new Date().getFullYear();
+    canvasRef.insertInlineNode(
+      `<span class="citation" title="Local reference ${citationCounter}"> [Ref ${citationCounter}, ${year}]</span>`
+    );
+  }
+
+  export function addComment() {
+    const sel = window.getSelection();
+    const quote = sel ? sel.toString().trim() : '';
+    if (!quote) {
+      alert('Select some text first, then add a comment.');
+      return;
+    }
+    const text = prompt(`Comment on "${quote.slice(0, 40)}":`);
+    if (!text) return;
+    commentCounter += 1;
+    comments = [...comments, { id: commentCounter, quote, text, author: 'You' }];
+    canvasRef?.markComment(quote, commentCounter);
+  }
+
+  export function toggleTrackChanges() {
+    trackChanges = !trackChanges;
+    canvasRef?.setTrackChanges(trackChanges);
+  }
+
+  export function toggleWatermark() {
+    showWatermark = showWatermark ? '' : 'DRAFT';
+    dispatch('watermarkChange', { watermark: showWatermark });
+  }
+
+  export function setWatermark(text: string) {
+    showWatermark = text;
+    dispatch('watermarkChange', { watermark: showWatermark });
+  }
+
+  export function setProtected(value: boolean) {
+    isProtected = value;
+    canvasRef?.setEditable(!value && !isReadOnly);
+  }
+
+  export function setReadOnly(value: boolean) {
+    isReadOnly = value;
+    canvasRef?.setEditable(!value && !isProtected);
+  }
+
+
 
   function handleFormat(e: CustomEvent<{ command: string; value?: string }> | { detail: { command: string; value?: string } }) {
     if (canvasRef) {
@@ -232,6 +368,7 @@
           <input
             type="text"
             placeholder="Find text..."
+            bind:this={findInput}
             bind:value={findQuery}
             class="bg-transparent outline-none text-xs w-36 text-slate-800"
             on:keydown={(e) => e.key === 'Enter' && handleFindNext()}
@@ -250,6 +387,7 @@
           <input
             type="text"
             placeholder="Replace with..."
+            bind:this={replaceInput}
             bind:value={replaceQuery}
             class="bg-transparent outline-none text-xs w-36 text-slate-800"
           />
@@ -295,6 +433,8 @@
       bind:contentHtml
       {pageSetup}
       {isPageless}
+      watermark={showWatermark}
+      {columnCount}
       on:change={handleCanvasChange}
     />
   </div>
@@ -314,6 +454,7 @@
     on:close={() => (showPageSetupModal = false)}
     on:save={(e) => {
       pageSetup = e.detail.pageSetup;
+      dispatch('pageSetupChange', { pageSetup });
       isPageless = e.detail.isPageless;
     }}
   />

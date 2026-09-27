@@ -8,6 +8,7 @@ import {
   parseDocumentContent,
   sanitizeImportedSlideDeck,
   sanitizeImportedWriterDocument,
+  sanitizePageSetup,
 } from './fileFormats';
 
 const meta: DocumentMeta = {
@@ -188,6 +189,54 @@ describe('exportToPptxXml', () => {
     expect(output).toContain('title="Q3&quot; results"');
     expect(output).toContain(']]]]><![CDATA[> escape');
     expect(output).not.toMatch(/onload="alert\(1\)"/);
+  });
+});
+
+describe('page setup persistence', () => {
+  it('round-trips a valid page setup, columns and watermark', () => {
+    const imported = sanitizeImportedWriterDocument(
+      {
+        meta: { id: 'doc', title: 'Layout' },
+        contentHtml: '<p>Hi</p>',
+        pageSetup: { margin: 'wide', orientation: 'landscape', size: 'legal' },
+        columns: 2,
+        watermark: 'DRAFT',
+      },
+      meta,
+    );
+
+    expect(imported.pageSetup).toEqual({ margin: 'wide', orientation: 'landscape', size: 'legal' });
+    expect(imported.columns).toBe(2);
+    expect(imported.watermark).toBe('DRAFT');
+  });
+
+  it('falls back to safe layout defaults for hostile values', () => {
+    const imported = sanitizeImportedWriterDocument(
+      {
+        meta: { id: 'doc', title: 'Layout' },
+        contentHtml: '<p>Hi</p>',
+        pageSetup: { margin: 'drop table', orientation: 'sideways', size: 'a0' },
+        columns: 99,
+        watermark: 'x'.repeat(200),
+      },
+      meta,
+    );
+
+    expect(imported.pageSetup).toEqual({ margin: 'normal', orientation: 'portrait', size: 'a4' });
+    expect(imported.columns).toBe(3);
+    expect(imported.watermark).toHaveLength(40);
+  });
+
+  it('supplies defaults when layout fields are missing entirely', () => {
+    const imported = sanitizeImportedWriterDocument({ meta: { id: 'doc', title: 'Layout' } }, meta);
+    expect(imported.pageSetup).toEqual({ margin: 'normal', orientation: 'portrait', size: 'a4' });
+    expect(imported.columns).toBe(1);
+    expect(imported.watermark).toBe('');
+  });
+
+  it('ignores non-object page setup input', () => {
+    expect(sanitizePageSetup('wide')).toEqual({ margin: 'normal', orientation: 'portrait', size: 'a4' });
+    expect(sanitizePageSetup(null).size).toBe('a4');
   });
 });
 

@@ -11,12 +11,17 @@
     size: 'a4',
   };
   export let isPageless: boolean = false;
+  export let watermark: string = '';
+  export let columnCount: number = 1;
 
   const dispatch = createEventDispatcher<{
     change: { html: string; text: string; words: number; chars: number };
   }>();
 
   let editorElement: HTMLDivElement;
+  let isEditable = true;
+  let trackChangesOn = false;
+  let footnoteTotal = 0;
 
   $: safeContentHtml = sanitizeHtml(contentHtml);
 
@@ -27,9 +32,13 @@
   }
 
   export function execCommand(command: string, value: string = '') {
-    if (!editorElement) return;
+    if (!editorElement || !isEditable) return;
     editorElement.focus();
-    document.execCommand(command, false, value);
+    if (command === 'insertText' && trackChangesOn) {
+      insertTrackedHtml(sanitizeHtml(`<span>${escapeHtml(value)}</span>`));
+    } else {
+      document.execCommand(command, false, value);
+    }
     handleInput();
   }
 
@@ -195,6 +204,109 @@
     }
   }
 
+  export function setEditable(value: boolean) {
+    isEditable = value;
+    if (editorElement) editorElement.contentEditable = value ? 'true' : 'false';
+  }
+
+  export function setTrackChanges(value: boolean) {
+    trackChangesOn = value;
+  }
+
+  export function suggestDelete() {
+    if (!editorElement) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    editorElement.focus();
+    document.execCommand('strikeThrough', false);
+    wrapSelection('del', 'tracked-deletion');
+    handleInput();
+  }
+
+  export function setBlockStyle(property: string, value: string) {
+    if (!editorElement) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    let node: HTMLElement | null = sel.anchorNode
+      ? (sel.anchorNode.nodeType === Node.ELEMENT_NODE
+          ? (sel.anchorNode as HTMLElement)
+          : (sel.anchorNode.parentElement as HTMLElement | null))
+      : null;
+    while (node && node !== editorElement && !['P', 'H1', 'H2', 'H3', 'LI', 'BLOCKQUOTE', 'TD', 'TH', 'DIV'].includes(node.tagName)) {
+      node = node.parentElement;
+    }
+    if (!node || node === editorElement) return;
+    node.style.setProperty(property, value);
+    handleInput();
+  }
+
+  export function insertInlineNode(html: string) {
+    if (!editorElement) return;
+    editorElement.focus();
+    document.execCommand('insertHTML', false, sanitizeHtml(html));
+    handleInput();
+  }
+
+  export function insertPageBreak() {
+    insertInlineNode('<div class="doc-page-break"></div><p><br></p>');
+  }
+
+  export function insertFootnoteRef(id: number) {
+    footnoteTotal = Math.max(footnoteTotal, id);
+    insertInlineNode(
+      `<sup class="footnote-ref"><a href="#fn-${id}">${id}</a></sup> ` +
+        `<span class="footnote-entry" id="fn-${id}">Footnote ${id}: </span>`
+    );
+  }
+
+  export function markComment(quote: string, id: number) {
+    if (!editorElement) return;
+    const html = editorElement.innerHTML;
+    const idx = html.indexOf(quote);
+    if (idx === -1) return;
+    const wrapped =
+      html.slice(0, idx) +
+      `<span class="comment-anchor" title="Comment ${id}">` +
+      quote +
+      '</span>' +
+      html.slice(idx + quote.length);
+    setEditorHtml(wrapped);
+  }
+
+  export function insertCodeBlock() {
+    insertInlineNode('<pre><code>// code block</code></pre><p><br></p>');
+  }
+
+  export function insertHighlight(color: string = '#fef08a') {
+    if (!editorElement) return;
+    editorElement.focus();
+    document.execCommand('hiliteColor', false, color);
+    handleInput();
+  }
+
+  function wrapSelection(tag: string, className: string) {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    const wrapper = document.createElement(tag);
+    wrapper.className = className;
+    try {
+      range.surroundContents(wrapper);
+    } catch {
+      wrapper.appendChild(range.extractContents());
+      range.insertNode(wrapper);
+    }
+    sel.removeAllRanges();
+  }
+
+  function insertTrackedHtml(html: string) {
+    if (trackChangesOn) {
+      document.execCommand('insertHTML', false, `<ins class="tracked-insertion">${html}</ins>`);
+    } else {
+      document.execCommand('insertHTML', false, html);
+    }
+  }
+
   function handleInput() {
     if (!editorElement) return;
     const html = sanitizeHtml(editorElement.innerHTML);
@@ -220,6 +332,8 @@
     handleInput();
   }
 
+  $: columnStyle = columnCount > 1 ? `column-count: ${columnCount}; column-gap: 2rem;` : '';
+
   // Margin CSS computation
   $: marginStyle =
     pageSetup.margin === 'narrow'
@@ -244,8 +358,12 @@
     : 'w-[210mm] min-h-[297mm]';
 </script>
 
-<div class="flex-1 bg-slate-200/80 overflow-y-auto px-4 py-8 flex flex-col items-center">
+<div class="relative flex-1 bg-slate-200/80 overflow-y-auto px-4 py-8 flex flex-col items-center">
   <!-- Document Page Canvas -->
+  <div class="relative w-full flex justify-center">
+    {#if watermark}
+      <div class="doc-watermark" aria-hidden="true">{watermark}</div>
+    {/if}
   <div
     bind:this={editorElement}
     contenteditable="true"
@@ -254,10 +372,11 @@
     tabindex="0"
     aria-multiline="true"
     class="document-page bg-white shadow-md hover:shadow-lg transition-all cursor-text text-slate-800 {dimensionClass}"
-    style={isPageless ? '' : marginStyle}
+    style={(isPageless ? '' : marginStyle) + columnStyle}
     on:input={handleInput}
     on:keyup={handleInput}
   >
+  </div>
   </div>
 </div>
 
@@ -273,6 +392,57 @@
     margin: 1rem 0;
     color: #475569;
     font-style: italic;
+  }
+  .doc-watermark {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 5rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    color: rgba(15, 23, 42, 0.08);
+    transform: rotate(-28deg);
+    pointer-events: none;
+    user-select: none;
+    z-index: 0;
+  }
+  :global(.doc-page-break) {
+    break-after: page;
+    page-break-after: always;
+    height: 0;
+    margin: 1.5rem 0;
+    border-top: 1px dashed #cbd5e1;
+  }
+  :global(.document-page ins.tracked-insertion) {
+    text-decoration: underline;
+    text-decoration-color: #2563eb;
+    background: rgba(37, 99, 235, 0.08);
+    color: #1d4ed8;
+  }
+  :global(.document-page del.tracked-deletion) {
+    color: #b91c1c;
+    background: rgba(220, 38, 38, 0.08);
+    text-decoration: line-through;
+  }
+  :global(.document-page .comment-anchor) {
+    background: #fef3c7;
+    border-bottom: 2px solid #f59e0b;
+    cursor: help;
+  }
+  :global(.document-page .citation) {
+    color: #1d4ed8;
+    font-size: 0.85em;
+  }
+  :global(.document-page .footnote-ref a) {
+    color: #1d4ed8;
+    text-decoration: none;
+    font-weight: 700;
+  }
+  :global(.document-page .footnote-entry) {
+    font-size: 0.8em;
+    color: #64748b;
   }
   :global(.document-page pre) {
     background-color: #1e293b;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { alignElementBox, normalizeTransition, type AlignPosition } from '$lib/slideLayout';
   import { createEventDispatcher } from 'svelte';
   import SlideToolbar from './SlideToolbar.svelte';
   import SlideDeckSidebar from './SlideDeckSidebar.svelte';
@@ -90,6 +91,118 @@
     } else if (themeName === 'navy') {
       handleChangeBg({ detail: '#1e3a8a' } as any);
     }
+  }
+
+  export function setTransition(name: string) {
+    if (!currentSlide) return;
+    pushUndo();
+    currentSlide.transition = normalizeTransition(name);
+    deck.slides = [...deck.slides];
+    deck.meta.isDirty = true;
+    dispatch('change');
+  }
+
+  export function duplicateSlide() {
+    if (!currentSlide) return;
+    pushUndo();
+    const clone: Slide = JSON.parse(JSON.stringify(currentSlide));
+    clone.id = `slide_${Date.now()}`;
+    clone.title = `${currentSlide.title} (copy)`;
+    clone.elements = clone.elements.map((el) => ({ ...el, id: `elem_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` }));
+    const next = [...deck.slides];
+    next.splice(activeSlideIndex + 1, 0, clone);
+    deck.slides = next;
+    activeSlideIndex += 1;
+    deck.meta.isDirty = true;
+    dispatch('change');
+  }
+
+  export function deleteCurrentSlide() {
+    if (deck.slides.length <= 1) {
+      alert('A deck needs at least one slide.');
+      return;
+    }
+    pushUndo();
+    const next = deck.slides.filter((_, idx) => idx !== activeSlideIndex);
+    deck.slides = next;
+    activeSlideIndex = Math.max(0, activeSlideIndex - 1);
+    selectedElementId = null;
+    deck.meta.isDirty = true;
+    dispatch('change');
+  }
+
+  const ELEMENT_PRESETS: Record<string, Partial<SlideElement>> = {
+    text: { content: 'New text box', fontSize: 18, fontFamily: 'Inter, sans-serif', fontColor: '#0f172a' },
+    shape: { content: 'Shape', shapeVariant: 'rectangle', bgColor: '#3b82f6', borderColor: '#1d4ed8', borderWidth: 2 },
+    stat: { content: '99%  Metric label  +12%', fontSize: 28, fontWeight: '700' },
+  };
+
+  export function insertElement(type: SlideElementType | string) {
+    if (!currentSlide) return;
+    pushUndo();
+    const preset = ELEMENT_PRESETS[type] || { content: 'New element' };
+    const element: SlideElement = {
+      id: `elem_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      type: (type as SlideElementType) || 'text',
+      x: 15,
+      y: 45,
+      width: 35,
+      height: 18,
+      ...preset,
+    } as SlideElement;
+    currentSlide.elements = [...currentSlide.elements, element];
+    selectedElementId = element.id;
+    deck.slides = [...deck.slides];
+    deck.meta.isDirty = true;
+    dispatch('change');
+  }
+
+  export function insertImage() {
+    if (!currentSlide) return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        pushUndo();
+        const element: SlideElement = {
+          id: `elem_${Date.now()}_img`,
+          type: 'image',
+          x: 25,
+          y: 30,
+          width: 50,
+          height: 40,
+          content: String(reader.result ?? ''),
+        };
+        currentSlide.elements = [...currentSlide.elements, element];
+        selectedElementId = element.id;
+        deck.slides = [...deck.slides];
+        deck.meta.isDirty = true;
+        dispatch('change');
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  }
+
+  export function focusNotes() {
+    showNotes = true;
+  }
+
+  export function alignSelected(position: string) {
+    if (!selectedElement) return;
+    pushUndo();
+    const el = selectedElement;
+    const moved = alignElementBox(el, position as AlignPosition);
+    el.x = moved.x;
+    el.y = moved.y;
+    currentSlide.elements = [...currentSlide.elements];
+    deck.slides = [...deck.slides];
+    deck.meta.isDirty = true;
+    dispatch('change');
   }
 
   function handleSelectSlide(e: CustomEvent<number>) {

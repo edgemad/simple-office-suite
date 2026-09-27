@@ -10,6 +10,8 @@
   export let colCount: number = 26;
   export let activeCell: string = 'A1';
   export let conditionalRules: ConditionalFormatRule[] = [];
+  export let hiddenRows: number[] = [];
+  export let frozenRows: number = 0;
 
   function isCellInRange(cellKey: string, rangeStr: string): boolean {
     if (!rangeStr) return false;
@@ -512,7 +514,8 @@
     <!-- Data Rows -->
     <tbody>
       {#each Array(rowCount) as _, rowIdx}
-        <tr class="hover:bg-slate-50/50">
+        {#if !hiddenRows.includes(rowIdx)}
+        <tr class="hover:bg-slate-50/50 {rowIdx < frozenRows ? 'sticky top-6 z-10 bg-white' : ''}">
           <!-- Row Number (Sticky Column) -->
           <td class="w-12 h-7 border-b border-r border-slate-300 bg-slate-100 sticky left-0 z-10 text-center font-mono text-slate-500 font-medium text-[11px]">
             {rowIdx + 1}
@@ -587,6 +590,7 @@
             </td>
           {/each}
         </tr>
+        {/if}
       {/each}
     </tbody>
   </table>

@@ -12,6 +12,8 @@
   export let selectionSum: number | null = null;
   export let slideIndex: number = 0;
   export let totalSlides: number = 1;
+  export let zoom: number = 100;
+  export let fullscreen: boolean = false;
 
   let isOnline: boolean = isNetworkOnline();
   let unsubscribe: (() => void) | null = null;
@@ -76,7 +78,11 @@
       <span>•</span>
       <span>UTF-8</span>
       <span>•</span>
-      <span>100% Zoom</span>
+      <span>{zoom}% Zoom</span>
+      {#if fullscreen}
+        <span>•</span>
+        <span class="text-emerald-700 font-semibold">Full Screen</span>
+      {/if}
     </div>
   </div>
 </footer>

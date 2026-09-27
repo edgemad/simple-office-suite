@@ -516,6 +516,47 @@
     }
   }
 
+  let uiZoom = 100;
+  let isFullscreen = false;
+
+  const ZOOM_STEPS = [50, 67, 75, 90, 100, 110, 125, 150, 175, 200, 300];
+
+  function applyZoom(next: number) {
+    uiZoom = Math.min(300, Math.max(50, Math.round(next)));
+  }
+
+  function handleZoomIn() {
+    const next = ZOOM_STEPS.find((z) => z > uiZoom) ?? ZOOM_STEPS[ZOOM_STEPS.length - 1];
+    applyZoom(next);
+  }
+
+  function handleZoomOut() {
+    const next = [...ZOOM_STEPS].reverse().find((z) => z < uiZoom) ?? ZOOM_STEPS[0];
+    applyZoom(next);
+  }
+
+  function handleZoomReset() {
+    applyZoom(100);
+  }
+
+  async function handleToggleFullscreen() {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        isFullscreen = true;
+      } else {
+        await document.exitFullscreen();
+        isFullscreen = false;
+      }
+    } catch {
+      isFullscreen = false;
+    }
+  }
+
+  function handleFullscreenChange() {
+    isFullscreen = Boolean(document.fullscreenElement);
+  }
+
   function handlePrintPdf() {
     triggerPrintToPdf(currentMeta.title);
   }
@@ -542,6 +583,11 @@
 
   function handleRibbonAction(e: CustomEvent<{ action: string; payload?: any }>) {
     const { action, payload } = e.detail;
+
+    if (action === 'zoomIn') return handleZoomIn();
+    if (action === 'zoomOut') return handleZoomOut();
+    if (action === 'zoomReset') return handleZoomReset();
+    if (action === 'toggleFullscreen') return handleToggleFullscreen();
 
     if (activeMode === 'writer') {
       if (['bold', 'italic', 'underline', 'strike'].includes(action)) {
@@ -573,6 +619,66 @@
         writerRef?.openWordCount();
       } else if (action === 'insertText') {
         document.execCommand('insertText', false, payload);
+      } else if (action === 'orientation') {
+        writerRef?.setPageSetup({ orientation: payload });
+      } else if (action === 'pageSize') {
+        writerRef?.setPageSetup({ size: payload });
+      } else if (action === 'columns') {
+        writerRef?.setColumns(Number(payload));
+      } else if (action === 'insertFootnote') {
+        writerRef?.insertFootnote();
+      } else if (action === 'insertCitation') {
+        writerRef?.insertCitation();
+      } else if (action === 'addComment') {
+        writerRef?.addComment();
+      } else if (action === 'trackChanges') {
+        writerRef?.toggleTrackChanges();
+      } else if (action === 'watermark') {
+        writerRef?.toggleWatermark();
+      } else if (action === 'protectDoc') {
+        writerRef?.setProtected(true);
+      } else if (action === 'lockReadOnly') {
+        writerRef?.setReadOnly(true);
+      } else if (action === 'insertChecklist') {
+        writerRef?.insertChecklist();
+      } else if (action === 'insertCallout') {
+        writerRef?.insertCallout(payload);
+      } else if (action === 'insertCodeBlock') {
+        writerRef?.insertCodeBlock();
+      } else if (action === 'insertHighlight') {
+        writerRef?.insertHighlight();
+      } else if (action === 'suggestDelete') {
+        writerRef?.suggestDelete();
+      } else if (action === 'clearFormat') {
+        document.execCommand('removeFormat', false);
+      } else if (action === 'fontFamily') {
+        writerRef?.execFormat('fontName', payload);
+      } else if (action === 'fontSize') {
+        writerRef?.execFormat('fontSize', payload);
+      } else if (action === 'growFont' || action === 'shrinkFont') {
+        writerRef?.stepFontSize(action === 'growFont' ? 1 : -1);
+      } else if (action === 'textColor') {
+        writerRef?.execFormat('foreColor', payload);
+      } else if (action === 'highlightColor') {
+        writerRef?.execFormat('hiliteColor', payload);
+      } else if (action === 'sub' || action === 'sup') {
+        document.execCommand(action === 'sub' ? 'subscript' : 'superscript', false);
+      } else if (action === 'indent') {
+        document.execCommand('indent', false);
+      } else if (action === 'outdent') {
+        document.execCommand('outdent', false);
+      } else if (action === 'lineSpacing') {
+        writerRef?.setLineSpacing(payload);
+      } else if (action === 'insertDivider') {
+        writerRef?.insertDivider();
+      } else if (action === 'insertDate') {
+        writerRef?.insertDate();
+      } else if (action === 'find') {
+        writerRef?.openFind();
+      } else if (action === 'replace') {
+        writerRef?.openFind(true);
+      } else if (action === 'pageBreak') {
+        writerRef?.insertPageBreak();
       }
     } else if (activeMode === 'sheets') {
       if (action === 'bold') sheetsRef?.toggleBold();
@@ -598,12 +704,45 @@
         sheetsRef?.handleImportSpreadsheet();
       } else if (action === 'insertText') {
         sheetsRef?.commitValue(sheetsActiveCell, payload);
+      } else if (action === 'toggleFilter') {
+        sheetsRef?.toggleFilter();
+      } else if (action === 'recalculate') {
+        sheetsRef?.recalculate();
+      } else if (action === 'openCalculator') {
+        sheetsRef?.openCalculator();
+      } else if (action === 'mergeCells') {
+        sheetsRef?.mergeCells();
+      } else if (action === 'freezeHeader') {
+        sheetsRef?.toggleFreezeHeader();
+      } else if (action === 'numberFormat') {
+        sheetsRef?.applyNumberFormat(payload);
+      } else if (action === 'wrapText') {
+        sheetsRef?.toggleWrapText();
+      } else if (action === 'alignCell') {
+        sheetsRef?.setCellAlign(payload);
+      } else if (action === 'textColor') {
+        sheetsRef?.applyTextColor(payload);
+      } else if (action === 'fillColor') {
+        sheetsRef?.applyFillColor(payload);
+      } else if (action === 'insertBorder') {
+        sheetsRef?.applyBorder(payload);
+      } else if (action === 'dataValidation') {
+        sheetsRef?.openDataValidation();
       }
     } else if (activeMode === 'slides') {
       if (action === 'newSlide') slidesRef?.addNewSlide();
       else if (action === 'present') slidesRef?.startPresenting();
       else if (action === 'slideTheme') slidesRef?.setTheme(payload);
       else if (action === 'aspectRatio') slidesDeck.aspectRatio = payload;
+      else if (action === 'transition') slidesRef?.setTransition(payload);
+      else if (action === 'duplicateSlide') slidesRef?.duplicateSlide();
+      else if (action === 'deleteSlide') slidesRef?.deleteCurrentSlide();
+      else if (action === 'insertTextBox') slidesRef?.insertElement('text');
+      else if (action === 'insertShape') slidesRef?.insertElement('shape');
+      else if (action === 'insertStat') slidesRef?.insertElement('stat');
+      else if (action === 'insertImage') slidesRef?.insertImage();
+      else if (action === 'insertNotes') slidesRef?.focusNotes();
+      else if (action === 'alignElement') slidesRef?.alignSelected(payload);
     }
   }
 
@@ -655,7 +794,7 @@
   }
 </script>
 
-<svelte:window on:keydown={handleGlobalKeydown} />
+<svelte:window on:keydown={handleGlobalKeydown} on:fullscreenchange={handleFullscreenChange} />
 
 <div class="h-screen w-screen flex flex-col bg-slate-100 overflow-hidden font-sans">
   <!-- Top OnlyOffice Style Navigation & File Ribbon Actions -->
@@ -663,6 +802,7 @@
     {activeMode}
     meta={currentMeta}
     settings={appSettings}
+    zoom={uiZoom}
     on:changeMode={(e) => (activeMode = e.detail)}
     on:newDoc={handleNewDoc}
     on:openDoc={handleOpenDoc}
@@ -679,11 +819,18 @@
 
   <!-- Active Workspace Module -->
   <main class="flex-1 flex overflow-hidden relative">
+    <div class="flex-1 flex overflow-hidden origin-top-left" style={`transform: scale(${uiZoom / 100}); width: ${10000 / uiZoom}%; height: ${10000 / uiZoom}%`}>
     {#if activeMode === 'writer'}
       <Writer
         bind:this={writerRef}
         meta={writerDoc.meta}
         bind:contentHtml={writerDoc.contentHtml}
+        bind:pageSetup={writerDoc.pageSetup}
+        bind:showWatermark={writerDoc.watermark}
+        bind:columnCount={writerDoc.columns}
+        on:watermarkChange={() => triggerAutoSave()}
+        on:pageSetupChange={() => triggerAutoSave()}
+        on:columnCountChange={() => triggerAutoSave()}
         on:contentChange={triggerAutoSave}
         on:updateStats={(e) => {
           writerWordCount = e.detail.words;
@@ -711,6 +858,7 @@
         }}
       />
     {/if}
+    </div>
   </main>
 
   <!-- Bottom Application Status Bar -->
@@ -723,6 +871,8 @@
     selectionSum={sheetsSelectionSum}
     slideIndex={slidesIndex}
     totalSlides={slidesTotal}
+    zoom={uiZoom}
+    fullscreen={isFullscreen}
   />
 
   <!-- Keyboard Shortcuts Cheat Sheet Modal -->

@@ -4,7 +4,8 @@
   import Grid from './Grid.svelte';
   import ChartModal from './ChartModal.svelte';
   import ConditionalFormatModal from './ConditionalFormatModal.svelte';
-  import { recalculateGrid, colToLetter, parseCoord } from './formulaEngine';
+  import { recalculateGrid, colToLetter, parseCoord, expandRange } from './formulaEngine';
+  import { computeFilterHiddenRows, applyOperator, shiftCellsDown } from '$lib/spreadsheetOps';
   import type { SpreadsheetWorkbook, SheetGrid, CellFormatting, SheetTab, SheetChart, ConditionalFormatRule } from '../../types';
   import {
     Plus,
@@ -122,7 +123,7 @@
     commitValue(e.detail.key, e.detail.raw);
   }
 
-  function commitValue(cellKey: string, val: string) {
+  export function commitValue(cellKey: string, val: string) {
     pushUndo();
 
     if (!activeSheet.cells[cellKey]) {
@@ -170,17 +171,17 @@
     dispatch('change');
   }
 
-  function toggleBold() {
+  export function toggleBold() {
     const curr = activeSheet.cells[activeCell]?.format?.bold;
     updateActiveCellFormat({ bold: !curr });
   }
 
-  function toggleItalic() {
+  export function toggleItalic() {
     const curr = activeSheet.cells[activeCell]?.format?.italic;
     updateActiveCellFormat({ italic: !curr });
   }
 
-  function toggleUnderline() {
+  export function toggleUnderline() {
     const curr = activeSheet.cells[activeCell]?.format?.underline;
     updateActiveCellFormat({ underline: !curr });
   }
@@ -217,6 +218,192 @@
     const val = (e.target as HTMLInputElement).value;
     cellBgColor = val;
     updateActiveCellFormat({ bgColor: val });
+  }
+
+  // --- Grid, filter, freeze, merge, and validation features ---
+  let hiddenRows: number[] = [];
+  let filterColumn = -1;
+  let filterQuery = '';
+  let showCalculator = false;
+  let calcDisplay = '0';
+  let calcAccumulator: number | null = null;
+  let calcOperator = '';
+  let calcWaiting = false;
+  let showValidationDialog = false;
+  let validationList = '';
+  let validationTarget = '';
+
+  export function toggleFilter() {
+    if (filterColumn >= 0) {
+      filterColumn = -1;
+      hiddenRows = [];
+      activeSheet.cells = { ...activeSheet.cells };
+      return;
+    }
+    const parsed = parseCoord(activeCell);
+    const col = parsed ? parsed.col : 0;
+    const query = prompt(`Filter column ${colToLetter(col)} by text (leave empty to show all):`);
+    if (query === null) return;
+    filterColumn = col;
+    filterQuery = query.trim().toLowerCase();
+    applyFilter();
+  }
+
+  function applyFilter() {
+    if (filterColumn < 0) return;
+    if (filterQuery === '') {
+      hiddenRows = [];
+      return;
+    }
+    hiddenRows = computeFilterHiddenRows(activeSheet.cells, filterColumn, filterQuery, activeSheet.rowCount);
+  }
+
+  export function recalculate() {
+    pushUndo();
+    activeSheet.cells = recalculateGrid(activeSheet.cells);
+    workbook.meta.isDirty = true;
+    computeStats();
+    dispatch('change');
+  }
+
+  export function toggleFreezeHeader() {
+    pushUndo();
+    activeSheet.frozenRows = activeSheet.frozenRows ? 0 : 1;
+    activeSheet.cells = { ...activeSheet.cells };
+    workbook.meta.isDirty = true;
+    dispatch('change');
+  }
+
+  export function mergeCells() {
+    const rangeInput = prompt('Merge range (for example A1:C1):', activeCell);
+    if (!rangeInput || !rangeInput.includes(':')) return;
+    const normalized = rangeInput.trim().toUpperCase();
+    pushUndo();
+    for (const key of expandRange(normalized)) {
+      applyFormatToCell(key, { merged: normalized });
+    }
+    activeSheet.cells = { ...activeSheet.cells };
+    workbook.meta.isDirty = true;
+    dispatch('change');
+  }
+
+  function applyFormatToCell(key: string, patch: Partial<CellFormatting>) {
+    if (!activeSheet.cells[key]) {
+      activeSheet.cells[key] = { raw: '', computed: '', format: { ...patch } };
+    } else {
+      activeSheet.cells[key].format = { ...activeSheet.cells[key].format, ...patch };
+    }
+  }
+
+  export function applyNumberFormat(value: string) {
+    const allowed = ['general', 'number', 'currency', 'percent', 'date'];
+    const fmt = (allowed.includes(value) ? value : 'general') as NonNullable<CellFormatting['format']>;
+    cellNumberFormat = fmt;
+    updateActiveCellFormat({ format: fmt });
+  }
+
+  export function toggleWrapText() {
+    const curr = activeSheet.cells[activeCell]?.format?.wrap;
+    updateActiveCellFormat({ wrap: !curr });
+  }
+
+  export function setCellAlign(align: string) {
+    const value = align === 'left' || align === 'center' || align === 'right' ? align : 'left';
+    updateActiveCellFormat({ align: value });
+  }
+
+  export function applyTextColor(color: string) {
+    cellTextColor = color;
+    updateActiveCellFormat({ textColor: color });
+  }
+
+  export function applyFillColor(color: string) {
+    cellBgColor = color;
+    updateActiveCellFormat({ bgColor: color });
+  }
+
+  export function applyBorder(style: string) {
+    const borders = ['none', 'all', 'outer', 'top', 'bottom'] as const;
+    const value = (borders as readonly string[]).includes(style) ? (style as 'all') : 'all';
+    updateActiveCellFormat({ border: value });
+  }
+
+  export function openDataValidation() {
+    const existing = activeSheet.cells[activeCell]?.raw ?? '';
+    validationTarget = activeCell;
+    validationList = existing.startsWith('LIST:') ? existing.slice(5) : '';
+    showValidationDialog = true;
+  }
+
+  function saveDataValidation() {
+    const items = validationList
+      .split(',')
+      .map((v) => v.trim())
+      .filter((v) => v.length > 0);
+    if (items.length === 0) {
+      activeSheet.validation = undefined;
+    } else {
+      activeSheet.validation = { target: validationTarget, items };
+    }
+    activeSheet.cells = { ...activeSheet.cells };
+    showValidationDialog = false;
+    workbook.meta.isDirty = true;
+    dispatch('change');
+  }
+
+  // --- Calculator ---
+  export function openCalculator() {
+    showCalculator = true;
+    calcDisplay = '0';
+    calcAccumulator = null;
+    calcOperator = '';
+    calcWaiting = false;
+  }
+
+  function calcInputDigit(digit: string) {
+    if (calcWaiting || calcDisplay === '0') {
+      calcDisplay = digit;
+      calcWaiting = false;
+    } else if (calcDisplay.length < 12) {
+      calcDisplay += digit;
+    }
+  }
+
+  function calcApply(operator: string) {
+    const current = Number(calcDisplay) || 0;
+    if (calcOperator && calcAccumulator !== null) {
+      calcDisplay = String(calcCompute(calcAccumulator, current, calcOperator));
+    }
+    calcAccumulator = Number(calcDisplay) || 0;
+    calcOperator = operator;
+    calcWaiting = true;
+  }
+
+  function calcCompute(a: number, b: number, operator: string): number {
+    return applyOperator(a, b, operator);
+  }
+
+  function calcEquals() {
+    if (calcOperator && calcAccumulator !== null) {
+      calcDisplay = String(calcCompute(calcAccumulator, Number(calcDisplay) || 0, calcOperator));
+    }
+    calcAccumulator = null;
+    calcOperator = '';
+    calcWaiting = true;
+  }
+
+  function calcClear() {
+    calcDisplay = '0';
+    calcAccumulator = null;
+    calcOperator = '';
+    calcWaiting = false;
+  }
+
+  function calcInsertIntoCell() {
+    if (calcDisplay !== '' && calcDisplay !== 'NaN') {
+      commitValue(activeCell, calcDisplay);
+    }
+    showCalculator = false;
   }
 
   // Google Sheets Powerhouse Features: Charts, Sorting, Row/Col Operations, Conditional Formatting
@@ -313,16 +500,7 @@
     if (!coord) return;
     const targetRow = above ? coord.row : coord.row + 1;
 
-    const newCells: SheetGrid = {};
-    for (const [k, v] of Object.entries(activeSheet.cells)) {
-      const c = parseCoord(k);
-      if (!c) continue;
-      if (c.row >= targetRow) {
-        newCells[`${colToLetter(c.col)}${c.row + 2}`] = v;
-      } else {
-        newCells[k] = v;
-      }
-    }
+    const newCells = shiftCellsDown(activeSheet.cells, targetRow, activeSheet.rowCount + 1, activeSheet.colCount);
     activeSheet.rowCount = Math.max(activeSheet.rowCount + 1, 50);
     activeSheet.cells = recalculateGrid(newCells);
     workbook.meta.isDirty = true;
@@ -429,7 +607,7 @@
     }
   }
 
-  function insertFormula(fnName: string) {
+  export function insertFormula(fnName: string) {
     const match = activeCell.replace(/\$/g, '').toUpperCase().match(/^([A-Z]+)([0-9]+)$/);
     if (!match) return;
     const col = match[1];
@@ -625,7 +803,7 @@
     downloadFile(`${workbook.meta.title || 'spreadsheet'}.xlsx`, xml, 'application/vnd.ms-excel');
   }
 
-  async function handleImportSpreadsheet() {
+  export async function handleImportSpreadsheet() {
     try {
       const selectedPath = await openFileDialogNative('Import Spreadsheet', [
         {
@@ -1034,6 +1212,8 @@
     colCount={activeSheet.colCount}
     bind:activeCell
     conditionalRules={activeSheet.conditionalRules || []}
+    hiddenRows={hiddenRows}
+    frozenRows={activeSheet.frozenRows || 0}
     on:selectCell={handleSelectCell}
     on:cellChange={handleCellChange}
     on:cellInput={(e) => (rawValue = e.detail.raw)}
@@ -1102,4 +1282,68 @@
       {workbook.sheets.length} Sheet{workbook.sheets.length > 1 ? 's' : ''}
     </div>
   </div>
+  <!-- Google Sheets style Calculator -->
+  {#if showCalculator}
+    <div class="fixed bottom-6 right-6 z-50 w-64 rounded-xl border border-slate-300 bg-white shadow-2xl text-slate-800">
+      <div class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
+        <span class="text-xs font-semibold">Calculator</span>
+        <button class="text-slate-400 hover:text-slate-700" on:click={() => (showCalculator = false)} aria-label="Close calculator">
+          <X size={14} />
+        </button>
+      </div>
+      <div class="bg-slate-100 px-3 py-3 text-right">
+        <div class="text-xs text-slate-500">{activeCell}</div>
+        <div class="truncate font-mono text-2xl font-semibold" aria-live="polite">{calcDisplay}</div>
+      </div>
+      <div class="grid grid-cols-4 gap-1 p-2">
+        {#each [['C', 'clear'], ['/', 'op'], ['*', 'op'], ['-', 'op'], ['7', 'digit'], ['8', 'digit'], ['9', 'digit'], ['+', 'op'], ['4', 'digit'], ['5', 'digit'], ['6', 'digit'], ['=', 'equals'], ['1', 'digit'], ['2', 'digit'], ['3', 'digit'], ['0', 'digit']] as [label, kind]}
+          <button
+            class="rounded py-2 text-sm font-medium transition-colors
+              {kind === 'digit'
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                : label === '='
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}"
+            on:click={() => {
+              if (kind === 'clear') calcClear();
+              else if (kind === 'equals') calcEquals();
+              else if (kind === 'op') calcApply(label);
+              else calcInputDigit(label);
+            }}
+          >
+            {label}
+          </button>
+        {/each}
+      </div>
+      <div class="px-2 pb-2">
+        <button class="w-full rounded bg-blue-600 hover:bg-blue-700 py-1.5 text-xs font-semibold text-white" on:click={calcInsertIntoCell}>
+          Insert into {activeCell}
+        </button>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Data Validation Dialog -->
+  {#if showValidationDialog}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+      <div class="w-96 rounded-xl border border-slate-200 bg-white p-5 text-xs text-slate-700 shadow-2xl">
+        <h3 class="text-sm font-semibold text-slate-900">Data validation</h3>
+        <p class="mt-1 text-[11px] text-slate-500">
+          Restrict {validationTarget} to a list of values, the way Google Sheets dropdown validation works.
+        </p>
+        <label class="mt-4 block text-[11px] font-semibold" for="validation-items">Allowed values (comma separated)</label>
+        <textarea
+          id="validation-items"
+          bind:value={validationList}
+          rows="3"
+          class="mt-1 w-full rounded border border-slate-300 p-2 font-mono text-xs outline-none focus:border-blue-500"
+        ></textarea>
+        <div class="mt-4 flex justify-end gap-2">
+          <button class="rounded border border-slate-300 px-3 py-1.5 hover:bg-slate-50" on:click={() => (showValidationDialog = false)}>Cancel</button>
+          <button class="rounded bg-blue-600 px-3 py-1.5 font-semibold text-white hover:bg-blue-700" on:click={saveDataValidation}>Save</button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
+

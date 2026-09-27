@@ -31,6 +31,8 @@ export interface WriterDocument {
   pageCount: number;
   pageSize?: 'a4' | 'letter';
   pageSetup?: DocumentPageSetup;
+  columns?: number;
+  watermark?: string;
 }
 
 // SOS Sheets Types
@@ -44,6 +46,10 @@ export interface CellFormatting {
   textColor?: string;
   bgColor?: string;
   format?: 'general' | 'number' | 'currency' | 'percent' | 'date';
+  wrap?: boolean;
+  border?: 'none' | 'all' | 'outer' | 'top' | 'bottom';
+  merged?: string;
+  invalid?: boolean;
 }
 
 export interface CellValue {
@@ -84,6 +90,10 @@ export interface SheetTab {
   conditionalRules?: ConditionalFormatRule[];
   frozenRows?: number;
   frozenCols?: number;
+  validation?: {
+    target: string;
+    items: string[];
+  };
 }
 
 export interface SpreadsheetWorkbook {
@@ -124,6 +134,8 @@ export interface Slide {
   bgColor: string;
   notes?: string;
   layout?: 'title' | 'content' | 'two-column' | 'stat' | 'section-header' | 'blank';
+  transition?: 'none' | 'fade' | 'slide' | 'zoom';
+  watermark?: string;
 }
 
 export interface SlideDeck {

@@ -1,4 +1,12 @@
-import type { WriterDocument, SpreadsheetWorkbook, SlideDeck, DocumentMeta, Slide, SlideElement } from '../types';
+import type {
+  WriterDocument,
+  SpreadsheetWorkbook,
+  SlideDeck,
+  DocumentMeta,
+  Slide,
+  SlideElement,
+  DocumentPageSetup,
+} from '../types';
 import { colToLetter, recalculateGrid } from '../components/sheets/formulaEngine';
 import { escapeHtml, extractHtmlBody, sanitizeHtml } from './sanitize';
 
@@ -170,6 +178,31 @@ export function sanitizeImportedWriterDocument(parsed: unknown, fallbackMeta: Do
     charCount: typeof source.charCount === 'number' ? source.charCount : 0,
     pageCount: typeof source.pageCount === 'number' ? source.pageCount : 1,
     pageSize: source.pageSize === 'letter' ? 'letter' : 'a4',
+    pageSetup: sanitizePageSetup(source.pageSetup),
+    columns: typeof source.columns === 'number' && Number.isFinite(source.columns)
+      ? Math.min(3, Math.max(1, Math.round(source.columns)))
+      : 1,
+    watermark: typeof source.watermark === 'string' ? source.watermark.slice(0, 40) : '',
+  };
+}
+
+const PAGE_MARGINS: DocumentPageSetup['margin'][] = ['normal', 'narrow', 'wide'];
+const PAGE_ORIENTATIONS: DocumentPageSetup['orientation'][] = ['portrait', 'landscape'];
+const PAGE_SIZES: DocumentPageSetup['size'][] = ['letter', 'a4', 'legal'];
+
+/** Keeps only known page-setup values so a hand-edited file cannot inject unexpected state. */
+export function sanitizePageSetup(value: unknown): DocumentPageSetup {
+  const source = (value && typeof value === 'object' ? value : {}) as Partial<DocumentPageSetup>;
+  return {
+    margin: PAGE_MARGINS.includes(source.margin as DocumentPageSetup['margin'])
+      ? (source.margin as DocumentPageSetup['margin'])
+      : 'normal',
+    orientation: PAGE_ORIENTATIONS.includes(source.orientation as DocumentPageSetup['orientation'])
+      ? (source.orientation as DocumentPageSetup['orientation'])
+      : 'portrait',
+    size: PAGE_SIZES.includes(source.size as DocumentPageSetup['size'])
+      ? (source.size as DocumentPageSetup['size'])
+      : 'a4',
   };
 }
 

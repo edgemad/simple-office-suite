@@ -27,7 +27,6 @@
     AlignJustify,
     List,
     ListOrdered,
-    PenTool,
     Highlighter,
     Eraser,
     LayoutTemplate,
@@ -50,13 +49,25 @@
     MessageSquare,
     Plus,
     FileSpreadsheet,
-    Settings } from '@lucide/svelte';
+    Settings,
+    Baseline,
+    ArrowRight,
+    ArrowLeft,
+    Calendar,
+    BarChart3,
+    Upload,
+    Copy,
+    Trash2,
+    Quote,
+    Search,
+    Replace } from '@lucide/svelte';
   import type { AppSettings } from '../../types';
   import AiAssistantModal from './AiAssistantModal.svelte';
 
   export let activeMode: WorkspaceMode;
   export let meta: DocumentMeta;
   export let settings: AppSettings | undefined = undefined;
+  export let zoom: number = 100;
 
   const dispatch = createEventDispatcher<{
     changeMode: WorkspaceMode;
@@ -88,14 +99,44 @@
     slides: 'Slides (presentation editor)',
   };
 
+  // Google-style typography controls shared by the ribbon
+  const FONT_FAMILIES = [
+    { label: 'Sans (Inter)', value: 'Inter, -apple-system, sans-serif' },
+    { label: 'Arial', value: 'Arial, Helvetica, sans-serif' },
+    { label: 'Times New Roman', value: '"Times New Roman", Times, serif' },
+    { label: 'Georgia', value: 'Georgia, serif' },
+    { label: 'Merriweather', value: 'Merriweather, serif' },
+    { label: 'Courier New', value: '"Courier New", Courier, monospace' },
+    { label: 'JetBrains Mono', value: '"JetBrains Mono", Consolas, monospace' },
+    { label: 'Trebuchet MS', value: '"Trebuchet MS", sans-serif' },
+    { label: 'Verdana', value: 'Verdana, sans-serif' },
+  ];
+
+  const FONT_SIZES = [
+    { label: '9', exec: '1' },
+    { label: '10', exec: '2' },
+    { label: '11', exec: '3' },
+    { label: '12', exec: '4' },
+    { label: '14', exec: '5' },
+    { label: '18', exec: '6' },
+    { label: '24', exec: '7' },
+    { label: '36', exec: '8' },
+  ];
+
+  let fontFamily = FONT_FAMILIES[0].value;
+  let fontSize = FONT_SIZES[2].exec;
+  let textColor = '#0f172a';
+  let highlightColor = '#fef08a';
+  let lineSpacing = '1';
+
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
   const modKey = isMac ? '⌘' : 'Ctrl';
 
   // Ribbon tab layout per workspace module
   const tabsByMode: Record<WorkspaceMode, string[]> = {
-    writer: ['File', 'Home', 'Insert', 'Draw', 'Layout', 'References', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
-    sheets: ['File', 'Home', 'Insert', 'Draw', 'Layout', 'Formula', 'Data', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
-    slides: ['File', 'Home', 'Insert', 'Draw', 'Design', 'Transitions', 'Animation', 'Collaboration', 'Protection', 'View', 'Plugins', 'AI'],
+    writer: ['File', 'Home', 'Insert', 'Layout', 'References', 'Collaboration', 'Protection', 'View', 'Tools', 'AI'],
+    sheets: ['File', 'Home', 'Insert', 'Layout', 'Formula', 'Data', 'References', 'Collaboration', 'Protection', 'View', 'Tools', 'AI'],
+    slides: ['File', 'Home', 'Insert', 'Design', 'Transitions', 'Layout', 'References', 'Collaboration', 'Protection', 'View', 'Tools', 'AI'],
   };
 
   $: currentTabs = tabsByMode[activeMode] || tabsByMode.writer;
@@ -459,8 +500,86 @@
   <!-- RIBBON ACTION TOOLBAR -->
   <div class="h-10 px-4 bg-[#2b2d31] border-b border-[#36393f] flex items-center justify-between text-xs text-slate-300 overflow-x-auto shadow-inner">
     {#if activeTab === 'Home'}
-      <!-- HOME TAB: Universal Formatting, Fonts, Styles & Mode-Specific Essentials -->
+      <!-- HOME TAB: Google-style typography, colours, paragraph and mode-specific controls -->
       <div class="flex items-center space-x-2">
+        <select
+          class="bg-slate-700/60 hover:bg-slate-600/60 text-slate-200 text-[11px] rounded px-1.5 py-1 outline-none max-w-[9.5rem]"
+          value={fontFamily}
+          on:change={(e) => triggerAction('fontFamily', (e.currentTarget as HTMLSelectElement).value)}
+          title="Font family"
+        >
+          {#each FONT_FAMILIES as font}
+            <option value={font.value}>{font.label}</option>
+          {/each}
+        </select>
+        <select
+          class="bg-slate-700/60 hover:bg-slate-600/60 text-slate-200 text-[11px] rounded px-1 py-1 outline-none"
+          value={fontSize}
+          on:change={(e) => triggerAction('fontSize', (e.currentTarget as HTMLSelectElement).value)}
+          title="Font size"
+        >
+          {#each FONT_SIZES as size}
+            <option value={size.exec}>{size.label}</option>
+          {/each}
+        </select>
+        <button class="p-1 rounded hover:bg-white/10 text-slate-300 text-xs font-bold" on:click={() => triggerAction('growFont')} title="Increase font size">
+          <span>A+</span>
+        </button>
+        <button class="p-1 rounded hover:bg-white/10 text-slate-300 text-xs font-bold" on:click={() => triggerAction('shrinkFont')} title="Decrease font size">
+          <span>A-</span>
+        </button>
+
+        <div class="relative flex items-center">
+          <input
+            type="color"
+            class="absolute inset-0 opacity-0 w-6 h-6 cursor-pointer"
+            value={textColor}
+            on:input={(e) => triggerAction('textColor', (e.currentTarget as HTMLInputElement).value)}
+            title="Text colour"
+            aria-label="Text colour"
+          />
+          <span class="w-6 h-6 rounded flex items-center justify-center text-slate-300" style={`color: ${textColor}`}>
+            <Baseline size={14} />
+          </span>
+        </div>
+        <div class="relative flex items-center">
+          <input
+            type="color"
+            class="absolute inset-0 opacity-0 w-6 h-6 cursor-pointer"
+            value={highlightColor}
+            on:input={(e) => triggerAction('highlightColor', (e.currentTarget as HTMLInputElement).value)}
+            title="Highlight colour"
+            aria-label="Highlight colour"
+          />
+          <span class="w-6 h-6 rounded flex items-center justify-center" style={`background: ${highlightColor}`}>
+            <Highlighter size={14} class="text-slate-800/70" />
+          </span>
+        </div>
+
+        <div class="h-4 w-px bg-slate-700 mx-1"></div>
+
+        <select
+          class="bg-slate-700/60 hover:bg-slate-600/60 text-slate-200 text-[11px] rounded px-1.5 py-1 outline-none"
+          value={lineSpacing}
+          on:change={(e) => triggerAction('lineSpacing', (e.currentTarget as HTMLSelectElement).value)}
+          title="Line spacing"
+        >
+          <option value="1">Single spacing</option>
+          <option value="1.5">1.5 spacing</option>
+          <option value="2">Double spacing</option>
+        </select>
+        <button class="p-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('indent')} title="Increase indent">
+          <ArrowRight size={14} />
+        </button>
+        <button class="p-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('outdent')} title="Decrease indent">
+          <ArrowLeft size={14} />
+        </button>
+        <button class="p-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('clearFormat')} title="Clear formatting">
+          <Eraser size={14} />
+        </button>
+
+        <div class="h-4 w-px bg-slate-700 mx-1"></div>
+
         <button class="p-1 rounded hover:bg-white/10 text-slate-300 font-bold" on:click={() => triggerAction('bold')} title="Bold ({modKey}+B)">
           <Bold size={14} />
         </button>
@@ -514,55 +633,92 @@
       </div>
 
     {:else if activeTab === 'Insert'}
-      <!-- INSERT TAB: Tables, Images, Shapes, Links, Special Elements -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('insertTable')} title="Insert Table">
-          <Table size={14} class="text-blue-400" />
-          <span>Table</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('insertImage')} title="Insert Image">
-          <Image size={14} class="text-emerald-400" />
-          <span>Picture</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('insertLink')} title="Insert Hyperlink">
-          <Link size={14} class="text-amber-400" />
-          <span>Link</span>
-        </button>
-
-        {#if activeMode === 'sheets'}
-          <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('insertFx')} title="Insert Formula">
-            <FunctionSquare size={14} class="text-purple-400" />
-            <span>Function (fx)</span>
+      <div class="flex items-center space-x-2">
+        {#if activeMode === 'writer'}
+          <button class="ribbon-btn" on:click={() => triggerAction('insertTable')} title="Insert table">
+            <Table size={14} class="text-blue-400" /><span>Table</span>
           </button>
-        {:else if activeMode === 'slides'}
-          <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('newSlide')} title="Insert Slide">
-            <Presentation size={14} class="text-orange-400" />
-            <span>New Slide</span>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertImage')} title="Insert image from this device">
+            <Image size={14} class="text-emerald-400" /><span>Image</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertLink')} title="Insert hyperlink">
+            <Link size={14} class="text-amber-400" /><span>Link</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertChecklist')} title="Insert checklist">
+            <CheckCircle2 size={14} class="text-emerald-400" /><span>Checklist</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertCallout', 'info')} title="Insert callout box">
+            <MessageSquare size={14} class="text-cyan-400" /><span>Callout</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertCodeBlock')} title="Insert code block">
+            <span class="font-mono text-[10px]">{`</>`}</span><span>Code</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertHighlight')} title="Highlight selection">
+            <Highlighter size={14} class="text-amber-300" /><span>Highlight</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertDate')} title="Insert today's date">
+            <Calendar size={14} class="text-slate-300" /><span>Date</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('pageBreak')} title="Insert page break">
+            <ArrowRight size={14} class="text-slate-300" /><span>Page break</span>
+          </button>
+        {:else if activeMode === 'sheets'}
+          <button class="ribbon-btn" on:click={() => triggerAction('insertChart')} title="Insert chart">
+            <BarChart3 size={14} class="text-emerald-400" /><span>Chart</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('conditionalFormatting')} title="Conditional formatting">
+            <Sparkles size={14} class="text-purple-400" /><span>Conditional</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertFx')} title="Insert function">
+            <FunctionSquare size={14} class="text-purple-400" /><span>Function</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('mergeCells')} title="Merge cells">
+            <Columns size={14} class="text-slate-300" /><span>Merge</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('freezeHeader')} title="Freeze first row">
+            <Lock size={14} class="text-slate-300" /><span>Freeze</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('dataValidation')} title="Data validation list">
+            <CheckCircle2 size={14} class="text-emerald-400" /><span>Validation</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertRowAbove')} title="Insert row above">
+            <Plus size={14} class="text-slate-300" /><span>Row</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertColLeft')} title="Insert column left">
+            <Plus size={14} class="text-slate-300" /><span>Column</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('importFile')} title="Import CSV or Excel">
+            <Upload size={14} class="text-sky-400" /><span>Import</span>
+          </button>
+        {:else}
+          <button class="ribbon-btn" on:click={() => triggerAction('insertTextBox')} title="Insert text box">
+            <FileText size={14} class="text-orange-400" /><span>Text box</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertShape')} title="Insert shape">
+            <Palette size={14} class="text-orange-400" /><span>Shape</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertStat')} title="Insert stat callout">
+            <Calculator size={14} class="text-orange-400" /><span>Stat</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertImage')} title="Insert image">
+            <Image size={14} class="text-emerald-400" /><span>Image</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('newSlide')} title="New slide">
+            <Plus size={14} class="text-orange-400" /><span>New slide</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('duplicateSlide')} title="Duplicate slide">
+            <Copy size={14} class="text-slate-300" /><span>Duplicate</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('deleteSlide')} title="Delete slide">
+            <Trash2 size={14} class="text-rose-400" /><span>Delete</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertNotes')} title="Speaker notes">
+            <FileText size={14} class="text-slate-300" /><span>Notes</span>
           </button>
         {/if}
       </div>
 
-    {:else if activeTab === 'Draw'}
-      <!-- DRAW TAB: Freehand Pen, Highlighter, Eraser, Line Weight -->
-      <div class="flex items-center space-x-2">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-blue-400" on:click={() => triggerAction('pen')} title="Pen Tool">
-          <PenTool size={14} />
-          <span>Pen</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-amber-300" on:click={() => triggerAction('highlighter')} title="Highlighter">
-          <Highlighter size={14} />
-          <span>Highlighter</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-400" on:click={() => triggerAction('eraser')} title="Eraser">
-          <Eraser size={14} />
-          <span>Eraser</span>
-        </button>
-        <div class="h-4 w-px bg-slate-700 mx-1"></div>
-        <span class="text-[11px] text-slate-400">Stroke:</span>
-        <button class="px-2 py-0.5 rounded bg-white/10 text-xs" on:click={() => triggerAction('stroke', 1)}>1px</button>
-        <button class="px-2 py-0.5 rounded bg-white/10 text-xs font-bold" on:click={() => triggerAction('stroke', 3)}>3px</button>
-        <button class="px-2 py-0.5 rounded bg-white/10 text-xs font-extrabold" on:click={() => triggerAction('stroke', 6)}>6px</button>
-      </div>
+    
 
     {:else if activeTab === 'Layout'}
       <!-- LAYOUT TAB: Orientation, Margins, Paper Size, Columns -->
@@ -645,6 +801,25 @@
 
     
 
+    {:else if activeTab === 'Transitions'}
+      <div class="flex items-center space-x-2">
+        <span class="text-[11px] text-slate-400">Slide transition</span>
+        <button class="ribbon-btn" on:click={() => triggerAction('transition', 'none')} title="No transition">None</button>
+        <button class="ribbon-btn" on:click={() => triggerAction('transition', 'fade')} title="Fade transition">Fade</button>
+        <button class="ribbon-btn" on:click={() => triggerAction('transition', 'slide')} title="Slide transition">Push</button>
+        <button class="ribbon-btn" on:click={() => triggerAction('transition', 'zoom')} title="Zoom transition">Zoom</button>
+        <div class="h-4 w-px bg-slate-700 mx-1"></div>
+        <button class="ribbon-btn" on:click={() => triggerAction('alignElement', 'centerH')} title="Centre selected element horizontally">
+          <AlignCenter size={14} /><span>Centre</span>
+        </button>
+        <button class="ribbon-btn" on:click={() => triggerAction('alignElement', 'centerV')} title="Centre selected element vertically">
+          <AlignLeft size={14} class="rotate-90" /><span>Middle</span>
+        </button>
+        <button class="ribbon-btn" on:click={() => triggerAction('present')} title="Present from the start">
+          <Play size={14} /><span>Present</span>
+        </button>
+      </div>
+
     {:else if activeTab === 'Design'}
       <!-- DESIGN TAB (Slides): Themes, Colors, Aspect Ratio -->
       <div class="flex items-center space-x-3">
@@ -686,50 +861,71 @@
       </div>
 
     {:else if activeTab === 'References'}
-      <!-- REFERENCES TAB: Table of Contents, Footnotes, Citations -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('insertToc')}>
-          <BookOpen size={14} class="text-blue-400" />
-          <span>Table of Contents</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('insertFootnote')}>
-          <span>Insert Footnote</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('insertCitation')}>
-          <span>Add Citation</span>
-        </button>
+      <div class="flex items-center space-x-2">
+        {#if activeMode === 'writer'}
+          <button class="ribbon-btn" on:click={() => triggerAction('insertToc')} title="Insert table of contents">
+            <BookOpen size={14} class="text-blue-400" /><span>Contents</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertFootnote')} title="Insert footnote">
+            <FileText size={14} class="text-slate-300" /><span>Footnote</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('insertCitation')} title="Insert citation">
+            <Quote size={14} class="text-blue-400" /><span>Citation</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('addComment')} title="Comment on the selected text">
+            <MessageSquare size={14} class="text-amber-300" /><span>Comment</span>
+          </button>
+        {:else if activeMode === 'sheets'}
+          <button class="ribbon-btn" on:click={() => triggerAction('dataValidation')} title="Validation list for this cell">
+            <CheckCircle2 size={14} class="text-emerald-400" /><span>Validation</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('toggleFilter')} title="Filter this column">
+            <Filter size={14} class="text-sky-400" /><span>Filter</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('conditionalFormatting')} title="Conditional formatting">
+            <Sparkles size={14} class="text-purple-400" /><span>Conditional</span>
+          </button>
+        {:else}
+          <button class="ribbon-btn" on:click={() => triggerAction('insertNotes')} title="Edit speaker notes">
+            <FileText size={14} class="text-slate-300" /><span>Speaker notes</span>
+          </button>
+          <button class="ribbon-btn" on:click={() => triggerAction('duplicateSlide')} title="Duplicate this slide">
+            <Copy size={14} class="text-slate-300" /><span>Duplicate</span>
+          </button>
+        {/if}
       </div>
+
+
 
     {:else if activeTab === 'Collaboration'}
-      <!-- COLLABORATION TAB: Comments, Track Changes, Offline Mode -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('addComment')}>
-          <MessageSquare size={14} class="text-emerald-400" />
-          <span>Add Comment</span>
+      <div class="flex items-center space-x-2">
+        <button class="ribbon-btn" on:click={() => triggerAction('addComment')} title="Comment on the selected text">
+          <MessageSquare size={14} class="text-amber-300" /><span>Comment</span>
         </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('trackChanges')}>
-          <CheckCircle2 size={14} class="text-blue-400" />
-          <span>Track Changes</span>
+        <button class="ribbon-btn" on:click={() => triggerAction('trackChanges')} title="Track changes while typing">
+          <Shield size={14} class="text-purple-400" /><span>Suggesting</span>
         </button>
-        <div class="h-4 w-px bg-slate-700 mx-1"></div>
-        <span class="text-[11px] text-slate-400">Comments and tracked edits stay on this device</span>
+        <button class="ribbon-btn" on:click={() => triggerAction('suggestDelete')} title="Mark the selection as a deletion">
+          <Strikethrough size={14} class="text-rose-400" /><span>Mark deletion</span>
+        </button>
       </div>
 
+
+
     {:else if activeTab === 'Protection'}
-      <!-- PROTECTION TAB: Protect Document, Read-Only, Watermark -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('protectDoc')}>
-          <Shield size={14} class="text-amber-400" />
-          <span>Protect Document</span>
+      <div class="flex items-center space-x-2">
+        <button class="ribbon-btn" on:click={() => triggerAction('protectDoc')} title="Protect this document from editing">
+          <Lock size={14} class="text-amber-300" /><span>Protect</span>
         </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('lockReadOnly')}>
-          <Lock size={14} class="text-rose-400" />
-          <span>Lock Read-Only</span>
+        <button class="ribbon-btn" on:click={() => triggerAction('lockReadOnly')} title="Make this document read only">
+          <Shield size={14} class="text-slate-300" /><span>Read only</span>
         </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('watermark')}>
-          <span>Add Watermark</span>
+        <button class="ribbon-btn" on:click={() => triggerAction('watermark')} title="Toggle a DRAFT watermark">
+          <Palette size={14} class="text-sky-300" /><span>Watermark</span>
         </button>
       </div>
+
+
 
     
 
@@ -744,47 +940,47 @@
     
 
     {:else if activeTab === 'View'}
-      <!-- VIEW TAB: Zoom, Presentation Mode, Gridlines, Rulers -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('zoomIn')}>
-          <ZoomIn size={14} />
-          <span>Zoom In</span>
+      <div class="flex items-center space-x-2">
+        <button class="ribbon-btn" on:click={() => triggerAction('zoomOut')} title="Zoom out">
+          <ZoomOut size={14} /><span>Out</span>
         </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('zoomOut')}>
-          <ZoomOut size={14} />
-          <span>Zoom Out</span>
+        <button class="ribbon-btn" on:click={() => triggerAction('zoomReset')} title="Reset zoom to 100%">
+          <span class="font-mono">{zoom}%</span>
         </button>
-        <button class="px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('zoomReset')}>
-          <span>100%</span>
+        <button class="ribbon-btn" on:click={() => triggerAction('zoomIn')} title="Zoom in">
+          <ZoomIn size={14} /><span>In</span>
         </button>
         <div class="h-4 w-px bg-slate-700 mx-1"></div>
+        <button class="ribbon-btn" on:click={() => triggerAction('toggleFullscreen')} title="Toggle full screen">
+          <Maximize size={14} /><span>Full screen</span>
+        </button>
         {#if activeMode === 'slides'}
-          <button class="flex items-center space-x-1 px-2.5 py-1 rounded bg-orange-600 text-white font-medium" on:click={() => triggerAction('present')}>
-            <Play size={13} />
-            <span>Slide Show</span>
+          <button class="ribbon-btn" on:click={() => triggerAction('present')} title="Present">
+            <Play size={14} /><span>Present</span>
           </button>
         {/if}
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('toggleFullscreen')}>
-          <Maximize size={14} />
-          <span>Full Screen</span>
+      </div>
+
+    {:else if activeTab === 'Tools'}
+      <div class="flex items-center space-x-2">
+        <button class="ribbon-btn" on:click={() => triggerAction('wordCount')} title="Word count and reading time">
+          <FileText size={14} class="text-slate-300" /><span>Word count</span>
+        </button>
+        <button class="ribbon-btn" on:click={() => triggerAction('openCalculator')} title="Open the calculator">
+          <Calculator size={14} class="text-emerald-400" /><span>Calculator</span>
+        </button>
+        <button class="ribbon-btn" on:click={() => triggerAction('find')} title="Find text">
+          <Search size={14} class="text-sky-400" /><span>Find</span>
+        </button>
+        <button class="ribbon-btn" on:click={() => triggerAction('replace')} title="Find and replace">
+          <Replace size={14} class="text-sky-400" /><span>Replace</span>
+        </button>
+        <button class="ribbon-btn" on:click={() => triggerAction('recalculate')} title="Recalculate all formulas">
+          <Sigma size={14} class="text-purple-400" /><span>Recalculate</span>
         </button>
       </div>
 
-    {:else if activeTab === 'Plugins'}
-      <!-- PLUGINS TAB: Macro, Word Counter, Calculator -->
-      <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('openCalculator')}>
-          <Calculator size={14} class="text-emerald-400" />
-          <span>Calculator</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('wordCount')}>
-          <FileText size={14} class="text-blue-400" />
-          <span>Document Statistics</span>
-        </button>
-        <button class="flex items-center space-x-1 px-2 py-1 rounded hover:bg-white/10 text-slate-300" on:click={() => triggerAction('ocr')}>
-          <span>OCR Text Extractor</span>
-        </button>
-      </div>
+
 
     {:else if activeTab === 'AI'}
       <div class="flex items-center space-x-3">
