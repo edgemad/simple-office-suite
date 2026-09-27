@@ -47,7 +47,7 @@ export interface CellFormatting {
   bgColor?: string;
   format?: 'general' | 'number' | 'currency' | 'percent' | 'date';
   wrap?: boolean;
-  border?: 'none' | 'all' | 'outer' | 'top' | 'bottom';
+  border?: 'none' | 'all' | 'outer' | 'top' | 'bottom' | 'left' | 'right';
   merged?: string;
   invalid?: boolean;
 }
@@ -80,6 +80,20 @@ export interface ConditionalFormatRule {
   textColor: string;
 }
 
+/** A rectangular cell block in 0-based, inclusive coordinates. */
+export interface CellRect {
+  startCol: number;
+  startRow: number;
+  endCol: number;
+  endRow: number;
+}
+
+export interface SheetValidation {
+  target: string;
+  items: string[];
+  allowBlank?: boolean;
+}
+
 export interface SheetTab {
   id: string;
   name: string;
@@ -90,10 +104,8 @@ export interface SheetTab {
   conditionalRules?: ConditionalFormatRule[];
   frozenRows?: number;
   frozenCols?: number;
-  validation?: {
-    target: string;
-    items: string[];
-  };
+  validation?: SheetValidation;
+  mergedRanges?: CellRect[];
 }
 
 export interface SpreadsheetWorkbook {

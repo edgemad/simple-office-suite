@@ -27,9 +27,35 @@
     parseDocumentContent,
     parseSpreadsheetContent,
     sanitizeImportedSlideDeck,
-    sanitizeImportedWriterDocument
+    sanitizeImportedWriterDocument,
+    sanitizeImportedWorkbook
   } from './lib/fileFormats';
   import { recalculateGrid } from './components/sheets/formulaEngine';
+
+  function safeJsonParse(content: string): unknown {
+    try {
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Loads a foreign spreadsheet grid and grows the sheet to fit it. */
+  function applyImportedGrid(grid: Record<string, any>) {
+    let maxRow = 50;
+    let maxCol = 26;
+    for (const key of Object.keys(grid)) {
+      const m = key.match(/^([A-Z]+)(\d+)$/);
+      if (!m) continue;
+      maxRow = Math.max(maxRow, parseInt(m[2], 10) + 10);
+      let col = 0;
+      for (const ch of m[1]) col = col * 26 + (ch.charCodeAt(0) - 64);
+      maxCol = Math.max(maxCol, col);
+    }
+    sheetsWorkbook.sheets[0].cells = grid;
+    sheetsWorkbook.sheets[0].rowCount = maxRow;
+    sheetsWorkbook.sheets[0].colCount = Math.max(maxCol + 4, 35);
+  }
 
   let activeMode: WorkspaceMode = 'writer';
   let showShortcutsModal = false;
@@ -331,32 +357,22 @@
       // Auto-detect mode based on file format or parsed payload
       if (['xlsx', 'xls', 'csv', 'tsv', 'soss'].includes(ext || '') || (content.startsWith('{') && content.includes('"cells":'))) {
         activeMode = 'sheets';
-        let parsedGrid: Record<string, any> = {};
         if (content.startsWith('{') && content.includes('"cells":')) {
-          try {
-            const parsed = JSON.parse(content);
-            parsedGrid = recalculateGrid(parsed.cells || {});
-          } catch {
-            parsedGrid = parseSpreadsheetContent(content, selectedPath);
+          // A native workbook keeps formatting, merges, validation, charts and
+          // frozen panes; a foreign file only contributes its cell grid.
+          const sanitized = sanitizeImportedWorkbook(safeJsonParse(content), sheetsWorkbook.meta);
+          if (sanitized) {
+            sheetsWorkbook = sanitized;
+          } else {
+            applyImportedGrid(parseSpreadsheetContent(content, selectedPath));
           }
         } else {
-          parsedGrid = parseSpreadsheetContent(content, selectedPath);
+          applyImportedGrid(parseSpreadsheetContent(content, selectedPath));
         }
-        sheetsWorkbook.sheets[0].cells = parsedGrid;
-        const cellKeys = Object.keys(parsedGrid);
-        let maxRow = 50;
-        let maxCol = 26;
-        for (const k of cellKeys) {
-          const m = k.match(/^([A-Z]+)([0-9]+)$/);
-          if (m) {
-            const r = parseInt(m[2], 10);
-            if (r > maxRow) maxRow = r + 10;
-          }
-        }
-        sheetsWorkbook.sheets[0].rowCount = maxRow;
-        sheetsWorkbook.sheets[0].colCount = Math.max(maxCol, 35);
         sheetsWorkbook.meta.filePath = selectedPath;
-        sheetsWorkbook.meta.title = selectedPath.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Spreadsheet';
+        if (!content.startsWith('{')) {
+          sheetsWorkbook.meta.title = selectedPath.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Spreadsheet';
+        }
         sheetsWorkbook.meta.isDirty = false;
         sheetsWorkbook.meta.lastSaved = new Date().toISOString();
       } else if (['pptx', 'odp', 'sosp'].includes(ext || '')) {

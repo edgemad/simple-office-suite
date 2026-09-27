@@ -5,8 +5,19 @@
   import ChartModal from './ChartModal.svelte';
   import ConditionalFormatModal from './ConditionalFormatModal.svelte';
   import { recalculateGrid, colToLetter, parseCoord, expandRange } from './formulaEngine';
-  import { computeFilterHiddenRows, applyOperator, shiftCellsDown } from '$lib/spreadsheetOps';
-  import type { SpreadsheetWorkbook, SheetGrid, CellFormatting, SheetTab, SheetChart, ConditionalFormatRule } from '../../types';
+  import {
+    computeFilterHiddenRows,
+    applyOperator,
+    shiftCellsDown,
+    addMergeRect,
+    removeMergeRectAt,
+    mergeRectAt,
+    rangeTextToRect,
+    rectCellKeys,
+    validationViolation,
+    type BorderStyle,
+  } from '$lib/spreadsheetOps';
+  import type { SpreadsheetWorkbook, SheetGrid, CellFormatting, SheetTab, SheetChart, ConditionalFormatRule, CellRect } from '../../types';
   import {
     Plus,
     Bold,
@@ -18,6 +29,7 @@
     Sigma,
     Download,
     Upload,
+    AlertTriangle,
     Trash2,
     Baseline,
     PaintBucket,
@@ -133,6 +145,26 @@
     }
 
     activeSheet.cells = recalculateGrid(activeSheet.cells);
+
+    // Data validation never blocks typing, but a rejected value is flagged in place.
+    if (isValidated(cellKey)) {
+      const violation = validationViolation(
+        activeSheet.validation?.items ?? [],
+        String(activeSheet.cells[cellKey]?.computed ?? ''),
+        activeSheet.validation?.allowBlank !== false,
+      );
+      validationNotice = violation ?? '';
+      activeSheet.cells[cellKey].format = {
+        ...activeSheet.cells[cellKey].format,
+        invalid: Boolean(violation),
+      };
+    } else {
+      validationNotice = '';
+      if (activeSheet.cells[cellKey].format?.invalid) {
+        activeSheet.cells[cellKey].format = { ...activeSheet.cells[cellKey].format, invalid: false };
+      }
+    }
+
     workbook.meta.isDirty = true;
     rawValue = activeSheet.cells[cellKey]?.raw ?? '';
     computeStats();
@@ -229,6 +261,8 @@
   let calcAccumulator: number | null = null;
   let calcOperator = '';
   let calcWaiting = false;
+  let selectionRange: { start: string; end: string; keys: string[] } | null = null;
+  let validationNotice = '';
   let showValidationDialog = false;
   let validationList = '';
   let validationTarget = '';
@@ -274,17 +308,63 @@
     dispatch('change');
   }
 
-  export function mergeCells() {
-    const rangeInput = prompt('Merge range (for example A1:C1):', activeCell);
-    if (!rangeInput || !rangeInput.includes(':')) return;
-    const normalized = rangeInput.trim().toUpperCase();
-    pushUndo();
-    for (const key of expandRange(normalized)) {
-      applyFormatToCell(key, { merged: normalized });
+  function handleRangeSelect(e: CustomEvent<{ start: string; end: string; keys: string[] }>) {
+    selectionRange = e.detail;
+  }
+
+  /** The rect the current selection covers, falling back to the single active cell. */
+  function selectionRect(): CellRect | null {
+    if (selectionRange && selectionRange.keys.length > 0) {
+      return rangeTextToRect(
+        selectionRange.start === selectionRange.end
+          ? selectionRange.start
+          : `${selectionRange.start}:${selectionRange.end}`,
+      );
     }
+    return rangeTextToRect(activeCell);
+  }
+
+  export function mergeCells() {
+    const rect = selectionRect();
+    if (!rect) return;
+    const existing = activeSheet.mergedRanges ?? [];
+    const covering = mergeRectAt(existing, rect.startCol, rect.startRow);
+
+    pushUndo();
+    if (covering) {
+      // Already merged: unmerge and keep every covered value.
+      for (const key of rectCellKeys(covering)) delete activeSheet.cells[key];
+      const anchor = `${colToLetter(covering.startCol)}${covering.startRow + 1}`;
+      activeSheet.cells[anchor] = activeSheet.cells[anchor] ?? { raw: '', computed: '' };
+      activeSheet.mergedRanges = removeMergeRectAt(existing, covering.startCol, covering.startRow);
+    } else {
+      const result = addMergeRect(existing, rect);
+      if (result.error) {
+        validationNotice = result.error;
+        return;
+      }
+      activeSheet.mergedRanges = result.rects;
+      // A merge keeps only the anchor value, the way Excel behaves.
+      const anchor = `${colToLetter(rect.startCol)}${rect.startRow + 1}`;
+      for (const key of rectCellKeys(rect)) {
+        if (key !== anchor) delete activeSheet.cells[key];
+      }
+      activeSheet.cells[anchor] = activeSheet.cells[anchor] ?? { raw: '', computed: '' };
+    }
+
+    validationNotice = '';
     activeSheet.cells = { ...activeSheet.cells };
     workbook.meta.isDirty = true;
+    computeStats();
     dispatch('change');
+  }
+
+  export function unmergeCells() {
+    const rect = selectionRect();
+    if (!rect) return;
+    const covering = mergeRectAt(activeSheet.mergedRanges ?? [], rect.startCol, rect.startRow);
+    if (!covering) return;
+    mergeCells();
   }
 
   function applyFormatToCell(key: string, patch: Partial<CellFormatting>) {
@@ -323,16 +403,30 @@
   }
 
   export function applyBorder(style: string) {
-    const borders = ['none', 'all', 'outer', 'top', 'bottom'] as const;
-    const value = (borders as readonly string[]).includes(style) ? (style as 'all') : 'all';
-    updateActiveCellFormat({ border: value });
+    const borders: BorderStyle[] = ['none', 'all', 'outer', 'top', 'bottom', 'left', 'right'];
+    const value = borders.includes(style as BorderStyle) ? (style as BorderStyle) : 'all';
+    applyFormatToRange({ border: value });
+  }
+
+  /** Applies a format to every cell in the live selection, like Excel's format painter. */
+  function applyFormatToRange(patch: Partial<CellFormatting>) {
+    const keys = selectionRange && selectionRange.keys.length > 0 ? selectionRange.keys : [activeCell];
+    for (const key of keys) applyFormatToCell(key, patch);
   }
 
   export function openDataValidation() {
-    const existing = activeSheet.cells[activeCell]?.raw ?? '';
-    validationTarget = activeCell;
-    validationList = existing.startsWith('LIST:') ? existing.slice(5) : '';
+    const rule = activeSheet.validation;
+    validationTarget = selectionRange && selectionRange.keys.length > 1
+      ? `${selectionRange.start}:${selectionRange.end}`
+      : activeCell;
+    validationList = rule && rule.target === validationTarget ? rule.items.join(', ') : '';
     showValidationDialog = true;
+  }
+
+  function isValidated(cellKey: string): boolean {
+    const rule = activeSheet.validation;
+    if (!rule) return false;
+    return expandRange(rule.target).includes(cellKey);
   }
 
   function saveDataValidation() {
@@ -342,8 +436,19 @@
       .filter((v) => v.length > 0);
     if (items.length === 0) {
       activeSheet.validation = undefined;
+      for (const key of expandRange(validationTarget)) {
+        if (activeSheet.cells[key]?.format) {
+          activeSheet.cells[key].format = { ...activeSheet.cells[key].format, invalid: false };
+        }
+      }
     } else {
       activeSheet.validation = { target: validationTarget, items };
+      for (const key of expandRange(validationTarget)) {
+        const violation = validationViolation(items, String(activeSheet.cells[key]?.computed ?? ''));
+        if (activeSheet.cells[key]) {
+          activeSheet.cells[key].format = { ...activeSheet.cells[key].format, invalid: Boolean(violation) };
+        }
+      }
     }
     activeSheet.cells = { ...activeSheet.cells };
     showValidationDialog = false;
@@ -1205,6 +1310,17 @@
   />
 
   <!-- Grid View -->
+  {#if validationNotice}
+    <div
+      class="flex items-center gap-2 px-3 py-1.5 text-[11px] text-rose-700 bg-rose-50 border-b border-rose-200"
+      role="alert"
+    >
+      <AlertTriangle size={13} class="shrink-0" />
+      <span class="flex-1 truncate">{validationNotice}</span>
+      <button class="shrink-0 px-1.5 py-0.5 rounded hover:bg-rose-100" on:click={() => (validationNotice = '')}>Dismiss</button>
+    </div>
+  {/if}
+
   <Grid
     bind:this={gridRef}
     grid={activeSheet.cells}
@@ -1214,6 +1330,8 @@
     conditionalRules={activeSheet.conditionalRules || []}
     hiddenRows={hiddenRows}
     frozenRows={activeSheet.frozenRows || 0}
+    mergedRanges={activeSheet.mergedRanges || []}
+    on:rangeSelect={handleRangeSelect}
     on:selectCell={handleSelectCell}
     on:cellChange={handleCellChange}
     on:cellInput={(e) => (rawValue = e.detail.raw)}

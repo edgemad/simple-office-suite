@@ -9,6 +9,8 @@ import {
   sanitizeImportedSlideDeck,
   sanitizeImportedWriterDocument,
   sanitizePageSetup,
+  sanitizeImportedWorkbook,
+  sanitizeCellValue,
 } from './fileFormats';
 
 const meta: DocumentMeta = {
@@ -305,5 +307,133 @@ describe('sanitizeImportedSlideDeck', () => {
     expect(deck?.slides[0].elements[0].content).toBe('');
     expect(deck?.slides[0].elements[0].x).toBe(0);
     expect(deck?.meta.mode).toBe('slides');
+  });
+});
+
+describe('sanitizeImportedWorkbook', () => {
+  const sheet = {
+    id: 'sheet_1',
+    name: 'Budget',
+    cells: {
+      A1: { raw: 'Item', computed: 'Item', format: { bold: true, align: 'center', fontSize: 14 } },
+      A2: { raw: 'Rent', computed: 'Rent', format: { bgColor: '#fee2e2', wrap: true, border: 'all' } },
+    },
+    rowCount: 200,
+    colCount: 26,
+    frozenRows: 1,
+    validation: { target: 'C2:C50', items: ['Yes', 'No'] },
+    mergedRanges: [{ startCol: 0, startRow: 3, endCol: 2, endRow: 3 }],
+    charts: [{ id: 'c1', type: 'bar', title: 'Spend', range: 'A1:B5', valueCol: 1 }],
+    conditionalRules: [{ id: 'r1', range: 'A1:A9', condition: 'greaterThan', value: '100', bgColor: '#fecaca', textColor: '#7f1d1d' }],
+  };
+
+  it('keeps formatting, merges, validation, charts and frozen panes', () => {
+    const wb = sanitizeImportedWorkbook({ meta: { title: 'Budget' }, activeSheetId: 'sheet_1', sheets: [sheet] }, meta);
+    expect(wb).not.toBeNull();
+    const loaded = wb!.sheets[0];
+    expect(loaded.cells.A1.format).toMatchObject({ bold: true, align: 'center', fontSize: 14 });
+    expect(loaded.cells.A2.format).toMatchObject({ wrap: true, border: 'all', bgColor: '#fee2e2' });
+    expect(loaded.frozenRows).toBe(1);
+    expect(loaded.mergedRanges).toEqual([{ startCol: 0, startRow: 3, endCol: 2, endRow: 3 }]);
+    expect(loaded.validation).toEqual({ target: 'C2:C50', items: ['Yes', 'No'], allowBlank: true });
+    expect(loaded.charts).toHaveLength(1);
+    expect(loaded.conditionalRules).toHaveLength(1);
+  });
+
+  it('rejects a payload that is not a workbook', () => {
+    expect(sanitizeImportedWorkbook(null, meta)).toBeNull();
+    expect(sanitizeImportedWorkbook({ sheets: [] }, meta)).toBeNull();
+    expect(sanitizeImportedWorkbook({ sheets: 'nope' }, meta)).toBeNull();
+  });
+
+  it('drops cells outside the declared sheet bounds', () => {
+    const wb = sanitizeImportedWorkbook(
+      { sheets: [{ ...sheet, rowCount: 3, colCount: 2, cells: { A1: { raw: 'ok', computed: 'ok' }, Z9: { raw: 'out', computed: 'out' } } }] },
+      meta,
+    );
+    expect(Object.keys(wb!.sheets[0].cells)).toEqual(['A1']);
+  });
+
+  it('ignores malformed keys, colors, ranges and rules', () => {
+    const wb = sanitizeImportedWorkbook(
+      {
+        sheets: [
+          {
+            ...sheet,
+            name: '   ',
+            cells: {
+              A1: { raw: 'x', computed: 'x', format: { bgColor: 'url(javascript:alert(1))', border: 'evil' } },
+              '<script>': { raw: 'bad', computed: 'bad' },
+            },
+            mergedRanges: [{ startCol: 999, startRow: 0, endCol: 1000, endRow: 0 }],
+            validation: { target: 'not a range', items: ['a'] },
+            charts: [{ type: 'bar', range: 'DROP TABLE', valueCol: 1 }],
+            conditionalRules: [{ range: 'A1', condition: 'execute' }],
+          },
+        ],
+      },
+      meta,
+    );
+    const loaded = wb!.sheets[0];
+    expect(loaded.name).toBe('Sheet1');
+    expect(loaded.cells.A1.format).toBeUndefined();
+    expect(loaded.cells['<script>']).toBeUndefined();
+    expect(loaded.mergedRanges).toBeUndefined();
+    expect(loaded.validation).toBeUndefined();
+    expect(loaded.charts).toBeUndefined();
+    expect(loaded.conditionalRules).toBeUndefined();
+  });
+
+  it('caps oversized geometry instead of allocating it', () => {
+    const wb = sanitizeImportedWorkbook({ sheets: [{ ...sheet, rowCount: 1e9, colCount: 5000 }] }, meta);
+    expect(wb!.sheets[0].rowCount).toBeLessThanOrEqual(20000);
+    expect(wb!.sheets[0].colCount).toBeLessThanOrEqual(256);
+  });
+});
+
+describe('sanitizeCellValue', () => {
+  it('coerces missing fields into a usable cell', () => {
+    expect(sanitizeCellValue(null)).toEqual({ raw: '', computed: '' });
+  });
+
+  it('clamps an absurd font size', () => {
+    expect(sanitizeCellValue({ raw: 'a', computed: 'a', format: { fontSize: 900 } }).format?.fontSize).toBe(96);
+  });
+
+  it('rejects a javascript url passed as a color', () => {
+    expect(sanitizeCellValue({ raw: 'a', computed: 'a', format: { textColor: 'javascript:alert(1)' } }).format).toBeUndefined();
+  });
+});
+
+describe('xlsx layout export', () => {
+  it('writes merged regions and a frozen pane', () => {
+    const xml = exportToXlsx({
+      meta: { id: 'wb', title: 'Budget', isDirty: false, mode: 'sheets' },
+      activeSheetId: 'sheet_1',
+      sheets: [
+        {
+          id: 'sheet_1',
+          name: 'Budget',
+          cells: { A1: { raw: 'Total', computed: 'Total' } },
+          rowCount: 20,
+          colCount: 6,
+          frozenRows: 1,
+          mergedRanges: [{ startCol: 0, startRow: 0, endCol: 2, endRow: 0 }],
+        },
+      ],
+    });
+    expect(xml).toContain('<MergeCell ss:Ref="A1:C1"/>');
+    expect(xml).toContain('<FreezePanes/>');
+    expect(xml).toContain('<TopRowBottomPane>1</TopRowBottomPane>');
+  });
+
+  it('omits layout elements when there is nothing to describe', () => {
+    const xml = exportToXlsx({
+      meta: { id: 'wb', title: 'Plain', isDirty: false, mode: 'sheets' },
+      activeSheetId: 'sheet_1',
+      sheets: [{ id: 'sheet_1', name: 'Plain', cells: {}, rowCount: 5, colCount: 5 }],
+    });
+    expect(xml).not.toContain('MergeCells');
+    expect(xml).not.toContain('FreezePanes');
   });
 });

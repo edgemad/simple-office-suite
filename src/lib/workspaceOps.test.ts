@@ -11,6 +11,16 @@ import {
   shiftCellsDown,
   isBlankValue,
   FONT_SIZE_LEVELS,
+  normalizeRect,
+  mergeAnchorSpan,
+  isCoveredByMerge,
+  addMergeRect,
+  removeMergeRectAt,
+  rangeTextToRect,
+  rectToRangeText,
+  rectCellKeys,
+  validationViolation,
+  borderCss,
 } from './spreadsheetOps';
 import { alignElementBox, normalizeTransition } from './slideLayout';
 import type { SheetGrid } from '../types';
@@ -157,5 +167,104 @@ describe('slide transitions', () => {
     expect(normalizeTransition('fade')).toBe('fade');
     expect(normalizeTransition('zoom')).toBe('zoom');
     expect(normalizeTransition('explode')).toBe('none');
+  });
+});
+
+describe('merged cells', () => {
+  const rect = (a: number, b: number, c: number, d: number) => ({
+    startCol: a,
+    startRow: b,
+    endCol: c,
+    endRow: d,
+  });
+
+  it('normalizes two rects into their bounding box', () => {
+    expect(normalizeRect(rect(1, 1, 1, 1), rect(3, 4, 5, 6))).toEqual(rect(1, 1, 5, 6));
+  });
+
+  it('computes the anchor span only at the top-left cell', () => {
+    const rects = [rect(0, 0, 2, 1)];
+    expect(mergeAnchorSpan(rects, 0, 0)).toEqual({ rowspan: 2, colspan: 3 });
+    expect(mergeAnchorSpan(rects, 1, 0)).toBeNull();
+  });
+
+  it('hides covered cells so the merge renders as one block', () => {
+    const rects = [rect(1, 1, 2, 2)];
+    expect(isCoveredByMerge(rects, 1, 1)).toBe(false);
+    expect(isCoveredByMerge(rects, 2, 1)).toBe(true);
+    expect(isCoveredByMerge(rects, 1, 2)).toBe(true);
+    expect(isCoveredByMerge(rects, 3, 1)).toBe(false);
+  });
+
+  it('refuses overlapping merges the way a spreadsheet does', () => {
+    const first = addMergeRect([], rect(0, 0, 1, 1));
+    expect(first.error).toBeNull();
+    const second = addMergeRect(first.rects, rect(1, 1, 2, 2));
+    expect(second.error).toMatch(/already part of a merge/);
+    expect(second.rects).toHaveLength(1);
+  });
+
+  it('refuses merges that would lock a huge region', () => {
+    const result = addMergeRect([], rect(0, 0, 200, 200));
+    expect(result.error).toMatch(/smaller range/);
+    expect(result.rects).toHaveLength(0);
+  });
+
+  it('removes the merge covering a cell', () => {
+    const rects = [rect(0, 0, 1, 1), rect(4, 4, 5, 5)];
+    expect(removeMergeRectAt(rects, 0, 0)).toHaveLength(1);
+    expect(removeMergeRectAt(rects, 9, 9)).toHaveLength(2);
+  });
+
+  it('round-trips range text', () => {
+    expect(rangeTextToRect('A1:C3')).toEqual(rect(0, 0, 2, 2));
+    expect(rangeTextToRect('b2')).toEqual(rect(1, 1, 1, 1));
+    expect(rangeTextToRect('C1:A3')).toEqual(rect(0, 0, 2, 2));
+    expect(rangeTextToRect('nope')).toBeNull();
+    expect(rectToRangeText(rect(0, 0, 2, 2))).toBe('A1:C3');
+    expect(rectToRangeText(rect(1, 1, 1, 1))).toBe('B2');
+  });
+
+  it('lists covered cell keys anchor first', () => {
+    expect(rectCellKeys(rect(0, 0, 1, 1))).toEqual(['A1', 'B1', 'A2', 'B2']);
+  });
+});
+
+describe('data validation', () => {
+  it('accepts a listed value', () => {
+    expect(validationViolation(['Yes', 'No'], 'Yes')).toBeNull();
+  });
+
+  it('rejects a value outside the list with a helpful message', () => {
+    expect(validationViolation(['Yes', 'No'], 'Maybe')).toMatch(/Value must be one of: Yes, No/);
+  });
+
+  it('treats a blank as allowed unless the rule requires a value', () => {
+    expect(validationViolation(['Yes'], '')).toBeNull();
+    expect(validationViolation(['Yes'], '', false)).toMatch(/required/);
+  });
+
+  it('ignores an empty rule so plain cells are never flagged', () => {
+    expect(validationViolation([], 'anything')).toBeNull();
+  });
+
+  it('ignores surrounding whitespace when matching', () => {
+    expect(validationViolation(['Yes', 'No'], '  No  ')).toBeNull();
+  });
+});
+
+describe('borders', () => {
+  it('produces no border for none or an unset value', () => {
+    expect(borderCss(undefined)).toBe('');
+    expect(borderCss('none')).toBe('');
+  });
+
+  it('emits every side for an all-around border', () => {
+    expect(borderCss('all')).toBe('border: 1px solid #94a3b8;');
+  });
+
+  it('emits only the requested side', () => {
+    expect(borderCss('top')).toBe('border-top: 1px solid #94a3b8;');
+    expect(borderCss('left')).toBe('border-left: 1px solid #94a3b8;');
   });
 });

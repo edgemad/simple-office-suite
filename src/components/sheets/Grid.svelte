@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { createEventDispatcher, tick } from 'svelte';
+  import { createEventDispatcher, tick, onMount } from 'svelte';
   import { colToLetter, parseCoord, expandRange } from './formulaEngine';
   import FormulaSuggestions from './FormulaSuggestions.svelte';
   import { getSmartFormulaSuggestion, type FormulaDefinition } from './formulaDefinitions';
-  import type { SheetGrid, CellFormatting, ConditionalFormatRule } from '../../types';
+  import type { SheetGrid, CellFormatting, ConditionalFormatRule, CellRect } from '../../types';
+  import { mergeAnchorSpan, isCoveredByMerge, borderCss, type BorderStyle } from '$lib/spreadsheetOps';
 
   export let grid: SheetGrid;
   export let rowCount: number = 50;
@@ -12,6 +13,7 @@
   export let conditionalRules: ConditionalFormatRule[] = [];
   export let hiddenRows: number[] = [];
   export let frozenRows: number = 0;
+  export let mergedRanges: CellRect[] = [];
 
   function isCellInRange(cellKey: string, rangeStr: string): boolean {
     if (!rangeStr) return false;
@@ -57,8 +59,10 @@
     selectCell: { key: string; raw: string; computed: string | number };
     cellChange: { key: string; raw: string };
     cellInput: { key: string; raw: string };
+    rangeSelect: { start: string; end: string; keys: string[] };
   }>();
 
+  let mounted = false;
   let editingCell: string | null = null;
   let editInputVal: string = '';
   let editInputRef: HTMLInputElement | null = null;
@@ -93,6 +97,19 @@
     const range = formatRange(pointingState.startCell, pointingState.currentCell);
     return expandRange(range);
   })();
+
+  onMount(() => {
+    mounted = true;
+  });
+
+  $: if (mounted) {
+    emitRange(pointingState.active && pointingState.startCell ? pointingState.startCell : activeCell, activeCell);
+  }
+
+  function emitRange(startKey: string, endKey: string) {
+    const keys = startKey === endKey ? [startKey] : expandRange(formatRange(startKey, endKey));
+    dispatch('rangeSelect', { start: startKey, end: endKey, keys });
+  }
 
   function getCellKey(col: number, row: number): string {
     return `${colToLetter(col)}${row + 1}`;
@@ -531,13 +548,18 @@
             {@const isPointHead = pointingState.active && (pointingState.currentCell === key || pointingState.startCell === key)}
             {@const fmt = cell?.format}
             {@const condStyle = getConditionalStyle(key, cell?.computed)}
-
+            {@const span = mergeAnchorSpan(mergedRanges, colIdx, rowIdx)}
+            {@const covered = isCoveredByMerge(mergedRanges, colIdx, rowIdx)}
+            {#if !covered}
             <td
               data-cell={key}
-              class="w-28 h-7 border-b border-r border-slate-200 px-2 py-1 text-slate-800 text-[11px] truncate relative cursor-cell transition-all
+              rowspan={span?.rowspan ?? 1}
+              colspan={span?.colspan ?? 1}
+              class="w-28 min-h-[28px] border-b border-r border-slate-200 px-2 py-1 text-slate-800 text-[11px] {fmt?.wrap ? '' : 'truncate'} relative cursor-cell transition-all align-top
                 {isSelected && !isEditing ? 'ring-2 ring-emerald-500 ring-inset z-10' : ''}
                 {isPointed ? 'ring-2 ring-blue-500 ring-offset-0 bg-blue-100/40 z-20 font-semibold text-blue-950' : ''}
-                {isPointHead ? 'ring-2 ring-blue-600 bg-blue-200/50' : ''}"
+                {isPointHead ? 'ring-2 ring-blue-600 bg-blue-200/50' : ''}
+                {fmt?.invalid ? 'ring-2 ring-rose-500 ring-inset' : ''}"
               style="
                 background-color: {isPointed ? 'rgba(219, 234, 254, 0.45)' : (condStyle?.bgColor || fmt?.bgColor || (isSelected && !isEditing ? '#ecfdf5' : '#ffffff'))};
                 color: {condStyle?.textColor || fmt?.textColor || '#1e293b'};
@@ -547,6 +569,8 @@
                 font-style: {fmt?.italic ? 'italic' : 'normal'};
                 text-decoration: {fmt?.underline ? 'underline' : 'none'};
                 text-align: {fmt?.align || 'left'};
+                white-space: {fmt?.wrap ? 'pre-wrap' : 'nowrap'};
+                {borderCss(fmt?.border as BorderStyle | undefined)}
               "
               on:mousedown={(e) => handleCellMouseDown(e, key)}
               on:mouseenter={() => handleCellMouseEnter(key)}
@@ -588,6 +612,7 @@
                 </div>
               {/if}
             </td>
+            {/if}
           {/each}
         </tr>
         {/if}

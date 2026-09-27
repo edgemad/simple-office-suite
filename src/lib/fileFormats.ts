@@ -6,8 +6,16 @@ import type {
   Slide,
   SlideElement,
   DocumentPageSetup,
+  CellFormatting,
+  CellRect,
+  CellValue,
+  SheetChart,
+  SheetGrid,
+  SheetTab,
+  SheetValidation,
+  ConditionalFormatRule,
 } from '../types';
-import { colToLetter, recalculateGrid } from '../components/sheets/formulaEngine';
+import { colToLetter, recalculateGrid, parseCoord } from '../components/sheets/formulaEngine';
 import { escapeHtml, extractHtmlBody, sanitizeHtml } from './sanitize';
 
 /**
@@ -281,6 +289,15 @@ export function exportToXlsx(workbook: SpreadsheetWorkbook): string {
     }
   }
 
+  // Merged regions and frozen panes, so the layout survives a trip through Excel.
+  const mergedXml = (activeSheet.mergedRanges ?? [])
+    .map((r) => `    <MergeCell ss:Ref="${colToLetter(r.startCol)}${r.startRow + 1}:${colToLetter(r.endCol)}${r.endRow + 1}"/>`)
+    .join('\n');
+  const frozenRows = activeSheet.frozenRows ?? 0;
+  const frozenXml = frozenRows > 0
+    ? `   <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">\n    <FreezePanes/><FrozenNoSplit/><SplitHorizontal>${frozenRows * 15}</SplitHorizontal><TopRowBottomPane>${frozenRows}</TopRowBottomPane><ActivePane>2</ActivePane>\n   </WorksheetOptions>\n`
+    : '';
+
   return `<?xml version="1.0"?>
 <?mso-application progid="Excel.Sheet"?>
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
@@ -298,8 +315,190 @@ export function exportToXlsx(workbook: SpreadsheetWorkbook): string {
    <Table ss:ExpandedColumnCount="${Number(activeSheet.colCount) || 0}" ss:ExpandedRowCount="${Number(activeSheet.rowCount) || 0}" x:FullColumns="1" x:FullRows="1" ss:DefaultRowHeight="15">
 ${xmlRows}
    </Table>
-  </Worksheet>
+${frozenXml}${mergedXml ? `   <MergeCells>\n${mergedXml}\n   </MergeCells>\n` : ''}  </Worksheet>
 </Workbook>`;
+}
+
+const CELL_FORMATS = new Set(['general', 'number', 'currency', 'percent', 'date']);
+const BORDERS = new Set(['none', 'all', 'outer', 'top', 'bottom', 'left', 'right']);
+const ALIGNS = new Set(['left', 'center', 'right']);
+const CONDITION_OPS = new Set(['greaterThan', 'lessThan', 'equals', 'contains', 'notEmpty']);
+const CHART_TYPES = new Set(['bar', 'line', 'pie', 'doughnut']);
+
+function clampInt(value: unknown, min: number, max: number, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+function clampColor(value: unknown): string | undefined {
+  return typeof value === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(value) ? value : undefined;
+}
+
+function sanitizeCellFormat(value: unknown): CellFormatting | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const f = value as Record<string, unknown>;
+  const out: CellFormatting = {};
+  if (typeof f.fontFamily === 'string' && f.fontFamily.length <= 60) out.fontFamily = f.fontFamily;
+  if (typeof f.fontSize === 'number') out.fontSize = clampInt(f.fontSize, 6, 96, 11);
+  if (typeof f.bold === 'boolean') out.bold = f.bold;
+  if (typeof f.italic === 'boolean') out.italic = f.italic;
+  if (typeof f.underline === 'boolean') out.underline = f.underline;
+  if (ALIGNS.has(f.align as string)) out.align = f.align as CellFormatting['align'];
+  out.textColor = clampColor(f.textColor);
+  out.bgColor = clampColor(f.bgColor);
+  if (out.textColor === undefined) delete out.textColor;
+  if (out.bgColor === undefined) delete out.bgColor;
+  if (CELL_FORMATS.has(f.format as string)) out.format = f.format as CellFormatting['format'];
+  if (typeof f.wrap === 'boolean') out.wrap = f.wrap;
+  if (BORDERS.has(f.border as string)) out.border = f.border as CellFormatting['border'];
+  if (typeof f.invalid === 'boolean') out.invalid = f.invalid;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** Validates one cell so a hand-edited file cannot inject odd state into the grid. */
+export function sanitizeCellValue(value: unknown): CellValue {
+  const c = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  const computed = typeof c.computed === 'number' || typeof c.computed === 'string' ? c.computed : '';
+  const cell: CellValue = { raw: typeof c.raw === 'string' ? c.raw.slice(0, 20000) : String(computed), computed };
+  const format = sanitizeCellFormat(c.format);
+  if (format) cell.format = format;
+  return cell;
+}
+
+/**
+ * Validates a rect read from a file. Out-of-bounds or inverted coordinates are
+ * rejected rather than clamped, because clamping would silently retarget the
+ * merge onto cells the file never described.
+ */
+function sanitizeRect(value: unknown, colCount: number, rowCount: number): CellRect | null {
+  if (!value || typeof value !== 'object') return null;
+  const r = value as Record<string, unknown>;
+  const nums = [r.startCol, r.startRow, r.endCol, r.endRow];
+  if (!nums.every((n) => typeof n === 'number' && Number.isFinite(n))) return null;
+  const { startCol, startRow, endCol, endRow } = r as unknown as Record<'startCol' | 'startRow' | 'endCol' | 'endRow', number>;
+  if (startCol < 0 || startRow < 0 || endCol < startCol || endRow < startRow) return null;
+  if (endCol >= colCount || endRow >= rowCount) return null;
+  if ((endCol - startCol + 1) * (endRow - startRow + 1) > 4000) return null;
+  return { startCol, startRow, endCol, endRow };
+}
+
+function sanitizeValidation(value: unknown): SheetValidation | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const v = value as Record<string, unknown>;
+  if (typeof v.target !== 'string' || typeof v.items !== 'string') {
+    if (typeof v.target !== 'string' || !Array.isArray(v.items)) return undefined;
+  }
+  const items = (Array.isArray(v.items) ? v.items : String(v.items).split(','))
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim().slice(0, 80))
+    .filter((item) => item.length > 0)
+    .slice(0, 200);
+  const target = String(v.target).slice(0, 40);
+  if (items.length === 0 || !/^[A-Za-z]+\d+(:[A-Za-z]+\d+)?$/.test(target)) return undefined;
+  return { target, items, allowBlank: v.allowBlank !== false };
+}
+
+function sanitizeCharts(value: unknown, colCount: number): SheetChart[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const charts = value.slice(0, 50).flatMap((raw) => {
+    if (!raw || typeof raw !== 'object') return [];
+    const c = raw as Record<string, unknown>;
+    if (!CHART_TYPES.has(c.type as string)) return [];
+    if (typeof c.range !== 'string' || !/^\$?[A-Za-z]+\$?\d+(:\$?[A-Za-z]+\$?\d+)?$/.test(c.range)) return [];
+    return [{
+      id: typeof c.id === 'string' ? c.id.slice(0, 40) : `chart_${Math.random().toString(36).slice(2, 9)}`,
+      type: c.type as SheetChart['type'],
+      title: typeof c.title === 'string' ? c.title.slice(0, 120) : 'Chart',
+      range: c.range,
+      valueCol: clampInt(c.valueCol, 0, colCount - 1, 1),
+      labelCol: typeof c.labelCol === 'number' ? clampInt(c.labelCol, 0, colCount - 1, 0) : undefined,
+      x: clampInt(c.x, 0, 100, 55),
+      y: clampInt(c.y, 0, 100, 15),
+    }];
+  });
+  return charts.length > 0 ? charts : undefined;
+}
+
+function sanitizeConditionalRules(value: unknown): ConditionalFormatRule[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const rules = value.slice(0, 100).flatMap((raw) => {
+    if (!raw || typeof raw !== 'object') return [];
+    const r = raw as Record<string, unknown>;
+    if (typeof r.range !== 'string' || !/^\$?[A-Za-z]+\$?\d+(:\$?[A-Za-z]+\$?\d+)?$/.test(r.range)) return [];
+    if (!CONDITION_OPS.has(r.condition as string)) return [];
+    return [{
+      id: typeof r.id === 'string' ? r.id.slice(0, 40) : `rule_${Math.random().toString(36).slice(2, 9)}`,
+      range: r.range,
+      condition: r.condition as ConditionalFormatRule['condition'],
+      value: typeof r.value === 'string' ? r.value.slice(0, 80) : '',
+      bgColor: clampColor(r.bgColor) ?? '#fef3c7',
+      textColor: clampColor(r.textColor) ?? '#78350f',
+    }];
+  });
+  return rules.length > 0 ? rules : undefined;
+}
+
+/**
+ * Rebuilds a workbook from untrusted json, keeping formatting, merges,
+ * validation, charts, conditional rules and frozen panes instead of
+ * silently reducing the file to a bare cell grid.
+ */
+export function sanitizeImportedWorkbook(parsed: unknown, fallbackMeta: DocumentMeta): SpreadsheetWorkbook | null {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const source = parsed as Record<string, unknown>;
+  if (!Array.isArray(source.sheets) || source.sheets.length === 0) return null;
+
+  const sheets: SheetTab[] = source.sheets.slice(0, 20).flatMap((rawSheet, index) => {
+    if (!rawSheet || typeof rawSheet !== 'object') return [];
+    const s = rawSheet as Record<string, unknown>;
+    const rowCount = clampInt(s.rowCount, 1, 20000, 50);
+    const colCount = clampInt(s.colCount, 1, 256, 26);
+    const rawCells = (s.cells && typeof s.cells === 'object' ? s.cells : {}) as Record<string, unknown>;
+    const cells: SheetGrid = {};
+    for (const [key, value] of Object.entries(rawCells).slice(0, 200000)) {
+      if (!/^[A-Za-z]{1,3}\d{1,7}$/.test(key)) continue;
+      const coord = parseCoord(key);
+      if (!coord || coord.col >= colCount || coord.row >= rowCount) continue;
+      cells[key] = sanitizeCellValue(value);
+    }
+    const sheet: SheetTab = {
+      id: typeof s.id === 'string' ? s.id.slice(0, 40) : `sheet_${index + 1}`,
+      name: typeof s.name === 'string' && s.name.trim() ? s.name.slice(0, 40) : `Sheet${index + 1}`,
+      cells,
+      rowCount,
+      colCount,
+    };
+    if (typeof s.frozenRows === 'number') sheet.frozenRows = clampInt(s.frozenRows, 0, rowCount - 1, 0);
+    if (typeof s.frozenCols === 'number') sheet.frozenCols = clampInt(s.frozenCols, 0, colCount - 1, 0);
+    const validation = sanitizeValidation(s.validation);
+    if (validation) sheet.validation = validation;
+    const merged = Array.isArray(s.mergedRanges)
+      ? s.mergedRanges.map((r) => sanitizeRect(r, colCount, rowCount)).filter((r): r is CellRect => r !== null)
+      : [];
+    if (merged.length > 0) sheet.mergedRanges = merged;
+    const charts = sanitizeCharts(s.charts, colCount);
+    if (charts) sheet.charts = charts;
+    const rules = sanitizeConditionalRules(s.conditionalRules);
+    if (rules) sheet.conditionalRules = rules;
+    return [sheet];
+  });
+
+  if (sheets.length === 0) return null;
+  const meta = (source.meta && typeof source.meta === 'object' ? source.meta : {}) as Record<string, unknown>;
+  const activeId = sheets.find((sh) => sh.id === source.activeSheetId)?.id ?? sheets[0].id;
+  return {
+    meta: {
+      ...fallbackMeta,
+      id: sheets[0].id,
+      title: typeof meta.title === 'string' && meta.title ? meta.title.slice(0, 120) : fallbackMeta.title,
+      filePath: typeof meta.filePath === 'string' ? meta.filePath : fallbackMeta.filePath,
+      lastSaved: typeof meta.lastSaved === 'string' ? meta.lastSaved : new Date().toISOString(),
+      isDirty: false,
+      mode: 'sheets',
+    },
+    activeSheetId: activeId,
+    sheets,
+  };
 }
 
 export function parseSpreadsheetContent(raw: string, filename: string): Record<string, any> {
