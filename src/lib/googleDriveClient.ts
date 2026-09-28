@@ -322,18 +322,20 @@ export async function uploadToDrive(
 }
 
 /**
- * Download file content from Google Drive
+ * Download file content from Google Drive.
+ *
+ * Returns base64 rather than text: the export target is normally Office Open
+ * XML, which is a zip archive. Decoding that as text corrupts it, so the
+ * binary is carried through and re-encoded once, here.
  */
-export async function downloadDriveFile(
+export async function downloadDriveFileBase64(
   accessToken: string,
   fileId: string,
   exportMimeType?: string
 ): Promise<string> {
-  let url = `${DRIVE_API_BASE}/files/${fileId}?alt=media`;
-
-  if (exportMimeType) {
-    url = `${DRIVE_API_BASE}/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`;
-  }
+  const url = exportMimeType
+    ? `${DRIVE_API_BASE}/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`
+    : `${DRIVE_API_BASE}/files/${fileId}?alt=media`;
 
   const response = await fetch(url, {
     headers: {
@@ -343,10 +345,52 @@ export async function downloadDriveFile(
 
   if (!response.ok) {
     const err = await response.text();
+    // 403 here is usually a scope problem, not a missing file, and the raw
+    // body says so while the status code does not.
+    if (response.status === 403) {
+      throw new Error(
+        `Google Drive refused the download (403). The account may be missing the ` +
+          `drive.readonly or drive.file scope. Details: ${err.slice(0, 300)}`
+      );
+    }
     throw new Error(`Failed to download file from Google Drive (${response.status}): ${err}`);
   }
 
-  return await response.text();
+  const buffer = await response.arrayBuffer();
+  return bytesToBase64(new Uint8Array(buffer));
+}
+
+/** Text-only variant, for markdown/plain/CSV targets. */
+export async function downloadDriveFile(
+  accessToken: string,
+  fileId: string,
+  exportMimeType?: string
+): Promise<string> {
+  return base64ToBytes(await downloadDriveFileBase64(accessToken, fileId, exportMimeType));
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(base64: string): string {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+/** Base64 payload for uploading, so binary content survives the round trip. */
+export function base64ToUploadBody(base64: string): ArrayBuffer {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
 }
 
 /**

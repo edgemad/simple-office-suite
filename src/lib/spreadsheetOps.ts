@@ -1,5 +1,7 @@
 import type { CellRect, CellValue, SheetGrid } from '../types';
 
+export type { CellRect };
+
 /** Excel-style 1-based column letter for a 0-based column index. */
 export function colLetter(colIndex: number): string {
   let n = colIndex;

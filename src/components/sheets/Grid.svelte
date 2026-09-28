@@ -4,7 +4,16 @@
   import FormulaSuggestions from './FormulaSuggestions.svelte';
   import { getSmartFormulaSuggestion, type FormulaDefinition } from './formulaDefinitions';
   import type { SheetGrid, CellFormatting, ConditionalFormatRule, CellRect } from '../../types';
-  import { mergeAnchorSpan, isCoveredByMerge, borderCss, type BorderStyle } from '$lib/spreadsheetOps';
+  import { borderCss, type BorderStyle } from '$lib/spreadsheetOps';
+  import { getCellKey } from '$lib/cellKey';
+  import {
+    buildMergeIndex,
+    buildRuleIndexByRow,
+    hiddenRowSet,
+    rulesForCell,
+    styleForCell,
+    type ConditionalRule,
+  } from '$lib/gridIndex';
 
   export let grid: SheetGrid;
   export let rowCount: number = 50;
@@ -15,45 +24,6 @@
   export let frozenRows: number = 0;
   export let mergedRanges: CellRect[] = [];
 
-  function isCellInRange(cellKey: string, rangeStr: string): boolean {
-    if (!rangeStr) return false;
-    if (!rangeStr.includes(':')) return cellKey.toUpperCase() === rangeStr.trim().toUpperCase();
-    try {
-      const keys = expandRange(rangeStr.trim().toUpperCase());
-      return keys.includes(cellKey);
-    } catch {
-      return false;
-    }
-  }
-
-  function getConditionalStyle(key: string, cellVal: string | number | undefined): { bgColor?: string; textColor?: string } | null {
-    if (!conditionalRules || conditionalRules.length === 0 || cellVal === undefined || cellVal === null || cellVal === '') return null;
-    const strVal = String(cellVal).trim();
-    const numVal = typeof cellVal === 'number' ? cellVal : parseFloat(strVal.replace(/[$,%]/g, ''));
-
-    for (const rule of conditionalRules) {
-      if (isCellInRange(key, rule.range)) {
-        let match = false;
-        const ruleNum = parseFloat(rule.value);
-        if (rule.condition === 'greaterThan' && !isNaN(numVal) && !isNaN(ruleNum)) {
-          match = numVal > ruleNum;
-        } else if (rule.condition === 'lessThan' && !isNaN(numVal) && !isNaN(ruleNum)) {
-          match = numVal < ruleNum;
-        } else if (rule.condition === 'equals') {
-          match = strVal.toLowerCase() === rule.value.toLowerCase() || (!isNaN(numVal) && !isNaN(ruleNum) && numVal === ruleNum);
-        } else if (rule.condition === 'contains') {
-          match = strVal.toLowerCase().includes(rule.value.toLowerCase());
-        } else if (rule.condition === 'notEmpty') {
-          match = strVal.length > 0;
-        }
-
-        if (match) {
-          return { bgColor: rule.bgColor, textColor: rule.textColor };
-        }
-      }
-    }
-    return null;
-  }
 
   const dispatch = createEventDispatcher<{
     selectCell: { key: string; raw: string; computed: string | number };
@@ -90,13 +60,18 @@
 
   $: smartSuggestion = editingCell ? getSmartFormulaSuggestion(editingCell, grid) : null;
 
-  $: pointedCellKeys = (() => {
-    if (!pointingState.active || !pointingState.startCell || !pointingState.currentCell) {
-      return [];
-    }
-    const range = formatRange(pointingState.startCell, pointingState.currentCell);
-    return expandRange(range);
-  })();
+  // The render loop runs for every cell, so anything it needs is precomputed
+  // into a Set/Map here rather than scanned linearly per cell.
+  $: pointedSet = new Set(
+    pointingState.active && pointingState.startCell && pointingState.currentCell
+      ? expandRange(formatRange(pointingState.startCell, pointingState.currentCell))
+      : []
+  );
+  $: mergeIndex = buildMergeIndex(mergedRanges);
+  $: hiddenSet = hiddenRowSet(hiddenRows);
+  // Rebuilt only when the rules change — not on every keystroke, since the
+  // rule-to-row mapping does not depend on cell values.
+  $: ruleIndex = buildRuleIndexByRow((conditionalRules ?? []) as ConditionalRule[]);
 
   onMount(() => {
     mounted = true;
@@ -111,9 +86,6 @@
     dispatch('rangeSelect', { start: startKey, end: endKey, keys });
   }
 
-  function getCellKey(col: number, row: number): string {
-    return `${colToLetter(col)}${row + 1}`;
-  }
 
   function isExpectingReference(val: string, caretPos?: number): boolean {
     if (!val.trim().startsWith('=')) return false;
@@ -531,7 +503,7 @@
     <!-- Data Rows -->
     <tbody>
       {#each Array(rowCount) as _, rowIdx}
-        {#if !hiddenRows.includes(rowIdx)}
+        {#if !hiddenSet.has(rowIdx)}
         <tr class="hover:bg-slate-50/50 {rowIdx < frozenRows ? 'sticky top-6 z-10 bg-white' : ''}">
           <!-- Row Number (Sticky Column) -->
           <td class="w-12 h-7 border-b border-r border-slate-300 bg-slate-100 sticky left-0 z-10 text-center font-mono text-slate-500 font-medium text-[11px]">
@@ -544,12 +516,13 @@
             {@const cell = grid[key]}
             {@const isSelected = activeCell === key}
             {@const isEditing = editingCell === key}
-            {@const isPointed = pointedCellKeys.includes(key)}
+            {@const isPointed = pointedSet.has(key)}
             {@const isPointHead = pointingState.active && (pointingState.currentCell === key || pointingState.startCell === key)}
             {@const fmt = cell?.format}
-            {@const condStyle = getConditionalStyle(key, cell?.computed)}
-            {@const span = mergeAnchorSpan(mergedRanges, colIdx, rowIdx)}
-            {@const covered = isCoveredByMerge(mergedRanges, colIdx, rowIdx)}
+            {@const condStyle = styleForCell(rulesForCell(ruleIndex, colIdx, rowIdx), cell?.computed)}
+            {@const mergeEntry = mergeIndex.get(key)}
+            {@const covered = mergeIndex.has(key) && mergeEntry === null}
+            {@const span = mergeEntry ?? null}
             {#if !covered}
             <td
               data-cell={key}
