@@ -11,7 +11,11 @@
   import type { AppSettings, CloudStorageAccount } from './types';
   import { loadSettings, DEFAULT_SETTINGS } from './lib/settings';
   import { applyTheme } from './lib/theme';
-  import { buildDocx, buildXlsx, buildPptx, writeBinaryFileNative, DOCX_MIME, XLSX_MIME, PPTX_MIME } from './lib/ooxmlExport';
+  import {
+    buildDocx, buildXlsx, buildPptx, buildOdt, buildOds, buildOdp,
+    writeBinaryFileNative,
+    DOCX_MIME, XLSX_MIME, PPTX_MIME,
+  } from './lib/ooxmlExport';
   import Writer from './components/writer/Writer.svelte';
   import Sheets from './components/sheets/Sheets.svelte';
   import Slides from './components/slides/Slides.svelte';
@@ -488,9 +492,10 @@
     const filters = [
       {
         name: 'All Supported Formats (*.docx, *.xlsx, *.pptx, *.csv, *.md, *.txt, *.json)',
-        extensions: ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'csv', 'tsv', 'md', 'txt', 'html', 'rtf', 'json', 'sosw', 'soss', 'sosp'],
+        extensions: ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'odt', 'ods', 'odp', 'csv', 'tsv', 'md', 'txt', 'html', 'rtf', 'json', 'sosw', 'soss', 'sosp'],
       },
       { name: 'Word Documents (*.docx, *.doc, *.rtf, *.odt)', extensions: ['docx', 'doc', 'rtf', 'odt', 'txt', 'md'] },
+      { name: 'OpenDocument (*.odt, *.ods, *.odp)', extensions: ['odt', 'ods', 'odp'] },
       { name: 'Excel Spreadsheets (*.xlsx, *.xls, *.csv, *.tsv)', extensions: ['xlsx', 'xls', 'csv', 'tsv'] },
       { name: 'PowerPoint Presentations (*.pptx, *.odp)', extensions: ['pptx', 'odp'] },
       { name: 'All Files (*)', extensions: ['*'] },
@@ -600,6 +605,40 @@
     }
   }
 
+  /**
+   * Save As in OpenDocument. Kept separate from the Office path because the
+   * target format is a different package, not a different flavour of the
+   * same one - and LibreOffice users want the ODF variant, not docx.
+   */
+  async function handleSaveAsOpenDocument() {
+    const isSheets = activeMode === 'sheets';
+    const isSlides = activeMode === 'slides';
+    const extension = isSheets ? 'ods' : isSlides ? 'odp' : 'odt';
+    const base = currentMeta.title.replace(/\s+/g, '_').toLowerCase() || 'document';
+    const chosenPath = await saveFileDialogNative(
+      'Save As OpenDocument',
+      `${base}.${extension}`,
+      [{ name: `OpenDocument (${extension})`, extensions: [extension] }]
+    );
+    if (!chosenPath) return;
+
+    const bytes = isSheets
+      ? await buildOds(sheetsWorkbook)
+      : isSlides
+        ? await buildOdp(slidesDeck)
+        : await buildOdt(writerDoc);
+
+    try {
+      await writeBinaryFileNative(chosenPath, bytes);
+      currentMeta.filePath = chosenPath;
+      currentMeta.isDirty = false;
+      currentMeta.lastSaved = new Date().toISOString();
+    } catch (err) {
+      console.error('Failed to save OpenDocument:', err);
+      alert(`Failed to save: ${err}`);
+    }
+  }
+
   async function handleSaveAsDoc() {
     let defaultName = `${currentMeta.title.replace(/\s+/g, '_').toLowerCase()}`;
     let ext = 'docx';
@@ -648,6 +687,42 @@
         currentMeta.lastSaved = new Date().toISOString();
       } catch (err) {
         console.error('Failed to save .xlsx:', err);
+        alert(`Failed to save: ${err}`);
+      }
+      return;
+    }
+    if (ext === 'odt' && activeMode === 'writer') {
+      try {
+        await writeBinaryFileNative(filePath, await buildOdt(writerDoc));
+        currentMeta.filePath = filePath;
+        currentMeta.isDirty = false;
+        currentMeta.lastSaved = new Date().toISOString();
+      } catch (err) {
+        console.error('Failed to save .odt:', err);
+        alert(`Failed to save: ${err}`);
+      }
+      return;
+    }
+    if ((ext === 'ods' || ext === 'soss') && activeMode === 'sheets' && ext === 'ods') {
+      try {
+        await writeBinaryFileNative(filePath, await buildOds(sheetsWorkbook));
+        currentMeta.filePath = filePath;
+        currentMeta.isDirty = false;
+        currentMeta.lastSaved = new Date().toISOString();
+      } catch (err) {
+        console.error('Failed to save .ods:', err);
+        alert(`Failed to save: ${err}`);
+      }
+      return;
+    }
+    if (ext === 'odp' && activeMode === 'slides') {
+      try {
+        await writeBinaryFileNative(filePath, await buildOdp(slidesDeck));
+        currentMeta.filePath = filePath;
+        currentMeta.isDirty = false;
+        currentMeta.lastSaved = new Date().toISOString();
+      } catch (err) {
+        console.error('Failed to save .odp:', err);
         alert(`Failed to save: ${err}`);
       }
       return;
@@ -1106,6 +1181,7 @@
     zoom={uiZoom}
     on:changeMode={(e) => (activeMode = e.detail)}
     on:saveToDrive={handleSaveToDrive}
+    on:saveAsOdf={handleSaveAsOpenDocument}
     on:newDoc={handleNewDoc}
     on:openDoc={handleOpenDoc}
     on:saveDoc={handleSaveDoc}

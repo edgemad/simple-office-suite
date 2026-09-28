@@ -75,8 +75,14 @@ export async function buildXlsx(workbook: SpreadsheetWorkbook): Promise<ArrayBuf
   return new Uint8Array(bytes).buffer;
 }
 
-export async function buildPptx(deck: SlideDeck): Promise<ArrayBuffer> {
-  const slides = (deck.slides ?? []).map((slide, index) => {
+/** A slide reduced to a title and body lines, which both writers need. */
+export interface SlideOutline {
+  title: string;
+  bullets: string[];
+}
+
+export function deckToSlides(deck: SlideDeck): SlideOutline[] {
+  return (deck.slides ?? []).map((slide, index) => {
     const titleElement = slide.elements.find((element) => element.type === 'text');
     const bodyElements = slide.elements.filter(
       (element) => element.type === 'text' && element !== titleElement
@@ -92,10 +98,12 @@ export async function buildPptx(deck: SlideDeck): Promise<ArrayBuffer> {
         .slice(0, 12),
     };
   });
+}
 
+export async function buildPptx(deck: SlideDeck): Promise<ArrayBuffer> {
   const bytes = await invoke<number[]>('export_pptx_bytes', {
     title: deck.meta?.title ?? 'Presentation',
-    slides,
+    slides: deckToSlides(deck),
   });
   return new Uint8Array(bytes).buffer;
 }
@@ -114,4 +122,45 @@ export function columnLetters(index: number): string {
 /** Writes generated binary output to a path the save dialog approved. */
 export async function writeBinaryFileNative(path: string, bytes: ArrayBuffer): Promise<void> {
   await invoke('write_binary_file', { path, bytes: Array.from(new Uint8Array(bytes)) });
+}
+
+export const ODT_MIME = 'application/vnd.oasis.opendocument.text';
+export const ODS_MIME = 'application/vnd.oasis.opendocument.spreadsheet';
+export const ODP_MIME = 'application/vnd.oasis.opendocument.presentation';
+
+export async function buildOdt(doc: WriterDocument): Promise<ArrayBuffer> {
+  const bytes = await invoke<number[]>('export_odt_bytes', {
+    title: doc.meta?.title ?? 'Document',
+    paragraphs: htmlToParagraphs(doc.contentHtml ?? ''),
+  });
+  return new Uint8Array(bytes).buffer;
+}
+
+export async function buildOds(workbook: SpreadsheetWorkbook): Promise<ArrayBuffer> {
+  const sheet =
+    workbook.sheets.find((entry) => entry.id === workbook.activeSheetId) ?? workbook.sheets[0];
+
+  const rows: string[][] = [];
+  for (let r = 0; r < sheet.rowCount; r++) {
+    const row: string[] = [];
+    for (let c = 0; c < sheet.colCount; c++) {
+      const cell = sheet.cells[`${columnLetters(c)}${r + 1}`];
+      row.push(cell ? String(cell.computed ?? '') : '');
+    }
+    rows.push(row);
+  }
+
+  const bytes = await invoke<number[]>('export_ods_bytes', {
+    title: workbook.meta?.title ?? 'Workbook',
+    rows,
+  });
+  return new Uint8Array(bytes).buffer;
+}
+
+export async function buildOdp(deck: SlideDeck): Promise<ArrayBuffer> {
+  const bytes = await invoke<number[]>('export_odp_bytes', {
+    title: deck.meta?.title ?? 'Presentation',
+    slides: deckToSlides(deck),
+  });
+  return new Uint8Array(bytes).buffer;
 }

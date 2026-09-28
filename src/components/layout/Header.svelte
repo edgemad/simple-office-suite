@@ -77,6 +77,7 @@
     saveDoc: void;
     saveAsDoc: void;
     saveToDrive: void;
+    saveAsOdf: void;
     exportFormat: { format: string };
     printPdf: void;
     openShortcuts: void;
@@ -498,6 +499,10 @@
             <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('saveAsDoc'); }}>
               <span>Save As...</span>
               <span class="text-[10px] text-slate-400 font-mono">{modKey}+⇧+S</span>
+            </button>
+            <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('saveAsOdf'); }}>
+              <span>Save As OpenDocument...</span>
+              <span class="text-[10px] text-slate-400 font-mono">.odt / .ods / .odp</span>
             </button>
             <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('saveToDrive'); }}>
               <span>Save to Drive...</span>

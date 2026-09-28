@@ -9,6 +9,7 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, State};
 
+mod odf;
 mod ooxml;
 use zip::ZipArchive;
 
@@ -822,22 +823,64 @@ fn reject_binary_input(bytes: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
+/// Dispatches a ZIP-based office package to the right reader.
+///
+/// The declared mimetype decides first, because OOXML and ODF have different
+/// internal layouts: an .odt handed to the DOCX reader looks for
+/// word/document.xml, which it can never have, so extension-only routing makes
+/// one of the two attempts a wasted call every time. The extension is only a
+/// fallback for packages with an unreadable mimetype entry.
+fn parse_office_package(path: &Path, bytes: &[u8], file_name: &str) -> Option<String> {
+    let read_odf = |kind: &str| -> Option<String> {
+        match kind {
+            "ods" => odf::read_ods_as_cells_json(bytes).ok(),
+            "odp" => odf::read_odp_as_deck_json(bytes).ok(),
+            _ => odf::read_odt_as_html(bytes).ok(),
+        }
+    };
+
+    if odf::is_odf_mime(bytes, odf::ODS_MIME) {
+        return read_odf("ods");
+    }
+    if odf::is_odf_mime(bytes, odf::ODT_MIME) {
+        return read_odf("odt");
+    }
+    if odf::is_odf_mime(bytes, odf::ODP_MIME) {
+        return read_odf("odp");
+    }
+
+    let ooxml = parse_xlsx_archive(path)
+        .ok()
+        .or_else(|| parse_docx_archive(path).ok())
+        .or_else(|| parse_pptx_archive(path).ok());
+    if ooxml.is_some() {
+        return ooxml;
+    }
+
+    let extension = file_name
+        .rsplit_once('.')
+        .map(|(_, ext)| ext.to_ascii_lowercase())
+        .unwrap_or_default();
+    match extension.as_str() {
+        "odt" | "ods" | "odp" => read_odf(&extension),
+        _ => None,
+    }
+}
+
 #[tauri::command]
 fn read_text_file(state: State<'_, AppState>, path: String) -> Result<String, String> {
     let authorized_path = authorize_path(state.inner(), &path, PathAccess::Read)?;
     let bytes = read_limited_file(&authorized_path, MAX_FILE_BYTES, "Input file")?;
 
     if bytes.starts_with(b"PK") {
-        if let Ok(json) = parse_xlsx_archive(&authorized_path) {
-            return Ok(json);
-        }
-        if let Ok(html) = parse_docx_archive(&authorized_path) {
-            return Ok(html);
-        }
-        if let Ok(json) = parse_pptx_archive(&authorized_path) {
-            return Ok(json);
-        }
-        return Err("This file is a compressed binary ZIP archive that could not be parsed as an office document.".to_string());
+        let file_name = authorized_path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default();
+        return parse_office_package(&authorized_path, &bytes, file_name).ok_or_else(|| {
+            "This file is a compressed binary ZIP archive that could not be parsed as an office document."
+                .to_string()
+        });
     }
 
     let extension = authorized_path
@@ -1197,6 +1240,23 @@ fn write_binary_file(
     write_file_atomically(&authorized_path, &bytes, MAX_FILE_BYTES)
 }
 
+/// Produces real OpenDocument bytes. ODF is a zipped XML package, so it is
+/// built natively for the same reason OOXML is.
+#[tauri::command]
+fn export_odt_bytes(title: String, paragraphs: Vec<String>) -> Result<Vec<u8>, String> {
+    odf::write_odt(&title, &paragraphs)
+}
+
+#[tauri::command]
+fn export_ods_bytes(title: String, rows: Vec<Vec<String>>) -> Result<Vec<u8>, String> {
+    odf::write_ods(&title, &rows)
+}
+
+#[tauri::command]
+fn export_odp_bytes(title: String, slides: Vec<odf::OdfSlide>) -> Result<Vec<u8>, String> {
+    odf::write_odp(&title, &slides)
+}
+
 #[tauri::command]
 fn store_secret(key: String, value: String) -> Result<(), String> {
     if value.len() > MAX_SECRET_VALUE_BYTES {
@@ -1243,26 +1303,8 @@ fn parse_staged_office_bytes(path: &Path, file_name: &str) -> Result<String, Str
         );
     }
 
-    let extension = file_name
-        .rsplit_once('.')
-        .map(|(_, ext)| ext.to_ascii_lowercase())
-        .unwrap_or_default();
-
-    let parsed = match extension.as_str() {
-        "xlsx" | "xls" | "soss" => parse_xlsx_archive(path).ok(),
-        "pptx" | "odp" | "sosp" => parse_pptx_archive(path).ok(),
-        "docx" | "doc" | "odt" | "rtf" | "md" | "txt" => parse_docx_archive(path).ok(),
-        _ => {
-            // Unknown extension on a ZIP: sniff, in the same order as the
-            // file dialog, so a mislabelled file still opens.
-            parse_xlsx_archive(path)
-                .ok()
-                .or_else(|| parse_docx_archive(path).ok())
-                .or_else(|| parse_pptx_archive(path).ok())
-        }
-    };
-
-    parsed.ok_or_else(|| {
+    let bytes = read_limited_file(path, MAX_FILE_BYTES, "Downloaded file")?;
+    parse_office_package(path, &bytes, file_name).ok_or_else(|| {
         "This file is a compressed archive that could not be read as an office document."
             .to_string()
     })
@@ -1477,6 +1519,9 @@ pub fn run() {
             export_docx_bytes,
             export_xlsx_bytes,
             export_pptx_bytes,
+            export_odt_bytes,
+            export_ods_bytes,
+            export_odp_bytes,
             write_binary_file,
             delete_secret,
             read_auto_save_snapshot,
@@ -1886,6 +1931,124 @@ mod tests {
 
         assert!(json.contains("A real title"), "got: {}", json);
         assert!(json.contains("A real bullet"), "got: {}", json);
+    }
+
+    /// A mislabelled ODF file must still open, because the mimetype inside the
+    /// package identifies it even when the extension lies.
+    #[test]
+    fn odf_is_recognised_by_mimetype_not_by_extension() {
+        let bytes = odf::write_ods("T", &[vec!["Cell value".to_string()]]).expect("should write");
+        let staged = std::env::temp_dir().join(format!("sos-mislabeled-{}.xlsx", unique_suffix()));
+        std::fs::write(&staged, &bytes).expect("should stage");
+
+        // The OOXML readers must not claim it...
+        assert!(parse_xlsx_archive(&staged).is_err());
+        // ...but the shared dispatcher routes it to the ODF reader.
+        let parsed =
+            parse_staged_office_bytes(&staged, "actually-an-ods.xlsx").expect("should import");
+        let _ = std::fs::remove_file(&staged);
+        assert!(parsed.contains("Cell value"), "got: {}", parsed);
+    }
+
+    /// The ODF family must not cross-contaminate: an .ods must not open as
+    /// a document and an .odt must not open as a spreadsheet.
+    #[test]
+    fn odf_readers_are_not_interchangeable() {
+        let sheet = odf::write_ods("T", &[vec!["Grid".to_string()]]).expect("should write");
+        let doc = odf::write_odt("T", &["Prose".to_string()]).expect("should write");
+
+        let sheet_path = std::env::temp_dir().join(format!("sos-a-{}.ods", unique_suffix()));
+        let doc_path = std::env::temp_dir().join(format!("sos-b-{}.odt", unique_suffix()));
+        std::fs::write(&sheet_path, &sheet).expect("stage");
+        std::fs::write(&doc_path, &doc).expect("stage");
+
+        let as_sheet = parse_staged_office_bytes(&sheet_path, "s.ods").expect("ods should import");
+        let as_doc = parse_staged_office_bytes(&doc_path, "d.odt").expect("odt should import");
+        let _ = std::fs::remove_file(&sheet_path);
+        let _ = std::fs::remove_file(&doc_path);
+
+        // The spreadsheet shape, not the HTML shape.
+        assert!(as_sheet.contains("ods"), "got: {}", as_sheet);
+        assert!(as_sheet.contains("Grid"));
+        assert!(
+            !as_sheet.contains("<p>"),
+            "an .ods must not import as prose: {}",
+            as_sheet
+        );
+        assert!(as_doc.contains("<p>Prose</p>"), "got: {}", as_doc);
+        assert!(!as_doc.contains("Grid"));
+    }
+
+    /// A generated .odt must open through the same staging path the file
+    /// dialog uses, not just through the ODF reader directly.
+    #[test]
+    fn generated_odt_opens_through_the_import_path() {
+        let bytes = odf::write_odt(
+            "Round trip",
+            &["First line".to_string(), "Second line".to_string()],
+        )
+        .expect("should write");
+        let staged = std::env::temp_dir().join(format!("sos-odt-{}.odt", unique_suffix()));
+        std::fs::write(&staged, &bytes).expect("should stage");
+        let html = parse_staged_office_bytes(&staged, "notes.odt").expect("should import");
+        let _ = std::fs::remove_file(&staged);
+
+        assert!(html.contains("First line"), "got: {}", html);
+        assert!(html.contains("Second line"), "got: {}", html);
+    }
+
+    #[test]
+    fn generated_ods_opens_through_the_import_path() {
+        let bytes = odf::write_ods(
+            "Round trip",
+            &[vec!["Widget".to_string(), "12".to_string()]],
+        )
+        .expect("should write");
+        let staged = std::env::temp_dir().join(format!("sos-ods-{}.ods", unique_suffix()));
+        std::fs::write(&staged, &bytes).expect("should stage");
+        let json = parse_staged_office_bytes(&staged, "data.ods").expect("should import");
+        let _ = std::fs::remove_file(&staged);
+
+        assert!(json.contains("Widget"), "got: {}", json);
+        // Cells are keyed A1-style so the spreadsheet importer needs no changes.
+        assert!(json.contains("\"A1\""), "got: {}", json);
+    }
+
+    #[test]
+    fn generated_odp_opens_through_the_import_path() {
+        let bytes = odf::write_odp(
+            "Round trip",
+            &[odf::OdfSlide {
+                title: "A title".to_string(),
+                bullets: vec!["A bullet".to_string()],
+            }],
+        )
+        .expect("should write");
+        let staged = std::env::temp_dir().join(format!("sos-odp-{}.odp", unique_suffix()));
+        std::fs::write(&staged, &bytes).expect("should stage");
+        let json = parse_staged_office_bytes(&staged, "deck.odp").expect("should import");
+        let _ = std::fs::remove_file(&staged);
+
+        assert!(json.contains("A title"), "got: {}", json);
+        assert!(json.contains("A bullet"), "got: {}", json);
+    }
+
+    /// An .odt routed to the DOCX reader would look for word/document.xml,
+    /// which an ODF file does not have, so the routing itself is what this
+    /// pins down.
+    #[test]
+    fn odf_files_are_not_handed_to_the_ooxml_reader() {
+        let bytes = odf::write_odt("T", &["text".to_string()]).expect("should write");
+        let staged = std::env::temp_dir().join(format!("sos-mix-{}.odt", unique_suffix()));
+        std::fs::write(&staged, &bytes).expect("should stage");
+        assert!(
+            parse_docx_archive(&staged).is_err(),
+            "the OOXML reader should reject an ODF package"
+        );
+        let parsed =
+            parse_staged_office_bytes(&staged, "notes.odt").expect("the ODF path should work");
+        let _ = std::fs::remove_file(&staged);
+        assert!(parsed.contains("text"));
     }
 
     #[test]
