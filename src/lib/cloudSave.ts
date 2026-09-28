@@ -26,6 +26,8 @@ export interface SaveRequest {
   bytes: ArrayBuffer;
   /** Folder to write into. */
   folderId?: string;
+  /** Which Microsoft library to write into. */
+  driveId?: string;
   /** Overwrite this file rather than creating a new one. */
   fileId?: string;
 }
@@ -85,7 +87,8 @@ async function saveToMicrosoft(request: SaveRequest): Promise<SaveResult> {
     request.credentials,
     request.fileName,
     bytes.buffer as ArrayBuffer,
-    request.folderId
+    request.folderId,
+    request.driveId
   );
 
   return {

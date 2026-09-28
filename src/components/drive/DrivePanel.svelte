@@ -33,7 +33,8 @@
     type CloudEntry,
     type Library,
   } from '../../lib/cloudFiles';
-  import { deleteSecret } from '../../lib/secureStore';
+  import { loadSecret, storeSecret, deleteSecret, secretKeyForAccount } from '../../lib/secureStore';
+  import { registerCloudAccount, forgetCloudAccount, updateCloudAccount } from '../../lib/googleSync';
   import { saveToCloud } from '../../lib/cloudSave';
   import { downloadDriveFileBase64 } from '../../lib/googleDriveClient';
   import { base64ToArrayBuffer, downloadItem } from '../../lib/microsoftGraph';
@@ -46,8 +47,41 @@
   export let onOpen: (entry: CloudEntry, bytes: ArrayBuffer) => void | Promise<void>;
   export let onOpenInBrowser: (entry: CloudEntry) => void;
   export let onDisconnect: () => void | Promise<void>;
+  /** Reports the connected account upward so the app can keep it across restarts. */
+  export let onConnect: (account: CloudStorageAccount) => void | Promise<void>;
 
   type ProviderKey = 'google' | 'microsoft';
+
+  /**
+   * One account slot per provider. Microsoft libraries are not separate
+   * accounts: they are drives behind the same consent, so the library is
+   * recorded on the account as `driveId`.
+   */
+  function accountIdFor(key: ProviderKey): string {
+    return key;
+  }
+
+  function accountFor(key: ProviderKey): CloudStorageAccount {
+    const existing = account;
+    return {
+      id: accountIdFor(key),
+      provider: key === 'google' ? 'google_drive' : 'onedrive',
+      providerName: PROVIDERS[key].label,
+      email: existing?.email ?? '',
+      name: existing?.name ?? PROVIDERS[key].label,
+      avatarColor: key === 'google' ? '#1a73e8' : '#0078D4',
+      isSignedIn: true,
+      quotaUsedMb: existing?.quotaUsedMb ?? 0,
+      quotaTotalMb: existing?.quotaTotalMb ?? 0,
+      driveId: existing?.driveId,
+      driveType: existing?.driveType,
+    };
+  }
+
+  /** Tokens belong in the secure store, never in the persisted account record. */
+  async function persistCredentials(next: CloudCredentials): Promise<void> {
+    await storeSecret(secretKeyForAccount(accountIdFor(provider)), JSON.stringify(next));
+  }
 
   let provider: ProviderKey = 'google';
   let credentials: CloudCredentials | null = null;
@@ -67,10 +101,22 @@
     key === 'google' ? settings.googleOAuthClientId : settings.microsoftOAuthClientId;
 
   onMount(async () => {
-    if (account?.hasCredentials) {
-      connected = true;
+    if (!account?.hasCredentials) return;
+
+    // A stored account is only a pointer; the tokens live in the secure store
+    // and have to be read back before the panel can do anything with them.
+    try {
+      const stored = await loadSecret(secretKeyForAccount(account.id));
+      if (!stored) {
+        error = 'Reconnect to restore access to this drive.';
+        return;
+      }
+      credentials = JSON.parse(stored) as CloudCredentials;
       provider = account.provider === 'google_drive' ? 'google' : 'microsoft';
+      connected = true;
       await load();
+    } catch (reason) {
+      error = reason instanceof Error ? reason.message : 'Could not restore that connection.';
     }
   });
 
@@ -92,6 +138,8 @@
     message = '';
     try {
       credentials = await signIn({ provider: key, clientId: clientIdFor(key) });
+      await registerCloudAccount(accountFor(key), credentials);
+      await onConnect(accountFor(key));
       connected = true;
       folderId = undefined;
       message = `Connected to ${config.label}.`;
@@ -115,6 +163,9 @@
       if (credentials.refreshToken) {
         try {
           credentials = await refreshCredentials(provider, credentials, clientIdFor(provider));
+          // A refresh can hand back a new refresh token; keeping the old one
+          // would sign the user out on the next restart.
+          await persistCredentials(credentials);
         } catch (reason) {
           // A rejected refresh token cannot be recovered from; that needs a
           // reconnect, and the listing error below will say so.
@@ -187,6 +238,7 @@
       mimeType: payload.mimeType,
       bytes: payload.bytes,
       folderId,
+      driveId: account?.driveId,
     });
     message = result.note ?? `Saved ${result.name}.`;
     if (result.note) error = '';
@@ -286,10 +338,26 @@
             on:change={async (event) => {
               const id = (event.currentTarget as HTMLSelectElement).value;
               folderId = undefined;
-              if (id) {
-                account = { ...account!, driveId: id };
-              } else {
-                account = { ...account!, driveId: undefined };
+              const library = libraries.find((entry) => entry.id === id);
+              const current = account;
+              if (!current) return;
+
+              account = {
+                ...current,
+                driveId: id || undefined,
+                driveType: id ? (library?.kind ?? current.driveType) : current.driveType,
+              };
+
+              // Record the chosen library on the account, otherwise the next
+              // launch shows the default library again and saves go elsewhere.
+              try {
+                updateCloudAccount(current.id, {
+                  driveId: account.driveId,
+                  driveType: account.driveType,
+                });
+              } catch {
+                // A failed write only costs persistence of the preference; the
+                // in-memory selection still works for this session.
               }
               await load();
             }}
@@ -389,7 +457,10 @@
         on:click={async () => {
           // Revoke the local copy of the token; the app never held a secret
           // that would need revoking on the provider side.
-          if (account?.id) await deleteSecret(account.id).catch(() => {});
+          if (account?.id) {
+            await deleteSecret(secretKeyForAccount(account.id)).catch(() => {});
+            forgetCloudAccount(account.id);
+          }
           credentials = null;
           connected = false;
           entries = [];

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
+  import { cloudAccounts } from './lib/googleSync';
   import type { WorkspaceMode, WriterDocument, SpreadsheetWorkbook, SlideDeck } from './types';
   import Header from './components/layout/Header.svelte';
   import StatusBar from './components/layout/StatusBar.svelte';
@@ -148,6 +150,13 @@
     appSettings = loadSettings();
     if (appSettings.defaultMode) {
       activeMode = appSettings.defaultMode;
+    }
+
+    // Restore the last connected drive. The account record holds no tokens;
+    // DrivePanel reads them back from the secure store on mount.
+    const restored = get(cloudAccounts).find((entry) => entry.hasCredentials);
+    if (restored) {
+      driveAccount = restored;
     }
     // Settings now actually drive the UI; before this the theme control was
     // stored but never applied.
@@ -1250,6 +1259,9 @@
         account={driveAccount}
         onOpen={openCloudEntry}
         onOpenInBrowser={openCloudEntryInBrowser}
+        onConnect={(connected) => {
+          driveAccount = connected;
+        }}
         onDisconnect={() => {
           driveAccount = null;
         }}

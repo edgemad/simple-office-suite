@@ -198,9 +198,14 @@ export async function uploadItem(
   credentials: CloudCredentials,
   fileName: string,
   body: ArrayBuffer,
-  parentId?: string
+  parentId?: string,
+  /** Target library. Personal OneDrive when omitted. */
+  driveId?: string
 ): Promise<GraphDriveItem> {
-  const base = '/me/drive';
+  // A SharePoint or business library is reached by addressing the drive
+  // directly. Falling back to /me/drive would silently write the file into
+  // the user's personal OneDrive instead of the library they chose.
+  const base = driveId ? `/drives/${encodeURIComponent(driveId)}` : '/me/drive';
   if (parentId) {
     return graphFetch<GraphDriveItem>(credentials, `${base}/items/${encodeURIComponent(parentId)}:/children:/${encodeURIComponent(fileName)}:/content`, {
       method: 'PUT',

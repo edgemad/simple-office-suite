@@ -120,6 +120,33 @@ export function saveCloudAccounts(accounts: CloudStorageAccount[]): void {
  * secret store under the account's key. Centralised here so a new provider
  * cannot reintroduce the token-in-localStorage bug by accident.
  */
+/** Applies non-secret connection details, e.g. which Microsoft library is active. */
+export function updateCloudAccount(
+  id: string,
+  patch: Partial<CloudStorageAccount>
+): CloudStorageAccount | null {
+  let updated: CloudStorageAccount | null = null;
+  cloudAccounts.update((prev) => {
+    const next = prev.map((account) => {
+      if (account.id !== id) return account;
+      updated = { ...account, ...patch };
+      return updated;
+    });
+    if (updated) saveCloudAccounts(next);
+    return next;
+  });
+  return updated;
+}
+
+/** Drops the account record. The secret itself is removed by the caller. */
+export function forgetCloudAccount(id: string): void {
+  cloudAccounts.update((prev) => {
+    const next = prev.filter((account) => account.id !== id);
+    if (next.length !== prev.length) saveCloudAccounts(next);
+    return next;
+  });
+}
+
 export async function registerCloudAccount(
   account: CloudStorageAccount,
   credentials: CloudCredentials
