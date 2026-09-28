@@ -1241,13 +1241,19 @@ fn is_zip_archive(path: &Path) -> bool {
     std::io::Read::read_exact(&mut file, &mut header).is_ok() && header == *b"PK"
 }
 
-/// Cheap unique-enough suffix for a temp file name. Not used for secrets, only
-/// to stop two simultaneous imports from colliding.
+/// Suffix for a temp file name, to stop two simultaneous imports colliding.
+///
+/// The clock alone is not enough - a coarse timer can return the same reading
+/// twice in quick succession - so a process-local counter is mixed in to make
+/// the value unique within a run.
 fn unique_suffix() -> u128 {
-    std::time::SystemTime::now()
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let sequence = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed) as u128;
+    let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
-        .unwrap_or(0)
+        .unwrap_or(0);
+    nanos ^ (sequence << 64)
 }
 
 #[tauri::command]
