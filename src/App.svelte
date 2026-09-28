@@ -11,6 +11,7 @@
   import type { AppSettings, CloudStorageAccount } from './types';
   import { loadSettings, DEFAULT_SETTINGS } from './lib/settings';
   import { applyTheme } from './lib/theme';
+  import { buildDocx, buildXlsx, buildPptx, writeBinaryFileNative, DOCX_MIME, XLSX_MIME, PPTX_MIME } from './lib/ooxmlExport';
   import Writer from './components/writer/Writer.svelte';
   import Sheets from './components/sheets/Sheets.svelte';
   import Slides from './components/slides/Slides.svelte';
@@ -584,19 +585,15 @@
     if (!drivePanelRef) return;
 
     const base = currentMeta.title.replace(/\s+/g, '_').toLowerCase() || 'document';
-    const { payload, fileName, mimeType } =
+    const { fileName, mimeType, bytes } =
       activeMode === 'sheets'
-        ? { payload: JSON.stringify(sheetsWorkbook, null, 2), fileName: `${base}.soss`, mimeType: 'application/json' }
+        ? { fileName: `${base}.xlsx`, mimeType: XLSX_MIME, bytes: await buildXlsx(sheetsWorkbook) }
         : activeMode === 'slides'
-          ? { payload: JSON.stringify(slidesDeck, null, 2), fileName: `${base}.sosp`, mimeType: 'application/json' }
-          : { payload: JSON.stringify(writerDoc, null, 2), fileName: `${base}.sosw`, mimeType: 'application/json' };
+          ? { fileName: `${base}.pptx`, mimeType: PPTX_MIME, bytes: await buildPptx(slidesDeck) }
+          : { fileName: `${base}.docx`, mimeType: DOCX_MIME, bytes: await buildDocx(writerDoc) };
 
     try {
-      await drivePanelRef.save({
-        fileName,
-        mimeType,
-        bytes: new TextEncoder().encode(payload).buffer,
-      });
+      await drivePanelRef.save({ fileName, mimeType, bytes });
       currentMeta.isDirty = false;
     } catch (err) {
       console.error('Cloud save error:', err);
@@ -627,8 +624,48 @@
   }
 
   async function saveToFile(filePath: string) {
-    let payload = '';
     const ext = filePath.split('.').pop()?.toLowerCase();
+
+    // The Office formats are zipped packages, so they are built natively and
+    // written as bytes rather than routed through the text writer.
+    if (ext === 'docx' && activeMode === 'writer') {
+      try {
+        await writeBinaryFileNative(filePath, await buildDocx(writerDoc));
+        currentMeta.filePath = filePath;
+        currentMeta.isDirty = false;
+        currentMeta.lastSaved = new Date().toISOString();
+      } catch (err) {
+        console.error('Failed to save .docx:', err);
+        alert(`Failed to save: ${err}`);
+      }
+      return;
+    }
+    if ((ext === 'xlsx' || ext === 'xls') && activeMode === 'sheets') {
+      try {
+        await writeBinaryFileNative(filePath, await buildXlsx(sheetsWorkbook));
+        currentMeta.filePath = filePath;
+        currentMeta.isDirty = false;
+        currentMeta.lastSaved = new Date().toISOString();
+      } catch (err) {
+        console.error('Failed to save .xlsx:', err);
+        alert(`Failed to save: ${err}`);
+      }
+      return;
+    }
+    if (ext === 'pptx' && activeMode === 'slides') {
+      try {
+        await writeBinaryFileNative(filePath, await buildPptx(slidesDeck));
+        currentMeta.filePath = filePath;
+        currentMeta.isDirty = false;
+        currentMeta.lastSaved = new Date().toISOString();
+      } catch (err) {
+        console.error('Failed to save .pptx:', err);
+        alert(`Failed to save: ${err}`);
+      }
+      return;
+    }
+
+    let payload = '';
 
     if (activeMode === 'writer') {
       if (ext === 'docx' || ext === 'doc') {

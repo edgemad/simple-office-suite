@@ -8,6 +8,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, State};
+
+mod ooxml;
 use zip::ZipArchive;
 
 const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
@@ -1162,6 +1164,39 @@ fn secret_target(key: &str) -> Result<PathBuf, String> {
     Ok(dir.join(secret_key_to_filename(key)?))
 }
 
+/// Produces a real .docx as bytes. The frontend cannot build a zipped OOXML
+/// package, so the writer lives natively and hands back the finished file.
+#[tauri::command]
+fn export_docx_bytes(title: String, paragraphs: Vec<String>) -> Result<Vec<u8>, String> {
+    ooxml::write_docx(&title, &paragraphs)
+}
+
+#[tauri::command]
+fn export_xlsx_bytes(title: String, rows: Vec<Vec<String>>) -> Result<Vec<u8>, String> {
+    ooxml::write_xlsx(&title, &rows)
+}
+
+#[tauri::command]
+fn export_pptx_bytes(title: String, slides: Vec<ooxml::SlideContent>) -> Result<Vec<u8>, String> {
+    ooxml::write_pptx(&title, &slides)
+}
+
+/// Writes generated binary output to a path the user already approved through
+/// the save dialog. Reuses the same authorization as reading, so this cannot be
+/// turned into an arbitrary-write primitive.
+#[tauri::command]
+fn write_binary_file(
+    state: State<'_, AppState>,
+    path: String,
+    bytes: Vec<u8>,
+) -> Result<(), String> {
+    if bytes.len() > MAX_FILE_BYTES as usize {
+        return Err("File is too large to save".to_string());
+    }
+    let authorized_path = authorize_path(state.inner(), &path, PathAccess::Write)?;
+    write_file_atomically(&authorized_path, &bytes, MAX_FILE_BYTES)
+}
+
 #[tauri::command]
 fn store_secret(key: String, value: String) -> Result<(), String> {
     if value.len() > MAX_SECRET_VALUE_BYTES {
@@ -1439,6 +1474,10 @@ pub fn run() {
             store_secret,
             load_secret,
             import_office_bytes,
+            export_docx_bytes,
+            export_xlsx_bytes,
+            export_pptx_bytes,
+            write_binary_file,
             delete_secret,
             read_auto_save_snapshot,
             get_system_metrics,
@@ -1786,6 +1825,67 @@ mod tests {
         let traversal = "../../../../etc/passwd";
         let _ = import_office_bytes(traversal.into(), b"hello".to_vec());
         assert!(!std::path::Path::new("/etc/passwd/sos-import-0.bin").exists());
+    }
+
+    /// Writes a real .docx with the new writer, then reads it back with the
+    /// pre-existing archive parser. The reader was written against genuine
+    /// Office files, so a successful round trip is evidence the writer emits a
+    /// real one rather than something only SOS can read.
+    #[test]
+    fn generated_docx_reads_back_through_the_existing_parser() {
+        let paragraphs = vec![
+            "First paragraph".to_string(),
+            String::new(),
+            "Second <paragraph> & more".to_string(),
+        ];
+        let bytes = ooxml::write_docx("Round trip", &paragraphs).expect("should write");
+
+        let path = std::env::temp_dir().join(format!("sos-rt-{}.docx", unique_suffix()));
+        std::fs::write(&path, &bytes).expect("should stage");
+        let html = parse_docx_archive(&path).expect("reader should accept the writer's output");
+        let _ = std::fs::remove_file(&path);
+
+        assert!(html.contains("First paragraph"), "got: {}", html);
+        assert!(
+            html.contains("Second &lt;paragraph&gt; &amp; more")
+                || html.contains("Second <paragraph> &amp; more"),
+            "markup should survive as escaped text, got: {}",
+            html
+        );
+    }
+
+    #[test]
+    fn generated_xlsx_reads_back_through_the_existing_parser() {
+        let rows = vec![
+            vec!["Name".to_string(), "Qty".to_string()],
+            vec!["Widget".to_string(), "12".to_string()],
+        ];
+        let bytes = ooxml::write_xlsx("Round trip", &rows).expect("should write");
+
+        let path = std::env::temp_dir().join(format!("sos-rt-{}.xlsx", unique_suffix()));
+        std::fs::write(&path, &bytes).expect("should stage");
+        let json = parse_xlsx_archive(&path).expect("reader should accept the writer's output");
+        let _ = std::fs::remove_file(&path);
+
+        assert!(json.contains("Widget"), "got: {}", json);
+        assert!(json.contains("Qty"), "got: {}", json);
+    }
+
+    #[test]
+    fn generated_pptx_reads_back_through_the_existing_parser() {
+        let slides = vec![ooxml::SlideContent {
+            title: "A real title".to_string(),
+            bullets: vec!["A real bullet".to_string()],
+        }];
+        let bytes = ooxml::write_pptx("Round trip", &slides).expect("should write");
+
+        let path = std::env::temp_dir().join(format!("sos-rt-{}.pptx", unique_suffix()));
+        std::fs::write(&path, &bytes).expect("should stage");
+        let json = parse_pptx_archive(&path).expect("reader should accept the writer's output");
+        let _ = std::fs::remove_file(&path);
+
+        assert!(json.contains("A real title"), "got: {}", json);
+        assert!(json.contains("A real bullet"), "got: {}", json);
     }
 
     #[test]
