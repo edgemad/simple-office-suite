@@ -20,6 +20,146 @@ const MAX_DIALOG_FILTERS: usize = 32;
 const MAX_DIALOG_EXTENSIONS: usize = 32;
 const MAX_DIALOG_TEXT_BYTES: usize = 256;
 const MAX_DIALOG_EXTENSION_BYTES: usize = 32;
+
+// --- OAuth loopback listener ---
+//
+// Google redirects the browser to http://127.0.0.1:<port> once the user
+// approves access. This binds an ephemeral loopback port, waits for exactly one
+// request, and hands the query string back to the webview. Binding to loopback
+// with port 0 means the OS picks a free port, so this cannot collide with
+// anything else and needs no fixed port to be reserved.
+
+const OAUTH_LISTENER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+const MAX_OAUTH_REQUEST_BYTES: usize = 16 * 1024;
+
+#[derive(Default)]
+struct OAuthListenerState {
+    callback: Option<String>,
+    cancelled: bool,
+}
+
+static OAUTH_STATE: std::sync::OnceLock<Mutex<OAuthListenerState>> = std::sync::OnceLock::new();
+
+fn oauth_state() -> &'static Mutex<OAuthListenerState> {
+    OAUTH_STATE.get_or_init(|| Mutex::new(OAuthListenerState::default()))
+}
+
+fn reset_oauth_state() {
+    if let Ok(mut state) = oauth_state().lock() {
+        state.callback = None;
+        state.cancelled = false;
+    }
+}
+
+/// Starts the loopback listener and returns the port it bound to.
+#[tauri::command]
+fn start_oauth_listener() -> Result<u16, String> {
+    reset_oauth_state();
+    *oauth_port_cell()
+        .lock()
+        .unwrap_or_else(|err| err.into_inner()) = None;
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0")
+        .map_err(|e| format!("Could not open a local port for sign-in: {}", e))?;
+    let port = listener
+        .local_addr()
+        .map_err(|e| format!("Could not read the local sign-in port: {}", e))?
+        .port();
+
+    *oauth_port_cell()
+        .lock()
+        .unwrap_or_else(|err| err.into_inner()) = Some(port);
+
+    std::thread::spawn(move || {
+        let (mut stream, _address) = match listener.accept() {
+            Ok(pair) => pair,
+            Err(_) => return,
+        };
+
+        // Bounds the read even if the browser opens the socket but sends
+        // nothing, so an abandoned tab cannot pin the thread forever.
+        let _ = stream.set_read_timeout(Some(OAUTH_LISTENER_TIMEOUT));
+
+        // Read just the request line: we only need the path and query.
+        let mut buffer = [0u8; 2048];
+        let mut request = Vec::new();
+        loop {
+            match stream.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(count) => {
+                    request.extend_from_slice(&buffer[..count]);
+                    if request.len() > MAX_OAUTH_REQUEST_BYTES {
+                        break;
+                    }
+                    if request.windows(4).any(|w| w == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+
+        let text = String::from_utf8_lossy(&request).to_string();
+        let target = text.split_whitespace().nth(1).unwrap_or("/").to_string();
+
+        let is_callback = target.starts_with("/oauth2callback");
+        if is_callback {
+            if let Ok(mut state) = oauth_state().lock() {
+                state.callback = Some(target.clone());
+            }
+        }
+        let body = if is_callback {
+            "Sign-in complete. You can close this tab and return to SOS."
+        } else {
+            "Not found."
+        };
+
+        let response = format!(
+            "HTTP/1.1 {}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            if is_callback { "200 OK" } else { "404 Not Found" },
+            body.len(),
+            body
+        );
+        let _ = stream.write_all(response.as_bytes());
+        let _ = stream.flush();
+    });
+
+    Ok(port)
+}
+
+/// Returns the captured callback URL once, or null while it is still pending.
+/// Draining it means a stale code from a previous attempt cannot be replayed.
+#[tauri::command]
+fn take_oauth_callback() -> Option<String> {
+    let mut state = oauth_state().lock().ok()?;
+    state.callback.take()
+}
+
+/// Abandons a sign-in attempt and unblocks the listener thread.
+#[tauri::command]
+fn cancel_oauth_listener() {
+    if let Ok(mut state) = oauth_state().lock() {
+        state.cancelled = true;
+    }
+    // Connect to ourselves so the blocked accept() returns and the thread ends.
+    if let Some(port) = local_oauth_port() {
+        let _ = std::net::TcpStream::connect(("127.0.0.1", port));
+    }
+    *oauth_port_cell()
+        .lock()
+        .unwrap_or_else(|err| err.into_inner()) = None;
+}
+
+fn oauth_port_cell() -> &'static Mutex<Option<u16>> {
+    static OAUTH_PORT: std::sync::OnceLock<Mutex<Option<u16>>> = std::sync::OnceLock::new();
+    OAUTH_PORT.get_or_init(|| Mutex::new(None))
+}
+
+fn local_oauth_port() -> Option<u16> {
+    // The listener thread owns the bound socket, so the port is remembered
+    // separately rather than recovered from it.
+    oauth_port_cell().lock().ok().and_then(|guard| *guard)
+}
 const ALLOWED_AUTOSAVE_MODULES: [&str; 3] = ["writer", "sheets", "slides"];
 
 static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -1210,6 +1350,9 @@ pub fn run() {
             write_text_file,
             auto_save_snapshot,
             clear_auto_save_snapshot,
+            start_oauth_listener,
+            take_oauth_callback,
+            cancel_oauth_listener,
             store_secret,
             load_secret,
             delete_secret,
@@ -1449,5 +1592,81 @@ mod tests {
         let long = "a".repeat(MAX_SECRET_KEY_BYTES + 1);
         assert!(secret_key_to_filename(&long).is_err());
         assert!(secret_key_to_filename(&"a".repeat(MAX_SECRET_KEY_BYTES)).is_ok());
+    }
+
+    /// The OAuth listener state is process-wide, so listener tests take this
+    /// lock rather than racing each other under the default parallel runner.
+    fn oauth_test_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+        LOCK.get_or_init(|| std::sync::Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|err| err.into_inner())
+    }
+
+    #[test]
+    fn oauth_listener_captures_the_callback_query() {
+        let _guard = oauth_test_lock();
+        let port = start_oauth_listener().expect("listener should bind");
+        assert!(port > 0, "ephemeral port should be assigned");
+
+        // A real browser sends the full request line then CRLFs; mimic that.
+        let request = format!(
+            "GET /oauth2callback?code=test-code&state=abc HTTP/1.1\r\nHost: 127.0.0.1:{}\r\n\r\n",
+            port
+        );
+        let mut stream = std::net::TcpStream::connect(("127.0.0.1", port))
+            .expect("should connect to the listener");
+
+        // Give the accept loop a moment to bind its stream.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let _ = stream.write_all(request.as_bytes());
+        let _ = stream.flush();
+
+        let mut response = String::new();
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(2)));
+        let _ = stream.read_to_string(&mut response);
+        assert!(
+            response.starts_with("HTTP/1.1 200 OK"),
+            "expected a 200 for a callback, got: {}",
+            response.lines().next().unwrap_or("<empty>")
+        );
+
+        // The captured value drains exactly once, so a stale code cannot replay.
+        let captured = take_oauth_callback().expect("callback should be captured");
+        assert!(captured.starts_with("/oauth2callback?"));
+        assert!(captured.contains("code=test-code"));
+        assert!(captured.contains("state=abc"));
+        assert!(
+            take_oauth_callback().is_none(),
+            "the callback must be consumed by the first read"
+        );
+    }
+
+    #[test]
+    fn oauth_listener_rejects_unrelated_paths() {
+        let _guard = oauth_test_lock();
+        let port = start_oauth_listener().expect("listener should bind");
+        let request = format!("GET /favicon.ico HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
+        let mut stream = std::net::TcpStream::connect(("127.0.0.1", port))
+            .expect("should connect to the listener");
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let _ = stream.write_all(request.as_bytes());
+        let _ = stream.flush();
+
+        let mut response = String::new();
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(2)));
+        let _ = stream.read_to_string(&mut response);
+        assert!(response.starts_with("HTTP/1.1 404 Not Found"));
+        assert!(
+            take_oauth_callback().is_none(),
+            "a non-callback path must not capture anything"
+        );
+    }
+
+    #[test]
+    fn oauth_callback_is_drained_by_the_first_take() {
+        let _guard = oauth_test_lock();
+        reset_oauth_state();
+        assert!(take_oauth_callback().is_none());
     }
 }
