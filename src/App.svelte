@@ -130,6 +130,7 @@
   let appSettings: AppSettings = loadSettings();
   /** The cloud profile the Drive panel is showing, if one is connected. */
   let driveAccount: CloudStorageAccount | null = null;
+  let drivePanelRef: DrivePanel | null = null;
 
   let stopThemeSync: (() => void) | null = null;
 
@@ -567,6 +568,38 @@
       await saveToFile(currentMeta.filePath);
     } else {
       await handleSaveAsDoc();
+    }
+  }
+
+  /**
+   * Saves to the connected cloud library.
+   *
+   * The native .sosw/.soss/.sosp JSON is used deliberately. SOS's Office
+   * exporters emit Word-compatible HTML and flat XML rather than real zipped
+   * OOXML, so uploading those under a .docx/.xlsx name and an OOXML mime type
+   * would put bytes in the cloud that Word and Excel cannot open. The native
+   * format round-trips through SOS's own importer and loses nothing.
+   */
+  async function handleSaveToDrive() {
+    if (!drivePanelRef) return;
+
+    const base = currentMeta.title.replace(/\s+/g, '_').toLowerCase() || 'document';
+    const { payload, fileName, mimeType } =
+      activeMode === 'sheets'
+        ? { payload: JSON.stringify(sheetsWorkbook, null, 2), fileName: `${base}.soss`, mimeType: 'application/json' }
+        : activeMode === 'slides'
+          ? { payload: JSON.stringify(slidesDeck, null, 2), fileName: `${base}.sosp`, mimeType: 'application/json' }
+          : { payload: JSON.stringify(writerDoc, null, 2), fileName: `${base}.sosw`, mimeType: 'application/json' };
+
+    try {
+      await drivePanelRef.save({
+        fileName,
+        mimeType,
+        bytes: new TextEncoder().encode(payload).buffer,
+      });
+      currentMeta.isDirty = false;
+    } catch (err) {
+      console.error('Cloud save error:', err);
     }
   }
 
@@ -1035,6 +1068,7 @@
     settings={appSettings}
     zoom={uiZoom}
     on:changeMode={(e) => (activeMode = e.detail)}
+    on:saveToDrive={handleSaveToDrive}
     on:newDoc={handleNewDoc}
     on:openDoc={handleOpenDoc}
     on:saveDoc={handleSaveDoc}
@@ -1098,6 +1132,7 @@
       />
     {:else if activeMode === 'drive'}
       <DrivePanel
+        bind:this={drivePanelRef}
         settings={appSettings}
         account={driveAccount}
         onOpen={openCloudEntry}

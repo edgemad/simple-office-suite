@@ -13,6 +13,7 @@ import {
   type GraphDriveItem,
 } from './microsoftGraph';
 import { listDriveFiles, type GoogleDriveFile } from './googleDriveClient';
+import { buildBrowseQuery } from './googleWorkspace';
 import { workspaceForFileName } from './microsoftGraph';
 
 export interface CloudEntry {
@@ -119,7 +120,10 @@ async function listGoogle(args: ListArgs): Promise<ListResult> {
   if (!accessToken) throw new Error('Not connected to Google Drive. Please sign in again.');
 
   // listDriveFiles predates the credentials object and takes a bare token.
-  const files = await listDriveFiles(accessToken, { folderId: args.folderId });
+  const files = await listDriveFiles(accessToken, {
+    folderId: args.folderId,
+    query: buildBrowseQuery(args.folderId),
+  });
   const entries = sortEntries(files.map(fromGoogle));
   return {
     entries,

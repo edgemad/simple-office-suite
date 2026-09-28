@@ -124,6 +124,17 @@ export function kindForMime(mimeType: string): GoogleFileKind {
  * Google-native types have no byte representation, so Drive refuses a plain
  * `alt=media` download. They must go through `export`.
  */
+/**
+ * True for Google's own document types (Docs, Sheets, Slides, Forms).
+ *
+ * These are not real files: the Drive API cannot write their content, only
+ * read/export it. Anything that wants to save into one has to work around
+ * that rather than assume a plain upload will work.
+ */
+export function isGoogleNative(mimeType: string): boolean {
+  return mimeType.startsWith('application/vnd.google-apps.') && !mimeType.endsWith('.shortcut');
+}
+
 export function requiresExport(mimeType: string): boolean {
   return Object.values(GOOGLE_MIME).includes(mimeType as never);
 }
@@ -266,14 +277,19 @@ export function describeFile(name: string, mimeType: string): string {
 }
 
 /**
- * A query for listing the files SOS can actually open, in a given folder.
- * Keeping the filter server-side means a large Drive does not ship every
- * unrelated file to the browser just to hide it.
+ * A server-side query for browsing one folder.
+ *
+ * Folders are included deliberately: a file browser has to show them or the
+ * user cannot descend into a subfolder. Shortcuts are excluded because they
+ * resolve to files that are already listed, and showing both is confusing.
+ *
+ * Filtering server-side matters on a real Drive - otherwise every unrelated
+ * file in the account is downloaded just to be hidden in the UI.
  */
-export function buildOpenableQuery(folderId?: string): string {
+export function buildBrowseQuery(folderId?: string): string {
   const clauses = [
     'trashed = false',
-    `mimeType != '${GOOGLE_MIME.folder}'`,
+    `mimeType != '${GOOGLE_MIME.shortcut}'`,
   ];
   if (folderId) {
     clauses.push(`'${folderId}' in parents`);

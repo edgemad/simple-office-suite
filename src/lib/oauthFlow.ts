@@ -51,7 +51,18 @@ export const PROVIDERS: Record<CloudProvider, ProviderConfig> = {
     label: 'Google Drive',
     authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     tokenUrl: 'https://oauth2.googleapis.com/token',
-    scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+    scope: [
+      // Browse the whole Drive. drive.file alone would only ever show files
+      // this app created or the user opened through it, which defeats the
+      // point of a file browser.
+      'https://www.googleapis.com/auth/drive.readonly',
+      // Create and update files. Combined with readonly above this covers
+      // "open any document and save it back" without asking for full
+      // drive (read/write/delete every file), which is a much larger ask.
+      'https://www.googleapis.com/auth/drive.file',
+      'https://www.googleapis.com/auth/userinfo.email',
+      'https://www.googleapis.com/auth/userinfo.profile',
+    ].join(' '),
     offline: true,
     validateClientId: (clientId) => /^[0-9]+-[a-z0-9]{20,}\.apps\.googleusercontent\.com$/i.test(clientId.trim()),
     clientIdHint: '123456789012-abcdefghijklmnopqrstuvwxyz012345.apps.googleusercontent.com',

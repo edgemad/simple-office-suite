@@ -34,6 +34,7 @@
     type Library,
   } from '../../lib/cloudFiles';
   import { deleteSecret } from '../../lib/secureStore';
+  import { saveToCloud } from '../../lib/cloudSave';
   import { downloadDriveFileBase64 } from '../../lib/googleDriveClient';
   import { base64ToArrayBuffer, downloadItem } from '../../lib/microsoftGraph';
   import type { CloudCredentials, CloudStorageAccount } from '../../types';
@@ -170,6 +171,27 @@
   async function downloadMicrosoft(id: string): Promise<ArrayBuffer> {
     if (!credentials) throw new Error('Not connected.');
     return downloadItem(credentials, id);
+  }
+
+  /** Writes the current document back to the connected library. */
+  export async function save(payload: {
+    fileName: string;
+    mimeType: string;
+    bytes: ArrayBuffer;
+  }) {
+    if (!credentials) throw new Error('Connect a drive before saving.');
+    const result = await saveToCloud({
+      provider,
+      credentials,
+      fileName: payload.fileName,
+      mimeType: payload.mimeType,
+      bytes: payload.bytes,
+      folderId,
+    });
+    message = result.note ?? `Saved ${result.name}.`;
+    if (result.note) error = '';
+    await load();
+    return result;
   }
 
   function iconFor(item: CloudEntry) {

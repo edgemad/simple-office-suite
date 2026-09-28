@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GOOGLE_MIME,
   OFFICE_MIME,
-  buildOpenableQuery,
+  buildBrowseQuery,
   describeFile,
   exportMimeFor,
   extensionForMime,
@@ -186,17 +186,27 @@ describe('describeFile', () => {
   });
 });
 
-describe('buildOpenableQuery', () => {
-  it('scopes to the root and excludes folders', () => {
-    const query = buildOpenableQuery();
+describe('buildBrowseQuery', () => {
+  it('scopes to the root when no folder is given', () => {
+    const query = buildBrowseQuery();
     expect(query).toContain("'root' in parents");
     expect(query).toContain('trashed = false');
-    expect(query).toContain(`mimeType != '${GOOGLE_MIME.folder}'`);
   });
 
-  it('scopes to a folder when given an id', () => {
-    const query = buildOpenableQuery('abc123');
-    expect(query).toContain("'abc123' in parents");
-    expect(query).not.toContain("'root' in parents");
+  it('scopes to a specific folder when one is given', () => {
+    expect(buildBrowseQuery('abc123')).toContain("'abc123' in parents");
+    expect(buildBrowseQuery('abc123')).not.toContain("'root' in parents");
+  });
+
+  it('includes folders, or the user could never descend into one', () => {
+    expect(buildBrowseQuery()).not.toContain(`mimeType != '${GOOGLE_MIME.folder}'`);
+  });
+
+  it('excludes shortcuts, which point at files listed anyway', () => {
+    expect(buildBrowseQuery()).toContain(`mimeType != '${GOOGLE_MIME.shortcut}'`);
+  });
+
+  it('hides trashed files', () => {
+    expect(buildBrowseQuery()).toContain('trashed = false');
   });
 });

@@ -65,7 +65,13 @@ describe('provider config', () => {
   it('asks both providers for offline access so sessions survive a restart', () => {
     expect(PROVIDERS.google.offline).toBe(true);
     expect(PROVIDERS.microsoft.offline).toBe(true);
+    // Browsing everything needs readonly; drive.file alone would only show
+    // files this app created or the user opened through it.
+    expect(PROVIDERS.google.scope).toContain('drive.readonly');
     expect(PROVIDERS.google.scope).toContain('drive.file');
+    // Full drive (read/write/delete everything) is a much larger grant and
+    // should not be requested on first launch.
+    expect(PROVIDERS.google.scope).not.toContain('/auth/drive ');
     expect(PROVIDERS.microsoft.scope).toContain('Files.ReadWrite');
   });
 

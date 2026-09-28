@@ -6,6 +6,7 @@
  */
 
 import type { CloudCredentials, GoogleAccount, GoogleDriveFile } from '../types';
+import { toUploadBytes, type UploadContent } from './uploadBytes';
 import { loadSecret, secretKeyForAccount, storeSecret } from './secureStore';
 
 export type { GoogleDriveFile } from '../types';
@@ -26,7 +27,7 @@ export interface DriveAboutInfo {
 export interface UploadOptions {
   name: string;
   mimeType: string;
-  content: string | Uint8Array | Blob;
+  content: UploadContent;
   parentId?: string;
   fileId?: string;
 }
@@ -286,23 +287,18 @@ export async function uploadToDrive(
   const metaHeader = 'Content-Type: application/json; charset=UTF-8\r\n\r\n';
   const dataHeader = `Content-Type: ${options.mimeType}\r\n\r\n`;
 
-  let bodyContent: string;
-  if (typeof options.content === 'string') {
-    bodyContent = options.content;
-  } else if (options.content instanceof Uint8Array) {
-    bodyContent = new TextDecoder().decode(options.content);
-  } else {
-    bodyContent = '';
-  }
+  // The payload is assembled as bytes. Office Open XML is a zip archive, and
+  // routing it through a JS string (or decoding it as UTF-8) rewrites any byte
+  // that is not valid text, which silently corrupts the saved file.
+  const encoder = new TextEncoder();
+  const fileBytes = toUploadBytes(options.content);
 
-  const multipartBody =
-    delimiter +
-    metaHeader +
-    JSON.stringify(metadata) +
-    delimiter +
-    dataHeader +
-    bodyContent +
-    closeDelimiter;
+  const head = encoder.encode(delimiter + metaHeader + JSON.stringify(metadata) + delimiter + dataHeader);
+  const tail = encoder.encode(closeDelimiter);
+  const body = new Uint8Array(head.length + fileBytes.length + tail.length);
+  body.set(head, 0);
+  body.set(fileBytes, head.length);
+  body.set(tail, head.length + fileBytes.length);
 
   const response = await fetch(url, {
     method: isUpdate ? 'PATCH' : 'POST',
@@ -310,7 +306,7 @@ export async function uploadToDrive(
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': `multipart/related; boundary=${boundary}`,
     },
-    body: multipartBody,
+    body,
   });
 
   if (!response.ok) {

@@ -76,6 +76,7 @@
     openDoc: void;
     saveDoc: void;
     saveAsDoc: void;
+    saveToDrive: void;
     exportFormat: { format: string };
     printPdf: void;
     openShortcuts: void;
@@ -497,6 +498,10 @@
             <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('saveAsDoc'); }}>
               <span>Save As...</span>
               <span class="text-[10px] text-slate-400 font-mono">{modKey}+⇧+S</span>
+            </button>
+            <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('saveToDrive'); }}>
+              <span>Save to Drive...</span>
+              <span class="text-[10px] text-slate-400 font-mono">{modKey}+⇧+D</span>
             </button>
             <div class="border-t border-slate-800 my-1"></div>
             <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('printPdf'); }}>
