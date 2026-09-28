@@ -353,6 +353,16 @@
         <span class="text-[11px]">Slides</span>
       </button>
 
+      <button
+        class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
+          {activeMode === 'drive' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}"
+        on:click={() => dispatch('changeMode', 'drive')}
+        title="Drive / Open from Google Drive, OneDrive, or SharePoint"
+      >
+        <Cloud size={13} />
+        <span class="text-[11px]">Drive</span>
+      </button>
+
     </nav>
 
     <!-- Right: Export & Shortcuts -->

@@ -250,12 +250,18 @@ const EXTENSION_WORKSPACE: Record<string, 'writer' | 'sheets' | 'slides'> = {
   odp: 'slides',
 };
 
-/** Decides which workspace a Graph item opens into, from its name. */
-export function workspaceForItem(item: GraphDriveItem): MicrosoftFileKind {
-  const extension = /\.([A-Za-z0-9]+)$/.exec(item.name)?.[1].toLowerCase() ?? '';
+/** Decides which workspace a file opens into, from its name alone. */
+export function workspaceForFileName(name: string): MicrosoftFileKind {
+  const extension = /\.([A-Za-z0-9]+)$/.exec(name)?.[1].toLowerCase() ?? '';
   const workspace = EXTENSION_WORKSPACE[extension] ?? null;
   return {
     workspace,
-    label: workspace ? extension.toUpperCase() : (item.folder ? 'Folder' : 'File'),
+    label: workspace ? extension.toUpperCase() : 'File',
   };
+}
+
+/** Decides which workspace a Graph item opens into, from its name. */
+export function workspaceForItem(item: GraphDriveItem): MicrosoftFileKind {
+  if (item.folder) return { workspace: null, label: 'Folder' };
+  return workspaceForFileName(item.name);
 }

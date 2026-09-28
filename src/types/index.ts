@@ -244,6 +244,12 @@ export interface AppSettings {
   aiApiKey: string;
   aiModel: string;
   aiTemperature: number;
+  /**
+   * Public OAuth client identifiers. These are not secrets - desktop OAuth
+   * clients are public by design, and PKCE means no client secret is needed.
+   */
+  googleOAuthClientId: string;
+  microsoftOAuthClientId: string;
 }
 
 // SOS Cloud Types
@@ -294,6 +300,7 @@ export type StorageTarget = 'local' | 'cloud';
 export type CloudDriveProvider =
   | 'google_drive'
   | 'onedrive'
+  | 'sharepoint'
   | 'dropbox'
   | 'terabox'
   | 'box'
@@ -317,6 +324,13 @@ export interface CloudStorageAccount {
   /** Non-secret connection details, kept on the profile for display and routing. */
   serverUrl?: string;
   folderPath?: string;
+  /**
+   * Which backing library this account points at. OneDrive (personal),
+   * OneDrive for Business, and SharePoint are the same Graph API against a
+   * different drive, so the drive id is what actually selects the library.
+   */
+  driveId?: string;
+  driveType?: 'personal' | 'business' | 'sharepoint';
   hasCredentials?: boolean;
 }
 

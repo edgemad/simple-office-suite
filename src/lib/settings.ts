@@ -20,6 +20,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   aiApiKey: '',
   aiModel: 'gpt-4o',
   aiTemperature: 0.7,
+  googleOAuthClientId: '',
+  microsoftOAuthClientId: '',
 };
 
 const STORAGE_KEY = 'simple_office_settings_v1';

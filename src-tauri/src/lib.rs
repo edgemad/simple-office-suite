@@ -1173,6 +1173,83 @@ fn store_secret(key: String, value: String) -> Result<(), String> {
     write_file_atomically(&target, encoded.as_bytes(), MAX_SECRET_VALUE_BYTES as u64)
 }
 
+/// Streams a document that came from the cloud (bytes, not a path on disk)
+/// through the same parsing the file dialogs use.
+///
+/// The bytes are staged in a private temp file because the archive readers work
+/// on paths; the file is removed before returning, including on the error path.
+#[tauri::command]
+fn import_office_bytes(file_name: String, bytes: Vec<u8>) -> Result<String, String> {
+    if bytes.len() > MAX_FILE_BYTES as usize {
+        return Err("Downloaded file is too large to open".to_string());
+    }
+    if bytes.is_empty() {
+        return Err("The downloaded file was empty".to_string());
+    }
+
+    let scratch = std::env::temp_dir();
+    // The name is generated rather than taken from the provider, so a hostile
+    // file name can never influence where this lands.
+    let staged = scratch.join(format!("sos-import-{}.bin", unique_suffix()));
+
+    fs::write(&staged, &bytes).map_err(|e| format!("Cannot stage the download: {}", e))?;
+    let result = parse_staged_office_bytes(&staged, &file_name);
+    let _ = fs::remove_file(&staged);
+    result
+}
+
+fn parse_staged_office_bytes(path: &Path, file_name: &str) -> Result<String, String> {
+    if !is_zip_archive(path) {
+        reject_binary_input(&read_limited_file(path, MAX_FILE_BYTES, "Downloaded file")?)?;
+        return decode_utf8_lossy_limited(
+            &fs::read(path).map_err(|e| format!("Cannot read the download: {}", e))?,
+            MAX_FILE_BYTES as usize,
+            "Downloaded file",
+        );
+    }
+
+    let extension = file_name
+        .rsplit_once('.')
+        .map(|(_, ext)| ext.to_ascii_lowercase())
+        .unwrap_or_default();
+
+    let parsed = match extension.as_str() {
+        "xlsx" | "xls" | "soss" => parse_xlsx_archive(path).ok(),
+        "pptx" | "odp" | "sosp" => parse_pptx_archive(path).ok(),
+        "docx" | "doc" | "odt" | "rtf" | "md" | "txt" => parse_docx_archive(path).ok(),
+        _ => {
+            // Unknown extension on a ZIP: sniff, in the same order as the
+            // file dialog, so a mislabelled file still opens.
+            parse_xlsx_archive(path)
+                .ok()
+                .or_else(|| parse_docx_archive(path).ok())
+                .or_else(|| parse_pptx_archive(path).ok())
+        }
+    };
+
+    parsed.ok_or_else(|| {
+        "This file is a compressed archive that could not be read as an office document."
+            .to_string()
+    })
+}
+
+fn is_zip_archive(path: &Path) -> bool {
+    let mut header = [0u8; 2];
+    let Ok(mut file) = fs::File::open(path) else {
+        return false;
+    };
+    std::io::Read::read_exact(&mut file, &mut header).is_ok() && header == *b"PK"
+}
+
+/// Cheap unique-enough suffix for a temp file name. Not used for secrets, only
+/// to stop two simultaneous imports from colliding.
+fn unique_suffix() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0)
+}
+
 #[tauri::command]
 fn load_secret(key: String) -> Result<Option<String>, String> {
     let target = secret_target(&key)?;
@@ -1355,6 +1432,7 @@ pub fn run() {
             cancel_oauth_listener,
             store_secret,
             load_secret,
+            import_office_bytes,
             delete_secret,
             read_auto_save_snapshot,
             get_system_metrics,
@@ -1646,7 +1724,7 @@ mod tests {
     fn oauth_listener_rejects_unrelated_paths() {
         let _guard = oauth_test_lock();
         let port = start_oauth_listener().expect("listener should bind");
-        let request = format!("GET /favicon.ico HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
+        let request = "GET /favicon.ico HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
         let mut stream = std::net::TcpStream::connect(("127.0.0.1", port))
             .expect("should connect to the listener");
         std::thread::sleep(std::time::Duration::from_millis(50));
@@ -1668,5 +1746,44 @@ mod tests {
         let _guard = oauth_test_lock();
         reset_oauth_state();
         assert!(take_oauth_callback().is_none());
+    }
+
+    #[test]
+    fn import_office_bytes_reads_plain_text() {
+        let text = import_office_bytes("notes.md".into(), b"# Hello".to_vec())
+            .expect("plain text should import");
+        assert_eq!(text, "# Hello");
+    }
+
+    #[test]
+    fn import_office_bytes_rejects_empty_payloads() {
+        assert!(import_office_bytes("empty.docx".into(), Vec::new()).is_err());
+    }
+
+    #[test]
+    fn import_office_bytes_rejects_an_unreadable_archive() {
+        // A ZIP magic header with nothing valid behind it must not be mistaken
+        // for a document, and must not leave a staged file behind.
+        let junk = b"PK\x03\x04 this is not a real archive";
+        let error = import_office_bytes("broken.docx".into(), junk.to_vec())
+            .expect_err("garbage archive should fail");
+        assert!(
+            error.contains("archive") || error.contains("office"),
+            "unexpected error: {}",
+            error
+        );
+    }
+
+    #[test]
+    fn import_office_bytes_ignores_the_supplied_file_name_for_staging() {
+        // A hostile name must not steer the staging path anywhere.
+        let traversal = "../../../../etc/passwd";
+        let _ = import_office_bytes(traversal.into(), b"hello".to_vec());
+        assert!(!std::path::Path::new("/etc/passwd/sos-import-0.bin").exists());
+    }
+
+    #[test]
+    fn unique_suffix_is_not_constant() {
+        assert_ne!(unique_suffix(), unique_suffix());
     }
 }

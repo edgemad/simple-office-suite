@@ -8,12 +8,14 @@
   import type { Command } from './lib/commands';
   import ErrorBoundary from './components/layout/ErrorBoundary.svelte';
   import SettingsModal from './components/layout/SettingsModal.svelte';
-  import type { AppSettings } from './types';
+  import type { AppSettings, CloudStorageAccount } from './types';
   import { loadSettings, DEFAULT_SETTINGS } from './lib/settings';
   import { applyTheme } from './lib/theme';
   import Writer from './components/writer/Writer.svelte';
   import Sheets from './components/sheets/Sheets.svelte';
   import Slides from './components/slides/Slides.svelte';
+  import DrivePanel from './components/drive/DrivePanel.svelte';
+  import type { CloudEntry } from './lib/cloudFiles';
   import {
     openFileDialogNative,
     saveFileDialogNative,
@@ -126,6 +128,8 @@
   let showCommandPalette = false;
   let recentCommandIds: string[] = [];
   let appSettings: AppSettings = loadSettings();
+  /** The cloud profile the Drive panel is showing, if one is connected. */
+  let driveAccount: CloudStorageAccount | null = null;
 
   let stopThemeSync: (() => void) | null = null;
 
@@ -414,6 +418,68 @@
         ],
       };
     }
+  }
+
+/** Opens a file that came from Drive/OneDrive/SharePoint. */
+  async function openCloudEntry(entry: CloudEntry, bytes: ArrayBuffer) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    // The native parsers read archives from disk, so the bytes go through the
+    // same bridge the file dialogs use instead of duplicating that logic.
+    const content = (await invoke<string>('import_office_bytes', {
+      fileName: entry.name,
+      bytes: Array.from(new Uint8Array(bytes)),
+    })) as string;
+
+    const title = entry.name.replace(/\.[^/.]+$/, '');
+
+    if (entry.workspace === 'sheets') {
+      activeMode = 'sheets';
+      const sanitized = sanitizeImportedWorkbook(safeJsonParse(content), sheetsWorkbook.meta);
+      if (sanitized) {
+        sheetsWorkbook = sanitized;
+      } else {
+        applyImportedGrid(parseSpreadsheetContent(content, entry.name));
+      }
+      sheetsWorkbook.meta.title = title;
+      sheetsWorkbook.meta.isDirty = false;
+      sheetsWorkbook.meta.lastSaved = new Date().toISOString();
+    } else if (entry.workspace === 'slides') {
+      activeMode = 'slides';
+      let imported: SlideDeck | null = null;
+      try {
+        imported = sanitizeImportedSlideDeck(JSON.parse(content), slidesDeck.meta);
+      } catch {
+        imported = null;
+      }
+      if (imported) {
+        slidesDeck = imported;
+      } else {
+        slidesDeck.meta.title = title;
+      }
+      slidesDeck.meta.isDirty = false;
+      slidesDeck.meta.lastSaved = new Date().toISOString();
+    } else if (entry.workspace === 'writer') {
+      activeMode = 'writer';
+      try {
+        writerDoc = sanitizeImportedWriterDocument(JSON.parse(content), writerDoc.meta);
+        writerDoc.meta.title = title;
+      } catch {
+        // A DOCX that is not a native SOS document arrives as HTML.
+        writerDoc.contentHtml = content;
+        writerDoc.meta.title = title;
+      }
+      writerDoc.meta.isDirty = false;
+      writerDoc.meta.lastSaved = new Date().toISOString();
+    }
+    triggerAutoSave();
+  }
+
+  /** Hands the file to the provider's own site, for anything SOS cannot open. */
+  function openCloudEntryInBrowser(entry: CloudEntry) {
+    if (!entry.webUrl) return;
+    import('@tauri-apps/plugin-opener')
+      .then(({ openUrl }) => openUrl(entry.webUrl as string))
+      .catch(() => {});
   }
 
   async function handleOpenDoc() {
@@ -1028,6 +1094,16 @@
         on:updateStats={(e) => {
           slidesIndex = e.detail.slideIndex;
           slidesTotal = e.detail.totalSlides;
+        }}
+      />
+    {:else if activeMode === 'drive'}
+      <DrivePanel
+        settings={appSettings}
+        account={driveAccount}
+        onOpen={openCloudEntry}
+        onOpenInBrowser={openCloudEntryInBrowser}
+        onDisconnect={() => {
+          driveAccount = null;
         }}
       />
     {/if}
