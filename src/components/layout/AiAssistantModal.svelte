@@ -103,7 +103,7 @@
 </script>
 
 <div
-  class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in select-none"
+  class="lg-scrim fixed inset-0 z-50 flex items-center justify-center p-4 select-none"
   on:click|self={() => dispatch('close')}
   role="dialog"
   tabindex="-1"

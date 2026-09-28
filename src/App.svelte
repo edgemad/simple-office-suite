@@ -4,10 +4,13 @@
   import Header from './components/layout/Header.svelte';
   import StatusBar from './components/layout/StatusBar.svelte';
   import ShortcutsModal from './components/layout/ShortcutsModal.svelte';
+  import CommandPalette from './components/layout/CommandPalette.svelte';
+  import type { Command } from './lib/commands';
   import ErrorBoundary from './components/layout/ErrorBoundary.svelte';
   import SettingsModal from './components/layout/SettingsModal.svelte';
   import type { AppSettings } from './types';
   import { loadSettings, DEFAULT_SETTINGS } from './lib/settings';
+  import { applyTheme } from './lib/theme';
   import Writer from './components/writer/Writer.svelte';
   import Sheets from './components/sheets/Sheets.svelte';
   import Slides from './components/slides/Slides.svelte';
@@ -120,15 +123,30 @@
   let activeMode: WorkspaceMode = 'writer';
   let showShortcutsModal = false;
   let showSettingsModal = false;
+  let showCommandPalette = false;
+  let recentCommandIds: string[] = [];
   let appSettings: AppSettings = loadSettings();
+
+  let stopThemeSync: (() => void) | null = null;
+
+  function syncTheme() {
+    stopThemeSync?.();
+    stopThemeSync = applyTheme(appSettings.theme);
+  }
 
   onMount(() => {
     appSettings = loadSettings();
     if (appSettings.defaultMode) {
       activeMode = appSettings.defaultMode;
     }
+    // Settings now actually drive the UI; before this the theme control was
+    // stored but never applied.
+    syncTheme();
     void checkForRecovery();
+    return () => stopThemeSync?.();
   });
+
+  $: if (appSettings.theme) syncTheme();
 
   let writerRef: Writer;
   let sheetsRef: Sheets;
@@ -882,12 +900,68 @@
       e.preventDefault();
       showShortcutsModal = !showShortcutsModal;
     }
+
+    // Command palette: Cmd+K / Ctrl+K
+    if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      showCommandPalette = !showCommandPalette;
+    }
   }
+
+  const PALETTE_COMMANDS: Command[] = [
+    { id: 'file.new', title: 'New document', category: 'File', priority: 1, keywords: ['create', 'blank'] },
+    { id: 'file.open', title: 'Open…', category: 'File', priority: 2, keywords: ['browse', 'load'] },
+    { id: 'file.save', title: 'Save', category: 'File', priority: 3, keywords: ['write', 'store'] },
+    { id: 'file.saveAs', title: 'Save as…', category: 'File', priority: 4, keywords: ['duplicate', 'copy'] },
+    { id: 'file.print', title: 'Print', category: 'File', priority: 5, keywords: ['pdf', 'paper'] },
+
+    { id: 'view.writer', title: 'Switch to Writer', category: 'View', priority: 20, keywords: ['document', 'word', 'text'] },
+    { id: 'view.sheets', title: 'Switch to Sheets', category: 'View', priority: 21, keywords: ['spreadsheet', 'excel', 'cells'] },
+    { id: 'view.slides', title: 'Switch to Slides', category: 'View', priority: 22, keywords: ['presentation', 'deck', 'powerpoint'] },
+
+    { id: 'view.theme.dark', title: 'Theme: Dark', category: 'View', priority: 30, keywords: ['appearance', 'glass', 'night'] },
+    { id: 'view.theme.light', title: 'Theme: Light', category: 'View', priority: 31, keywords: ['appearance', 'day', 'bright'] },
+    { id: 'view.theme.system', title: 'Theme: Match system', category: 'View', priority: 32, keywords: ['appearance', 'auto', 'os'] },
+
+    { id: 'file.settings', title: 'Open settings', category: 'Preferences', priority: 40, keywords: ['preferences', 'options', 'config'] },
+    { id: 'file.shortcuts', title: 'Keyboard shortcuts', category: 'Help', priority: 41, keywords: ['keys', 'bindings', 'cheatsheet'] },
+  ];
+
+  function runCommand(command: Command) {
+    if (!command) {
+      showCommandPalette = false;
+      return;
+    }
+    recentCommandIds = [command.id, ...recentCommandIds.filter((id) => id !== command.id)].slice(0, 8);
+    showCommandPalette = false;
+    COMMAND_ACTIONS[command.id]?.();
+  }
+
+  // Registry for the palette. Anything not listed here is simply omitted from
+  // the palette rather than rendered as a no-op row.
+  const COMMAND_ACTIONS: Record<string, () => void> = {
+    'file.new': handleNewDoc,
+    'file.open': handleOpenDoc,
+    'file.save': handleSaveDoc,
+    'file.saveAs': handleSaveAsDoc,
+    'file.print': handlePrintPdf,
+    'file.settings': () => (showSettingsModal = true),
+    'file.shortcuts': () => (showShortcutsModal = true),
+    'view.writer': () => (activeMode = 'writer'),
+    'view.sheets': () => (activeMode = 'sheets'),
+    'view.slides': () => (activeMode = 'slides'),
+    'view.theme.dark': () => (appSettings = { ...appSettings, theme: 'dark' }),
+    'view.theme.light': () => (appSettings = { ...appSettings, theme: 'light' }),
+    'view.theme.system': () => (appSettings = { ...appSettings, theme: 'system' }),
+  };
+
+  $: paletteCommands = PALETTE_COMMANDS.filter((c) => c.id in COMMAND_ACTIONS);
 </script>
 
 <svelte:window on:keydown={handleGlobalKeydown} on:fullscreenchange={handleFullscreenChange} />
 
-<div class="h-screen w-screen flex flex-col bg-slate-100 overflow-hidden font-sans">
+<div class="lg-grain h-screen w-screen flex flex-col overflow-hidden font-sans text-[color:var(--lg-text)]">
+  <div class="lg-aurora" aria-hidden="true"></div>
   <!-- Top OnlyOffice Style Navigation & File Ribbon Actions -->
   <Header
     {activeMode}
@@ -974,6 +1048,15 @@
     zoom={uiZoom}
     fullscreen={isFullscreen}
   />
+
+  <!-- ⌘K Command Palette -->
+  {#if showCommandPalette}
+    <CommandPalette
+      commands={paletteCommands}
+      recentIds={recentCommandIds}
+      on:select={(e) => runCommand(e.detail)}
+    />
+  {/if}
 
   <!-- Keyboard Shortcuts Cheat Sheet Modal -->
   {#if showShortcutsModal}

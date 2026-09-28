@@ -1018,14 +1018,14 @@
 
 <svelte:window on:keydown={handleWindowKeydown} />
 
-<div class="flex-1 flex flex-col h-full overflow-hidden bg-slate-100">
+<div class="flex-1 flex flex-col h-full overflow-hidden">
   <!-- Powerhouse Sheets Formatting Toolbar -->
-  <div class="no-print bg-white border-b border-slate-200 px-3 py-1 flex items-center justify-between select-none text-xs text-slate-700 shadow-sm overflow-x-auto">
+  <div class="glass glass--chrome no-print px-3 py-1 flex items-center justify-between select-none text-xs text-[color:var(--lg-text)] overflow-x-auto lg-scroll">
     <div class="flex items-center space-x-1.5">
       <!-- Undo / Redo buttons -->
       <div class="flex items-center space-x-0.5 pr-1 border-r border-slate-200">
         <button
-          class="p-1.5 rounded hover:bg-slate-100 text-slate-700 transition-colors disabled:opacity-30"
+          class="glass-btn p-1.5 rounded disabled:opacity-30"
           on:click={triggerUndo}
           disabled={history.undoCount === 0}
           title="Undo (Ctrl+Z)"
@@ -1033,7 +1033,7 @@
           <Undo2 size={14} />
         </button>
         <button
-          class="p-1.5 rounded hover:bg-slate-100 text-slate-700 transition-colors disabled:opacity-30"
+          class="glass-btn p-1.5 rounded disabled:opacity-30"
           on:click={triggerRedo}
           disabled={history.redoCount === 0}
           title="Redo (Ctrl+Y)"
@@ -1047,7 +1047,7 @@
         <select
           bind:value={cellFontFamily}
           on:change={handleFontChange}
-          class="h-7 bg-slate-50 border border-slate-200 rounded px-2 text-xs text-slate-700 outline-none hover:bg-slate-100 cursor-pointer font-medium"
+          class="glass-input h-7 px-2 text-xs cursor-pointer font-medium"
           title="Cell Font Family"
         >
           {#each fontFamilies as f}
@@ -1125,7 +1125,7 @@
         <select
           bind:value={cellNumberFormat}
           on:change={handleNumberFormatChange}
-          class="h-7 bg-slate-50 border border-slate-200 rounded px-2 text-xs text-slate-700 outline-none hover:bg-slate-100 cursor-pointer font-medium"
+          class="glass-input h-7 px-2 text-xs cursor-pointer font-medium"
           title="Number Formatting"
         >
           <option value="general">Automatic / General</option>

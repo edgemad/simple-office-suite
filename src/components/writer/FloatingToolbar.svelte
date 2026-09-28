@@ -33,7 +33,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="fixed z-50 bg-slate-900 text-white rounded-xl shadow-2xl px-2 py-1 flex items-center space-x-0.5 text-xs animate-in fade-in zoom-in-95 duration-100 select-none border border-slate-700 -translate-x-1/2 -translate-y-full mb-2"
+  class="glass glass--menu lg-enter fixed z-50 px-2 py-1 flex items-center space-x-0.5 text-xs text-[color:var(--lg-text)] select-none -translate-x-1/2 -translate-y-full mb-2"
   style="left: {x}px; top: {y}px;"
   on:click|stopPropagation
 >

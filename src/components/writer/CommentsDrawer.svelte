@@ -57,7 +57,7 @@
 </script>
 
 {#if isOpen}
-  <aside class="w-80 border-l border-slate-200 bg-white flex flex-col h-full shadow-lg z-20 animate-in slide-in-from-right duration-200">
+  <aside class="glass glass--panel w-80 flex flex-col h-full z-20 lg-enter">
     <!-- Drawer Header -->
     <div class="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
       <div class="flex items-center space-x-2">

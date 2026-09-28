@@ -72,12 +72,12 @@
   ];
 </script>
 
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 select-none">
+<div class="lg-scrim fixed inset-0 z-50 flex items-center justify-center p-4 select-none">
   <!-- Settings Window -->
-  <div class="bg-[#1e2023] text-slate-200 border border-[#363a40] rounded-xl shadow-2xl w-full max-w-4xl h-[620px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+  <div class="glass glass--modal lg-enter w-full max-w-4xl h-[620px] flex flex-col overflow-hidden">
     
     <!-- Modal Header -->
-    <div class="h-12 px-5 bg-[#18191c] border-b border-[#2d3136] flex items-center justify-between shrink-0">
+    <div class="h-12 px-5 border-b border-[color:var(--lg-edge)] flex items-center justify-between shrink-0">
       <div class="flex items-center space-x-2.5">
         <div class="w-6 h-6 rounded bg-slate-700 flex items-center justify-center text-slate-300">
           <Sliders size={14} />
@@ -98,7 +98,7 @@
     <!-- Modal Body: Sidebar & Content -->
     <div class="flex-1 flex overflow-hidden">
       <!-- Left Category Sidebar -->
-      <aside class="w-56 bg-[#161719] border-r border-[#2d3136] p-2 space-y-1 overflow-y-auto shrink-0">
+      <aside class="glass glass--panel w-56 p-2 space-y-1 overflow-y-auto shrink-0 lg-scroll">
         <button
           class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors
             {activeCategory === 'general' ? 'bg-blue-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
@@ -168,7 +168,7 @@
       </aside>
 
       <!-- Right Content Panel -->
-      <main class="flex-1 bg-[#1e2023] p-6 overflow-y-auto space-y-6 text-xs">
+      <main class="flex-1 p-6 overflow-y-auto space-y-6 text-xs lg-scroll">
         
         <!-- GENERAL TAB -->
         {#if activeCategory === 'general'}
@@ -179,7 +179,7 @@
             </div>
 
             <!-- Theme Selection -->
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-3">
+            <div class="glass glass--card p-4 space-y-3">
               <span class="block font-medium text-slate-200">Application Theme</span>
               <div class="grid grid-cols-3 gap-3">
                 <button
@@ -218,7 +218,7 @@
             </div>
 
             <!-- Startup Mode -->
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 flex items-center justify-between">
+            <div class="glass glass--card p-4 flex items-center justify-between">
               <div>
                 <span class="font-medium text-slate-200 block">Default Mode on Startup</span>
                 <span class="text-[11px] text-slate-400">Select which editor opens when you launch the application.</span>
@@ -234,7 +234,7 @@
             </div>
 
             <!-- Autosave Interval -->
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 flex items-center justify-between">
+            <div class="glass glass--card p-4 flex items-center justify-between">
               <div>
                 <span class="font-medium text-slate-200 block">Background Auto-Save</span>
                 <span class="text-[11px] text-slate-400">Regularly save documents to local cache to prevent loss.</span>
@@ -251,7 +251,7 @@
             </div>
 
             <!-- Language -->
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 flex items-center justify-between">
+            <div class="glass glass--card p-4 flex items-center justify-between">
               <div>
                 <span class="font-medium text-slate-200 block">Interface Language</span>
                 <span class="text-[11px] text-slate-400">Choose the language for menus, dialogs, and tooltips.</span>
@@ -267,7 +267,7 @@
             </div>
 
             <!-- UI Toggles -->
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-3">
+            <div class="glass glass--card p-4 space-y-3">
               <span class="font-medium text-slate-200 block">View Elements</span>
               <div class="space-y-2">
                 <label class="flex items-center space-x-2.5 cursor-pointer">
@@ -290,7 +290,7 @@
               <p class="text-slate-400 text-[11px]">Set defaults for new documents and text editing behavior.</p>
             </div>
 
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
+            <div class="glass glass--card p-4 space-y-4">
               <div class="flex items-center justify-between">
                 <div>
                   <span class="font-medium text-slate-200 block">Default Font Family</span>
@@ -365,7 +365,7 @@
               <p class="text-slate-400 text-[11px]">Configure calculation engine, formula behavior, and grid visibility.</p>
             </div>
 
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
+            <div class="glass glass--card p-4 space-y-4">
               <div class="flex items-center justify-between">
                 <div>
                   <span class="font-medium text-slate-200 block">Gridlines Visibility</span>
@@ -406,7 +406,7 @@
               <p class="text-slate-400 text-[11px]">Aspect ratio and layout options for presentation slide decks.</p>
             </div>
 
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
+            <div class="glass glass--card p-4 space-y-4">
               <div class="flex items-center justify-between">
                 <div>
                   <span class="font-medium text-slate-200 block">Default Slide Aspect Ratio</span>
@@ -457,7 +457,7 @@
               <p class="text-slate-400 text-[11px]">Use the built-in template assistant offline, or connect a model provider you control.</p>
             </div>
 
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
+            <div class="glass glass--card p-4 space-y-4">
               <div class="flex items-center justify-between">
                 <div>
                   <span class="font-medium text-slate-200 block">AI Engine</span>
@@ -540,7 +540,7 @@
             </div>
 
             <!-- macOS Bundle -->
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-2">
+            <div class="glass glass--card p-4 space-y-2">
               <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-2.5">
                   <div class="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
@@ -572,7 +572,7 @@
             </div>
 
             <!-- Windows Bundle -->
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-2">
+            <div class="glass glass--card p-4 space-y-2">
               <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-2.5">
                   <div class="w-8 h-8 rounded-lg bg-sky-600/20 text-sky-400 flex items-center justify-center font-bold">
@@ -604,7 +604,7 @@
             </div>
 
             <!-- Linux Bundle -->
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-2">
+            <div class="glass glass--card p-4 space-y-2">
               <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-2.5">
                   <div class="w-8 h-8 rounded-lg bg-amber-600/20 text-amber-400 flex items-center justify-center font-bold">
@@ -649,7 +649,7 @@
               <p class="text-slate-400 text-[11px]">System information, data handling, and license.</p>
             </div>
 
-            <div class="bg-[#24272c] p-4 rounded-xl border border-slate-700/60 space-y-4">
+            <div class="glass glass--card p-4 space-y-4">
               <div class="flex items-center space-x-3">
                 <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 via-emerald-600 to-orange-500 flex items-center justify-center text-white font-black text-xl shadow-lg">
                   SOS
@@ -728,7 +728,7 @@
     </div>
 
     <!-- Modal Footer -->
-    <div class="h-14 px-6 bg-[#18191c] border-t border-[#2d3136] flex items-center justify-between shrink-0">
+    <div class="h-14 px-6 border-t border-[color:var(--lg-edge)] flex items-center justify-between shrink-0">
       <div class="flex items-center space-x-2">
         <button
           type="button"

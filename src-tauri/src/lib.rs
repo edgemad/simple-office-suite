@@ -969,6 +969,97 @@ fn clear_auto_save_snapshot(module: String, document_id: String) -> Result<bool,
     }
 }
 
+// --- Secret store ---
+//
+// OAuth access and refresh tokens must not live in webview localStorage: any
+// script that manages to run in the page can read them. They are kept here
+// instead, in a 0600 file inside the application data directory, and only ever
+// cross the IPC bridge one secret at a time.
+
+const MAX_SECRET_KEY_BYTES: usize = 128;
+const MAX_SECRET_VALUE_BYTES: usize = 32 * 1024;
+
+fn get_secret_dir() -> Result<PathBuf, String> {
+    let base = dirs::data_local_dir()
+        .or_else(dirs::data_dir)
+        .ok_or_else(|| "Application data directory is unavailable".to_string())?;
+    let base_metadata = fs::metadata(&base)
+        .map_err(|e| format!("Cannot inspect application data directory: {}", e))?;
+    if !base_metadata.is_dir() {
+        return Err("Application data path is not a directory".to_string());
+    }
+    let canonical_base = fs::canonicalize(&base)
+        .map_err(|e| format!("Cannot resolve application data directory: {}", e))?;
+    let application_dir = base.join("SimpleOfficeSuite");
+    let secret_dir = application_dir.join("secrets");
+    ensure_directory(&application_dir, &canonical_base)?;
+    ensure_directory(&secret_dir, &canonical_base)?;
+    let canonical = fs::canonicalize(&secret_dir)
+        .map_err(|e| format!("Cannot resolve secret directory: {}", e))?;
+    if !canonical.starts_with(&canonical_base) {
+        return Err("Secret directory is outside the application data directory".to_string());
+    }
+    Ok(canonical)
+}
+
+/// Maps an opaque secret key to a filename, rejecting anything that could
+/// escape the secret directory or collide with a hidden file.
+fn secret_key_to_filename(key: &str) -> Result<String, String> {
+    if key.is_empty() || key.len() > MAX_SECRET_KEY_BYTES {
+        return Err("Invalid secret key".to_string());
+    }
+    if !key
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+    {
+        return Err("Invalid secret key".to_string());
+    }
+    Ok(format!("{}.json", key))
+}
+
+fn secret_target(key: &str) -> Result<PathBuf, String> {
+    let dir = get_secret_dir()?;
+    Ok(dir.join(secret_key_to_filename(key)?))
+}
+
+#[tauri::command]
+fn store_secret(key: String, value: String) -> Result<(), String> {
+    if value.len() > MAX_SECRET_VALUE_BYTES {
+        return Err("Secret value is too large".to_string());
+    }
+    let target = secret_target(&key)?;
+    let encoded =
+        serde_json::to_string(&value).map_err(|e| format!("Cannot encode secret: {}", e))?;
+    write_file_atomically(&target, encoded.as_bytes(), MAX_SECRET_VALUE_BYTES as u64)
+}
+
+#[tauri::command]
+fn load_secret(key: String) -> Result<Option<String>, String> {
+    let target = secret_target(&key)?;
+    match fs::read(&target) {
+        Ok(bytes) => {
+            if bytes.len() as u64 > MAX_SECRET_VALUE_BYTES as u64 {
+                return Err("Stored secret exceeds the maximum size".to_string());
+            }
+            let text = String::from_utf8(bytes)
+                .map_err(|_| "Stored secret is not valid UTF-8".to_string())?;
+            serde_json::from_str(&text).map_err(|e| format!("Cannot decode secret: {}", e))
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(format!("Failed to read secret: {}", error)),
+    }
+}
+
+#[tauri::command]
+fn delete_secret(key: String) -> Result<bool, String> {
+    let target = secret_target(&key)?;
+    match fs::remove_file(&target) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!("Failed to remove secret: {}", error)),
+    }
+}
+
 #[tauri::command]
 fn read_auto_save_snapshot(module: String, document_id: String) -> Result<Option<String>, String> {
     let (_, target) = autosave_target(&module, &document_id)?;
@@ -1119,6 +1210,9 @@ pub fn run() {
             write_text_file,
             auto_save_snapshot,
             clear_auto_save_snapshot,
+            store_secret,
+            load_secret,
+            delete_secret,
             read_auto_save_snapshot,
             get_system_metrics,
             open_native_file_dialog,
@@ -1313,5 +1407,47 @@ mod tests {
         assert!(parsed.contains("7"));
 
         fs::remove_dir_all(directory).expect("test directory should be removed");
+    }
+
+    #[test]
+    fn secret_key_to_filename_accepts_safe_keys() {
+        assert_eq!(
+            secret_key_to_filename("google_account_1").expect("safe key"),
+            "google_account_1.json"
+        );
+        assert_eq!(
+            secret_key_to_filename("a-b_C9").expect("safe key"),
+            "a-b_C9.json"
+        );
+    }
+
+    #[test]
+    fn secret_key_to_filename_rejects_traversal_and_separators() {
+        // A key that could climb out of the secret directory is the whole risk
+        // this function exists to remove, so every shape of it is refused.
+        for key in [
+            "../escape",
+            "..",
+            ".",
+            "a/b",
+            "a\\b",
+            "a\u{0}b",
+            "with space",
+            "with.dot",
+            "",
+        ] {
+            assert!(
+                secret_key_to_filename(key).is_err(),
+                "expected {:?} to be rejected",
+                key
+            );
+        }
+    }
+
+    #[test]
+    fn secret_key_to_filename_rejects_oversized_keys() {
+        let long = "a".repeat(MAX_SECRET_KEY_BYTES + 1);
+        assert!(secret_key_to_filename(&long).is_err());
+        assert!(secret_key_to_filename(&"a".repeat(MAX_SECRET_KEY_BYTES)).is_ok());
     }
 }

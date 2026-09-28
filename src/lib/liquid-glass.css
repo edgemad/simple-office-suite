@@ -1,0 +1,663 @@
+/**
+ * SOS — Liquid Glass design system
+ *
+ * A layered translucency language: real glass needs something colourful behind
+ * it, so the app sits on an animated aurora field and every surface above it
+ * is built from the same four ingredients:
+ *
+ *   1. a frosted backdrop  (blur + saturate, so colour bleeds through the edge)
+ *   2. a tinted film       (low-alpha fill, light or dark)
+ *   3. a specular rim      (inset highlight along the top-lit edge)
+ *   4. layered depth       (tight ambient + soft key + coloured bounce)
+ *
+ * Everything degrades: no `backdrop-filter` means a solid tint, and
+ * `prefers-reduced-transparency` / `prefers-reduced-motion` / forced-colors
+ * each swap the effects out for flat, high-contrast equivalents.
+ */
+
+/* ------------------------------------------------------------------ tokens */
+
+:root {
+  --lg-blur-xs: 8px;
+  --lg-blur-sm: 14px;
+  --lg-blur-md: 26px;
+  --lg-blur-lg: 44px;
+  --lg-blur-xl: 72px;
+
+  --lg-sat: 175%;
+
+  --lg-radius-xs: 8px;
+  --lg-radius-sm: 12px;
+  --lg-radius: 18px;
+  --lg-radius-lg: 24px;
+  --lg-radius-xl: 32px;
+
+  --lg-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --lg-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --lg-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --lg-fast: 140ms;
+  --lg-base: 240ms;
+  --lg-slow: 420ms;
+
+  --lg-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.42'/%3E%3C/svg%3E");
+}
+
+/* dark is the default: the chrome was already dark, and glass reads best
+   against a deep, saturated field */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --lg-tint-1: rgba(30, 32, 42, 0.52);
+  --lg-tint-2: rgba(22, 24, 33, 0.66);
+  --lg-tint-3: rgba(16, 18, 25, 0.82);
+  --lg-tint-solid: #171922;
+
+  --lg-edge: rgba(255, 255, 255, 0.1);
+  --lg-edge-strong: rgba(255, 255, 255, 0.16);
+  --lg-specular: rgba(255, 255, 255, 0.34);
+  --lg-specular-soft: rgba(255, 255, 255, 0.12);
+
+  --lg-text: rgba(241, 245, 249, 0.96);
+  --lg-text-dim: rgba(203, 213, 225, 0.78);
+  --lg-text-faint: rgba(148, 163, 184, 0.7);
+
+  --lg-hover: rgba(255, 255, 255, 0.09);
+  --lg-active: rgba(255, 255, 255, 0.16);
+
+  --lg-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 3px 10px rgba(0, 0, 0, 0.24);
+  --lg-shadow-2: 0 2px 8px rgba(0, 0, 0, 0.34), 0 14px 36px rgba(0, 0, 0, 0.3);
+  --lg-shadow-3: 0 10px 28px rgba(0, 0, 0, 0.42), 0 36px 80px rgba(0, 0, 0, 0.4);
+  --lg-inner-top: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  --lg-inner-bottom: inset 0 -1px 0 rgba(0, 0, 0, 0.28);
+
+  --lg-field: rgba(9, 10, 15, 0.5);
+  --lg-field-edge: rgba(255, 255, 255, 0.12);
+  --lg-scrollbar: rgba(148, 163, 184, 0.42);
+  --lg-scrollbar-hover: rgba(203, 213, 225, 0.66);
+
+  --lg-accent: #60a5fa;
+  --lg-accent-soft: rgba(96, 165, 250, 0.22);
+  --lg-focus: rgba(147, 197, 253, 0.85);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --lg-tint-1: rgba(255, 255, 255, 0.58);
+  --lg-tint-2: rgba(255, 255, 255, 0.74);
+  --lg-tint-3: rgba(255, 255, 255, 0.88);
+  --lg-tint-solid: #f6f7fb;
+
+  --lg-edge: rgba(255, 255, 255, 0.7);
+  --lg-edge-strong: rgba(15, 23, 42, 0.1);
+  --lg-specular: rgba(255, 255, 255, 0.95);
+  --lg-specular-soft: rgba(255, 255, 255, 0.5);
+
+  --lg-text: rgba(15, 23, 42, 0.95);
+  --lg-text-dim: rgba(51, 65, 85, 0.86);
+  --lg-text-faint: rgba(100, 116, 139, 0.82);
+
+  --lg-hover: rgba(15, 23, 42, 0.06);
+  --lg-active: rgba(15, 23, 42, 0.12);
+
+  --lg-shadow-1: 0 1px 2px rgba(15, 23, 42, 0.08), 0 3px 10px rgba(15, 23, 42, 0.08);
+  --lg-shadow-2: 0 2px 8px rgba(15, 23, 42, 0.1), 0 14px 36px rgba(15, 23, 42, 0.12);
+  --lg-shadow-3: 0 10px 28px rgba(15, 23, 42, 0.14), 0 36px 80px rgba(15, 23, 42, 0.16);
+  --lg-inner-top: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --lg-inner-bottom: inset 0 -1px 0 rgba(15, 23, 42, 0.07);
+
+  --lg-field: rgba(255, 255, 255, 0.66);
+  --lg-field-edge: rgba(15, 23, 42, 0.12);
+  --lg-scrollbar: rgba(100, 116, 139, 0.42);
+  --lg-scrollbar-hover: rgba(51, 65, 85, 0.6);
+
+  --lg-accent: #2563eb;
+  --lg-accent-soft: rgba(37, 99, 235, 0.16);
+  --lg-focus: rgba(37, 99, 235, 0.9);
+}
+
+/* ------------------------------------------------------------ the backdrop */
+
+/* A slow-drifting colour field. This exists to be refracted: without it,
+   backdrop-filter has nothing to work with and every panel looks like grey
+   plastic rather than glass. */
+.lg-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  background: #0b0d14;
+  pointer-events: none;
+}
+
+.lg-aurora::before,
+.lg-aurora::after {
+  content: '';
+  position: absolute;
+  inset: -30%;
+  will-change: transform;
+}
+
+.lg-aurora::before {
+  background:
+    radial-gradient(38% 42% at 18% 22%, rgba(56, 130, 246, 0.5), transparent 68%),
+    radial-gradient(34% 38% at 82% 18%, rgba(168, 85, 247, 0.42), transparent 66%),
+    radial-gradient(44% 46% at 72% 84%, rgba(16, 185, 129, 0.32), transparent 70%),
+    radial-gradient(40% 40% at 24% 88%, rgba(244, 63, 94, 0.26), transparent 68%);
+  filter: blur(46px) saturate(135%);
+  animation: lg-drift 34s ease-in-out infinite alternate;
+}
+
+.lg-aurora::after {
+  background:
+    radial-gradient(30% 34% at 52% 52%, rgba(14, 165, 233, 0.3), transparent 70%),
+    radial-gradient(28% 30% at 12% 58%, rgba(217, 70, 239, 0.24), transparent 68%);
+  filter: blur(64px) saturate(120%);
+  animation: lg-drift 46s ease-in-out infinite alternate-reverse;
+  opacity: 0.85;
+}
+
+[data-theme='light'] .lg-aurora {
+  background: #eef1f8;
+}
+
+[data-theme='light'] .lg-aurora::before {
+  background:
+    radial-gradient(40% 44% at 18% 20%, rgba(59, 130, 246, 0.4), transparent 68%),
+    radial-gradient(36% 40% at 84% 16%, rgba(168, 85, 247, 0.32), transparent 66%),
+    radial-gradient(46% 48% at 74% 86%, rgba(16, 185, 129, 0.26), transparent 70%),
+    radial-gradient(40% 42% at 22% 88%, rgba(251, 113, 133, 0.26), transparent 68%);
+}
+
+[data-theme='light'] .lg-aurora::after {
+  background:
+    radial-gradient(32% 36% at 54% 50%, rgba(14, 165, 233, 0.24), transparent 70%),
+    radial-gradient(30% 32% at 10% 56%, rgba(192, 38, 211, 0.18), transparent 68%);
+}
+
+@keyframes lg-drift {
+  0% {
+    transform: translate3d(-2%, -1.5%, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(3%, 2.5%, 0) scale(1.09);
+  }
+  100% {
+    transform: translate3d(-1.5%, 2%, 0) scale(1.04);
+  }
+}
+
+/* Grain: kills the banding that large soft gradients produce on 8-bit panels,
+   and gives the glass a little tooth. */
+.lg-grain::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--lg-grain);
+  opacity: 0.028;
+  mix-blend-mode: overlay;
+}
+
+[data-theme='light'] .lg-grain::after {
+  opacity: 0.02;
+  mix-blend-mode: multiply;
+}
+
+/* ----------------------------------------------------------- glass recipe */
+
+/* The shared base. `glass` is the generic surface; the modifiers below only
+   vary depth and blur so a toolbar and a modal stay related. */
+.glass {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--lg-tint-1);
+  border: 1px solid var(--lg-edge);
+  border-radius: var(--lg-radius);
+  box-shadow: var(--lg-shadow-1), var(--lg-inner-top);
+  -webkit-backdrop-filter: blur(var(--lg-blur-md)) saturate(var(--lg-sat));
+  backdrop-filter: blur(var(--lg-blur-md)) saturate(var(--lg-sat));
+  color: var(--lg-text);
+  transition:
+    background-color var(--lg-base) var(--lg-ease),
+    box-shadow var(--lg-base) var(--lg-ease),
+    border-color var(--lg-base) var(--lg-ease),
+    transform var(--lg-base) var(--lg-spring);
+}
+
+/* the top-lit specular rim — the single cue that sells "this is a solid" */
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    165deg,
+    var(--lg-specular) 0%,
+    var(--lg-specular-soft) 26%,
+    transparent 52%,
+    transparent 74%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+/* Elevated: floating chrome (ribbon, status bar, sidebars). */
+.glass--chrome {
+  background-color: var(--lg-tint-2);
+  border-radius: 0;
+  border-width: 0;
+  border-bottom: 1px solid var(--lg-edge);
+  box-shadow: var(--lg-shadow-2), var(--lg-inner-top), var(--lg-inner-bottom);
+  -webkit-backdrop-filter: blur(var(--lg-blur-lg)) saturate(var(--lg-sat));
+  backdrop-filter: blur(var(--lg-blur-lg)) saturate(var(--lg-sat));
+}
+
+.glass--chrome::before {
+  border-radius: 0;
+  background: linear-gradient(
+    180deg,
+    var(--lg-specular) 0%,
+    var(--lg-specular-soft) 40%,
+    transparent 100%
+  );
+}
+
+/* Panels: sidebars, drawers, docked tools. */
+.glass--panel {
+  background-color: var(--lg-tint-2);
+  border-radius: 0;
+  border-width: 0;
+  border-right: 1px solid var(--lg-edge);
+  box-shadow: var(--lg-shadow-2), var(--lg-inner-top);
+  -webkit-backdrop-filter: blur(var(--lg-blur-lg)) saturate(var(--lg-sat));
+  backdrop-filter: blur(var(--lg-blur-lg)) saturate(var(--lg-sat));
+}
+
+.glass--panel::before {
+  border-radius: 0;
+  background: linear-gradient(
+    100deg,
+    var(--lg-specular) 0%,
+    var(--lg-specular-soft) 18%,
+    transparent 46%
+  );
+}
+
+/* Popovers: menus, dropdowns, tooltips, the command palette. */
+.glass--menu {
+  background-color: var(--lg-tint-3);
+  border-radius: var(--lg-radius);
+  box-shadow: var(--lg-shadow-3), var(--lg-inner-top);
+  -webkit-backdrop-filter: blur(var(--lg-blur-xl)) saturate(var(--lg-sat));
+  backdrop-filter: blur(var(--lg-blur-xl)) saturate(var(--lg-sat));
+}
+
+/* Modal: the heaviest surface, needs to detach from everything under it. */
+.glass--modal {
+  background-color: var(--lg-tint-3);
+  border-radius: var(--lg-radius-lg);
+  box-shadow: var(--lg-shadow-3), var(--lg-inner-top), var(--lg-inner-bottom);
+  -webkit-backdrop-filter: blur(var(--lg-blur-xl)) saturate(var(--lg-sat));
+  backdrop-filter: blur(var(--lg-blur-xl)) saturate(var(--lg-sat));
+}
+
+/* Cards: content tiles inside a panel. */
+.glass--card {
+  background-color: var(--lg-tint-1);
+  border-radius: var(--lg-radius-sm);
+  box-shadow: var(--lg-shadow-1), var(--lg-inner-top);
+  -webkit-backdrop-filter: blur(var(--lg-blur-sm)) saturate(var(--lg-sat));
+  backdrop-filter: blur(var(--lg-blur-sm)) saturate(var(--lg-sat));
+  transition:
+    transform var(--lg-base) var(--lg-spring),
+    box-shadow var(--lg-base) var(--lg-ease),
+    background-color var(--lg-base) var(--lg-ease);
+}
+
+.glass--card:hover {
+  background-color: var(--lg-tint-2);
+  box-shadow: var(--lg-shadow-2), var(--lg-inner-top);
+  transform: translateY(-1px);
+}
+
+.glass--card:active {
+  transform: translateY(0) scale(0.995);
+}
+
+/* ------------------------------------------------------------- controls */
+
+.glass-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: var(--lg-radius-xs);
+  border: 1px solid transparent;
+  background-color: var(--lg-hover);
+  color: var(--lg-text);
+  -webkit-backdrop-filter: blur(var(--lg-blur-xs)) saturate(140%);
+  backdrop-filter: blur(var(--lg-blur-xs)) saturate(140%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  transition:
+    background-color var(--lg-fast) var(--lg-ease),
+    transform var(--lg-fast) var(--lg-spring),
+    box-shadow var(--lg-fast) var(--lg-ease);
+}
+
+.glass-btn:hover:not(:disabled) {
+  background-color: var(--lg-active);
+}
+
+.glass-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.glass-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+/* A push that briefly catches the light, like a physical key travel. */
+.glass-btn--accent {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--lg-accent) 88%, white 12%),
+    var(--lg-accent)
+  );
+  color: #fff;
+  border-color: color-mix(in srgb, var(--lg-accent) 60%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 2px 10px color-mix(in srgb, var(--lg-accent) 34%, transparent);
+}
+
+.glass-btn--accent:hover:not(:disabled) {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--lg-accent) 76%, white 24%),
+    color-mix(in srgb, var(--lg-accent) 92%, white 8%)
+  );
+}
+
+.glass-input {
+  width: 100%;
+  border-radius: var(--lg-radius-xs);
+  border: 1px solid var(--lg-field-edge);
+  background-color: var(--lg-field);
+  color: var(--lg-text);
+  -webkit-backdrop-filter: blur(var(--lg-blur-xs)) saturate(140%);
+  backdrop-filter: blur(var(--lg-blur-xs)) saturate(140%);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.22);
+  transition:
+    border-color var(--lg-fast) var(--lg-ease),
+    box-shadow var(--lg-fast) var(--lg-ease),
+    background-color var(--lg-fast) var(--lg-ease);
+}
+
+.glass-input::placeholder {
+  color: var(--lg-text-faint);
+}
+
+.glass-input:hover {
+  border-color: color-mix(in srgb, var(--lg-accent) 40%, var(--lg-field-edge));
+}
+
+.glass-input:focus,
+.glass-input:focus-visible {
+  outline: none;
+  border-color: var(--lg-accent);
+  background-color: color-mix(in srgb, var(--lg-accent) 6%, var(--lg-field));
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.18),
+    0 0 0 3px var(--lg-accent-soft);
+}
+
+/* ------------------------------------------------------------- focus ring */
+
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--lg-focus);
+  outline-offset: 2px;
+  border-radius: var(--lg-radius-xs);
+}
+
+/* ------------------------------------------------------------ scrollbars */
+
+.lg-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--lg-scrollbar) transparent;
+}
+
+.lg-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.lg-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lg-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--lg-scrollbar);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+.lg-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--lg-scrollbar-hover);
+}
+
+.lg-scroll::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* -------------------------------------------------------------- scrims */
+
+.lg-scrim {
+  background: radial-gradient(
+    120% 120% at 50% 0%,
+    rgba(4, 6, 12, 0.36),
+    rgba(4, 6, 12, 0.62)
+  );
+  -webkit-backdrop-filter: blur(var(--lg-blur-sm)) saturate(120%);
+  backdrop-filter: blur(var(--lg-blur-sm)) saturate(120%);
+  animation: lg-fade var(--lg-base) var(--lg-ease-out) both;
+}
+
+[data-theme='light'] .lg-scrim {
+  background: radial-gradient(
+    120% 120% at 50% 0%,
+    rgba(15, 23, 42, 0.16),
+    rgba(15, 23, 42, 0.34)
+  );
+}
+
+@keyframes lg-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Dialogs rise slightly and settle — reads as "lifted off the page". */
+.lg-enter {
+  animation: lg-rise var(--lg-base) var(--lg-spring) both;
+}
+
+@keyframes lg-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ------------------------------------------------------------- utilities */
+
+.lg-text-dim {
+  color: var(--lg-text-dim);
+}
+
+.lg-text-faint {
+  color: var(--lg-text-faint);
+}
+
+.lg-divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--lg-edge-strong),
+    transparent
+  );
+  border: 0;
+}
+
+/* The document surface stays paper-white: an editor that glitters while you
+   type is an editor nobody trusts. Glass belongs on the chrome, not the page. */
+.lg-page {
+  background: #ffffff;
+  color: #1e293b;
+  border-radius: var(--lg-radius-xs);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.1),
+    0 8px 28px rgba(15, 23, 42, 0.16),
+    0 24px 60px rgba(15, 23, 42, 0.12);
+}
+
+/* ----------------------------------------------------------- preferences */
+
+/* Honour the OS "reduce transparency" setting: keep the depth cues, drop the
+   see-through. Text over an opaque surface stays readable either way. */
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .glass--chrome,
+  .glass--panel,
+  .glass--menu,
+  .glass--modal,
+  .glass--card,
+  .glass-btn,
+  .glass-input,
+  .lg-scrim {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background-color: var(--lg-tint-solid) !important;
+  }
+
+  .glass--card {
+    background-color: color-mix(in srgb, var(--lg-tint-solid) 88%, var(--lg-text) 12%) !important;
+  }
+
+  .lg-aurora::before,
+  .lg-aurora::after {
+    animation: none;
+    opacity: 0.5;
+  }
+
+  .lg-grain::after {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-aurora::before,
+  .lg-aurora::after,
+  .lg-scrim,
+  .lg-enter {
+    animation: none !important;
+  }
+
+  .glass,
+  .glass-btn,
+  .glass-input,
+  .glass--card {
+    transition-duration: 1ms !important;
+  }
+
+  .glass--card:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .glass,
+  .glass--chrome,
+  .glass--panel,
+  .glass--menu,
+  .glass--modal,
+  .glass--card {
+    border-color: var(--lg-text-dim);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-color: var(--lg-tint-solid);
+  }
+}
+
+@media (forced-colors: active) {
+  .glass,
+  .glass--chrome,
+  .glass--panel,
+  .glass--menu,
+  .glass--modal,
+  .glass--card,
+  .glass-btn,
+  .glass-input {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: Canvas;
+    border: 1px solid CanvasText;
+    color: CanvasText;
+    forced-color-adjust: auto;
+  }
+
+  .lg-aurora,
+  .lg-grain::after {
+    display: none;
+  }
+}
+
+/* No backdrop-filter at all (older WebKit, some Linux WebKit builds): fall
+   back to a solid tint so panels stay opaque and readable. */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass,
+  .glass--chrome,
+  .glass--panel,
+  .glass--menu,
+  .glass--modal,
+  .glass--card,
+  .glass-btn,
+  .glass-input {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-color: var(--lg-tint-solid);
+  }
+
+  .lg-aurora {
+    display: none;
+  }
+
+  body {
+    background-color: var(--lg-tint-solid);
+  }
+}

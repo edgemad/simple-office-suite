@@ -1,4 +1,4 @@
-export type WorkspaceMode = 'writer' | 'sheets' | 'slides';
+export type WorkspaceMode = 'writer' | 'sheets' | 'slides' | 'drive' | 'forms';
 
 export interface DocumentMeta {
   id: string;
@@ -244,4 +244,91 @@ export interface AppSettings {
   aiApiKey: string;
   aiModel: string;
   aiTemperature: number;
+}
+
+// SOS Cloud Types
+//
+// OAuth secrets are deliberately kept out of the account record. Accounts are
+// mirrored into webview localStorage for fast UI reads, so a token stored
+// alongside them would be readable by any script that manages to run. Secrets
+// live in `CloudCredentials`, which is persisted through secureStore to a
+// 0600 file in the app data directory instead.
+
+export type GoogleAccountType = 'personal' | 'workspace';
+export type GeminiPlanTier =
+  | 'google_one_ai_premium'
+  | 'gemini_advanced'
+  | 'gemini_free'
+  | 'workspace_enterprise';
+
+export interface CloudCredentials {
+  accessToken?: string;
+  refreshToken?: string;
+  tokenExpiresAt?: number;
+  clientId?: string;
+  clientSecret?: string;
+  apiKey?: string;
+  serverUrl?: string;
+  folderPath?: string;
+}
+
+/** The account fields that are safe to mirror into webview storage. */
+export interface GoogleAccount {
+  id: string;
+  email: string;
+  name: string;
+  accountType: GoogleAccountType;
+  avatarUrl?: string;
+  avatarColor: string;
+  isSignedIn: boolean;
+  lastSynced?: string;
+  driveQuotaUsedMb: number;
+  driveQuotaTotalMb: number;
+  geminiPlan: GeminiPlanTier;
+  /** True when a matching CloudCredentials record exists in secure storage. */
+  hasCredentials?: boolean;
+}
+
+export type StorageTarget = 'local' | 'cloud';
+
+export type CloudDriveProvider =
+  | 'google_drive'
+  | 'onedrive'
+  | 'dropbox'
+  | 'terabox'
+  | 'box'
+  | 'pcloud'
+  | 'mega'
+  | 'webdav'
+  | 'local_folder';
+
+export interface CloudStorageAccount {
+  id: string;
+  provider: CloudDriveProvider;
+  providerName: string;
+  email: string;
+  name: string;
+  avatarUrl?: string;
+  avatarColor: string;
+  isSignedIn: boolean;
+  lastSynced?: string;
+  quotaUsedMb: number;
+  quotaTotalMb: number;
+  /** Non-secret connection details, kept on the profile for display and routing. */
+  serverUrl?: string;
+  folderPath?: string;
+  hasCredentials?: boolean;
+}
+
+export interface GoogleDriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  modifiedTime?: string;
+  size?: string;
+  webViewLink?: string;
+  parents?: string[];
+  iconLink?: string;
+  thumbnailLink?: string;
+  trashed?: boolean;
 }

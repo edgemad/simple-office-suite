@@ -43,11 +43,11 @@
 </script>
 
 {#if isOpen}
-  <div class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+  <div class="lg-scrim fixed inset-0 z-50 flex items-center justify-center p-4">
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+      class="glass glass--modal lg-enter w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden"
       on:click|stopPropagation
     >
       <!-- Modal Header -->

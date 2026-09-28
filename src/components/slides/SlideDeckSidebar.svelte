@@ -22,7 +22,7 @@
   }
 </script>
 
-<aside class="no-print w-56 bg-slate-50 border-r border-slate-200 flex flex-col h-full select-none">
+<aside class="glass glass--panel no-print w-56 flex flex-col h-full select-none text-[color:var(--lg-text)]">
   <!-- Sidebar Header -->
   <div class="h-10 px-3 border-b border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-700 bg-white">
     <span>Slides ({slides.length})</span>

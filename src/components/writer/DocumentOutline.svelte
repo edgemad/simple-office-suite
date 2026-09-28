@@ -43,7 +43,7 @@
 
 {#if isOpen}
   <aside
-    class="w-64 bg-slate-50 border-r border-slate-200 flex flex-col h-full select-none text-xs transition-all z-10 shrink-0"
+    class="glass glass--panel w-64 flex flex-col h-full select-none text-xs transition-all z-10 shrink-0 text-[color:var(--lg-text)]"
   >
     <!-- Header -->
     <div class="h-10 px-3 border-b border-slate-200 flex items-center justify-between bg-white text-slate-700">

@@ -90,7 +90,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="fixed z-50 bg-white rounded-xl shadow-2xl border border-slate-200 p-1.5 w-64 max-h-72 overflow-y-auto text-xs text-slate-700 animate-in fade-in zoom-in-95 duration-100 select-none"
+  class="glass glass--menu lg-enter fixed z-50 p-1.5 w-64 max-h-72 overflow-y-auto text-xs text-[color:var(--lg-text)] select-none lg-scroll"
   style="left: {x}px; top: {y}px;"
   on:click|stopPropagation
 >

@@ -451,7 +451,7 @@
 
 <svelte:window on:keydown={handleKeydown} />
 
-<div class="flex-1 flex flex-col h-full overflow-hidden bg-slate-100">
+<div class="flex-1 flex flex-col h-full overflow-hidden">
   <WriterToolbar
     {showOutline}
     on:format={handleFormat}

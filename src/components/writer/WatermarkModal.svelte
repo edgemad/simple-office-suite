@@ -34,11 +34,11 @@
 </script>
 
 {#if isOpen}
-  <div class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+  <div class="lg-scrim fixed inset-0 z-50 flex items-center justify-center p-4">
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 w-96 text-xs text-slate-700 animate-in fade-in zoom-in-95 duration-100"
+      class="glass glass--modal lg-enter p-6 w-96 text-xs text-[color:var(--lg-text)]"
       on:click|stopPropagation
     >
       <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">

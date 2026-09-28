@@ -98,6 +98,8 @@
     writer: 'Writer (document editor)',
     sheets: 'Sheet (spreadsheet editor)',
     slides: 'Slides (presentation editor)',
+    drive: 'Drive (cloud files)',
+    forms: 'Forms (surveys)',
   };
 
   // Google-style typography controls shared by the ribbon
@@ -138,6 +140,8 @@
     writer: ['File', 'Home', 'Insert', 'Layout', 'References', 'Collaboration', 'Protection', 'View', 'Tools', 'AI'],
     sheets: ['File', 'Home', 'Insert', 'Layout', 'Formula', 'Data', 'References', 'Collaboration', 'Protection', 'View', 'Tools', 'AI'],
     slides: ['File', 'Home', 'Insert', 'Design', 'Transitions', 'Animation', 'Layout', 'References', 'Collaboration', 'Protection', 'View', 'Tools', 'AI'],
+    drive: ['File', 'Home', 'Insert', 'Layout', 'References', 'Collaboration', 'Protection', 'View', 'Tools', 'AI'],
+    forms: ['File', 'Home', 'Insert', 'Settings', 'Responses', 'Collaboration', 'Protection', 'View', 'Tools', 'AI'],
   };
 
   $: currentTabs = tabsByMode[activeMode] || tabsByMode.writer;
@@ -228,9 +232,9 @@
 
 <svelte:window on:click={() => { showFileMenu = false; showExportMenu = false; }} />
 
-<header class="no-print select-none z-30 relative shadow-md bg-[#222428] text-slate-200">
+<header class="glass glass--chrome no-print select-none z-30 relative">
   <!-- Top Title & Quick Access Bar -->
-  <div class="h-10 px-3 bg-[#1a1c1e] border-b border-[#2d3135] flex items-center justify-between text-xs">
+  <div class="h-10 px-3 border-b border-[color:var(--lg-edge)] flex items-center justify-between text-xs">
     <!-- Left: App Brand Icon, Title & Save / Undo / Redo Shortcuts -->
     <div class="flex items-center space-x-3">
       <!-- App Mode Icon -->
@@ -254,23 +258,23 @@
       </div>
 
       <!-- Quick Action Buttons -->
-      <div class="flex items-center space-x-0.5 border-l border-slate-700 pl-2">
+      <div class="flex items-center space-x-0.5 border-l border-[color:var(--lg-edge-strong)] pl-2">
         <button
-          class="p-1 rounded hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
+          class="p-1 rounded glass-btn hover:bg-[color:var(--lg-active)] text-[color:var(--lg-text-dim)] hover:text-[color:var(--lg-text)] transition-colors"
           on:click={() => dispatch('saveDoc')}
           title="Save ({modKey}+S)"
         >
           <Save size={13} />
         </button>
         <button
-          class="p-1 rounded hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
+          class="p-1 rounded glass-btn hover:bg-[color:var(--lg-active)] text-[color:var(--lg-text-dim)] hover:text-[color:var(--lg-text)] transition-colors"
           on:click={() => dispatch('undo')}
           title="Undo ({modKey}+Z)"
         >
           <Undo2 size={13} />
         </button>
         <button
-          class="p-1 rounded hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
+          class="p-1 rounded glass-btn hover:bg-[color:var(--lg-active)] text-[color:var(--lg-text-dim)] hover:text-[color:var(--lg-text)] transition-colors"
           on:click={() => dispatch('redo')}
           title="Redo ({modKey}+Y)"
         >
@@ -279,7 +283,7 @@
       </div>
 
       <!-- Editable Document Title & Offline Badge -->
-      <div class="flex items-center space-x-2 border-l border-slate-700 pl-2">
+      <div class="flex items-center space-x-2 border-l border-[color:var(--lg-edge-strong)] pl-2">
         {#if isRenaming}
           <input
             type="text"
@@ -290,7 +294,7 @@
           />
         {:else}
           <button
-            class="font-semibold text-slate-200 hover:text-white hover:bg-white/10 px-2 py-0.5 rounded text-xs truncate max-w-[200px]"
+            class="font-semibold text-[color:var(--lg-text)] hover:bg-[color:var(--lg-hover)] px-2 py-0.5 rounded text-xs truncate max-w-[200px]"
             on:click|stopPropagation={() => { tempTitle = meta.title; isRenaming = true; }}
             title="Click to rename"
           >
@@ -299,7 +303,7 @@
         {/if}
 
         <button
-          class="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-amber-400 transition-colors {isStarred ? 'text-amber-400' : ''}"
+          class="p-1 rounded glass-btn hover:bg-[color:var(--lg-active)] text-[color:var(--lg-text-faint)] hover:text-amber-400 transition-colors {isStarred ? 'text-amber-400' : ''}"
           on:click|stopPropagation={() => (isStarred = !isStarred)}
           title="Star Document"
         >
@@ -318,7 +322,7 @@
     </div>
 
     <!-- Center: Workspace Switcher -->
-    <nav class="flex items-center space-x-1 bg-black/40 p-0.5 rounded-lg border border-white/10">
+    <nav class="glass flex items-center space-x-1 p-0.5">
       <button
         class="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all
           {activeMode === 'writer' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}"
@@ -355,7 +359,7 @@
     <div class="flex items-center space-x-1.5">
       <!-- Settings button -->
       <button
-        class="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+        class="p-1 rounded glass-btn hover:bg-[color:var(--lg-active)] text-[color:var(--lg-text-faint)] hover:text-[color:var(--lg-text)] transition-colors"
         on:click={() => dispatch('openSettings')}
         title="Settings ({modKey}+,)"
       >
@@ -364,7 +368,7 @@
 
       <!-- Shortcuts button -->
       <button
-        class="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+        class="p-1 rounded glass-btn hover:bg-[color:var(--lg-active)] text-[color:var(--lg-text-faint)] hover:text-[color:var(--lg-text)] transition-colors"
         on:click={() => dispatch('openShortcuts')}
         title="Shortcuts ({modKey}+/)"
       >
@@ -383,7 +387,7 @@
         </button>
 
         {#if showExportMenu}
-          <div class="absolute right-0 mt-1 w-52 bg-slate-900 rounded-lg shadow-2xl border border-slate-700 py-1.5 z-50 text-xs text-slate-200 divide-y divide-slate-800">
+          <div class="glass glass--menu absolute right-0 mt-1.5 w-52 py-1.5 z-50 text-xs text-[color:var(--lg-text)] lg-enter overflow-hidden">
             <div class="py-1">
               {#if activeMode === 'writer'}
                 <button class="w-full px-3 py-1 text-left hover:bg-blue-600 flex items-center justify-between" on:click={() => handleExport('docx')}>
@@ -439,13 +443,15 @@
   </div>
 
   <!-- RIBBON TAB STRIP -->
-  <div class="h-9 px-3 bg-[#222428] border-b border-[#2d3135] flex items-center space-x-1 overflow-x-auto relative select-none">
+  <div class="h-9 px-3 border-b border-[color:var(--lg-edge)] flex items-center space-x-1 overflow-x-auto relative select-none lg-scroll">
     {#each currentTabs as tab}
       {@const isActive = activeTab === tab}
       <div class="relative h-full flex items-center">
         <button
           class="h-full px-3.5 text-xs font-medium transition-all relative flex items-center space-x-1.5
-            {isActive ? 'text-white font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}"
+            {isActive
+              ? 'font-semibold'
+              : 'text-[color:var(--lg-text-dim)] hover:text-[color:var(--lg-text)] hover:bg-[color:var(--lg-hover)]'}"
           on:click|stopPropagation={() => handleTabClick(tab)}
         >
           {#if tab === 'AI'}
@@ -464,7 +470,7 @@
 
         <!-- File Dropdown Menu -->
         {#if tab === 'File' && showFileMenu}
-          <div class="absolute left-0 top-9 w-60 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl py-1 z-50 text-xs text-slate-200">
+          <div class="glass glass--menu absolute left-0 top-9 w-60 py-1 z-50 text-xs text-[color:var(--lg-text)] lg-enter overflow-hidden">
             <button class="w-full px-3.5 py-1.5 text-left hover:bg-blue-600 flex items-center justify-between" on:click|stopPropagation={() => { showFileMenu = false; dispatch('newDoc'); }}>
               <span>New Document</span>
               <span class="text-[10px] text-slate-400 font-mono">{modKey}+N</span>
@@ -499,7 +505,7 @@
   </div>
 
   <!-- RIBBON ACTION TOOLBAR -->
-  <div class="h-10 px-4 bg-[#2b2d31] border-b border-[#36393f] flex items-center justify-between text-xs text-slate-300 overflow-x-auto shadow-inner">
+  <div class="h-10 px-4 border-b border-[color:var(--lg-edge)] flex items-center justify-between text-xs text-[color:var(--lg-text-dim)] overflow-x-auto lg-scroll">
     {#if activeTab === 'Home'}
       <!-- HOME TAB: Google-style typography, colours, paragraph and mode-specific controls -->
       <div class="flex items-center space-x-2">

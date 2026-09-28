@@ -581,7 +581,7 @@
 
 <svelte:window on:keydown={handleKeydown} />
 
-<div class="flex-1 flex flex-col h-full overflow-hidden bg-slate-100">
+<div class="flex-1 flex flex-col h-full overflow-hidden">
   <SlideToolbar
     {selectedElementId}
     slideBgColor={currentSlide.bgColor}
@@ -628,7 +628,7 @@
 
       <!-- Google Slides Style Speaker Notes Drawer -->
       <div class="no-print bg-white border-t border-slate-300 flex flex-col transition-all {showNotes ? 'h-36' : 'h-7'} shrink-0">
-        <div class="h-7 px-3 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between text-xs select-none">
+        <div class="h-7 px-3 border-b border-[color:var(--lg-edge)] flex items-center justify-between text-xs select-none text-[color:var(--lg-text-dim)]">
           <button
             class="flex items-center space-x-1.5 font-semibold text-slate-700 hover:text-orange-600 transition-colors"
             on:click={() => (showNotes = !showNotes)}

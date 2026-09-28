@@ -27,7 +27,7 @@
   });
 </script>
 
-<footer class="no-print h-7 bg-white border-t border-slate-200 px-4 flex items-center justify-between text-xs text-slate-500 select-none z-20 shadow-inner">
+<footer class="glass glass--chrome no-print h-7 px-4 flex items-center justify-between text-xs text-[color:var(--lg-text-dim)] select-none z-20">
   <!-- Left: File Path / Status -->
   <div class="flex items-center space-x-4">
     <div class="flex items-center space-x-1.5 text-slate-600 truncate max-w-sm">
